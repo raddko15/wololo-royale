@@ -261,8 +261,8 @@ static func _cost_text(cost: Dictionary) -> String:
 	return "\n".join(lines)
 
 
-func _option(id: String, icon: String, title: String, note: String, enabled: bool) -> Dictionary:
-	return {"id": id, "icon": icon, "title": title, "note": note, "enabled": enabled}
+func _option(id: String, icon: String, title: String, note: String, enabled: bool, ring := 0) -> Dictionary:
+	return {"id": id, "icon": icon, "title": title, "note": note, "enabled": enabled, "ring": ring}
 
 
 ## What a tapped building offers right now; locked options say why.
@@ -289,6 +289,11 @@ func _menu_options(kind: String) -> Array:
 				var mnote: String = "built" if economy.mines.has(res) else \
 					(era_name.call(mine.min_era) if economy.era_index < mine.min_era else _cost_text(mine.cost))
 				opts.append(_option(res, res, "%s mine" % res.capitalize(), mnote, economy.can_build_mine(res)))
+			# Outer ring: the next upgrade of every building, so it can all be done from here.
+			for id in _next_upgrades():
+				var up := _upgrade_option(id)
+				up.ring = 1
+				opts.append(up)
 		"mill", "lumber_camp":
 			# Offer the next tier: the Era II upgrade, then the Era III one.
 			opts.append(_upgrade_option(kind + "2" if economy.upgrades.has(kind) else kind))
@@ -300,6 +305,22 @@ func _menu_options(kind: String) -> Array:
 		"towers":
 			opts.append(_upgrade_option("stone_towers"))
 	return opts
+
+
+## Next not-yet-bought upgrade for each building that exists; finished chains drop out.
+func _next_upgrades() -> Array:
+	var ids := []
+	for chain in [["mill", "mill2"], ["lumber_camp", "lumber_camp2"]]:
+		for id in chain:
+			if not economy.upgrades.has(id):
+				ids.append(id)
+				break
+	if battle.towers_built[Battlefield.PLAYER] and not economy.upgrades.has("stone_towers"):
+		ids.append("stone_towers")
+	for res in Economy.MINED:
+		if economy.mines.has(res) and not economy.upgrades.has(res + "_mine2"):
+			ids.append(res + "_mine2")
+	return ids
 
 
 func _upgrade_option(id: String) -> Dictionary:

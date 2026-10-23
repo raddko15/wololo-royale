@@ -2,7 +2,8 @@ class_name RadialMenu
 extends Control
 ## Polytopia-style ring of round option buttons above a tapped building.
 ## Options come from a provider callable so costs and locks stay live:
-## each option is {"id", "icon", "title", "note", "enabled"}.
+## each option is {"id", "icon", "title", "note", "enabled", "ring"}; ring 1
+## options sit on a second, wider arc outside ring 0.
 
 signal chosen(id: String)
 signal closed
@@ -24,16 +25,24 @@ func _process(_delta: float) -> void:
 	queue_redraw()
 
 
-## Buttons fan across the upper half-circle, kept inside the screen.
-func button_positions(count: int) -> Array[Vector2]:
+## Each ring's buttons fan across the upper half-circle, kept inside the screen.
+func button_positions(options: Array) -> Array[Vector2]:
 	var result: Array[Vector2] = []
-	var ring := 120.0 if count <= 2 else 185.0  # wider ring so labels don't collide
-	for i in count:
-		var a := -PI / 2 if count == 1 else lerpf(PI + 0.2, TAU - 0.2, float(i) / (count - 1))
-		var p := center + Vector2.from_angle(a) * ring
-		p.x = clampf(p.x, BUTTON_R + 8, size.x - BUTTON_R - 8)
-		p.y = clampf(p.y, BUTTON_R + 8, size.y - BUTTON_R - 60)
-		result.append(p)
+	result.resize(options.size())
+	for ring in 2:
+		var idxs := []
+		for i in options.size():
+			if options[i].get("ring", 0) == ring:
+				idxs.append(i)
+		var count := idxs.size()
+		var radius := (120.0 if count <= 2 else 185.0) + ring * 135.0  # wide enough that labels don't collide
+		var edge := 0.2 + ring * 0.35  # outer arc is narrower so it stays on screen
+		for n in count:
+			var a := -PI / 2 if count == 1 else lerpf(PI + edge, TAU - edge, float(n) / (count - 1))
+			var p := center + Vector2.from_angle(a) * radius
+			p.x = clampf(p.x, BUTTON_R + 8, size.x - BUTTON_R - 8)
+			p.y = clampf(p.y, BUTTON_R + 8, size.y - BUTTON_R - 60)
+			result[idxs[n]] = p
 	return result
 
 
@@ -41,7 +50,7 @@ func _gui_input(event: InputEvent) -> void:
 	if not (event is InputEventMouseButton and event.pressed):
 		return
 	var options: Array = provider.call()
-	var spots := button_positions(options.size())
+	var spots := button_positions(options)
 	for i in options.size():
 		if spots[i].distance_to(event.position) <= BUTTON_R:
 			if options[i].enabled:
@@ -55,7 +64,7 @@ func _draw() -> void:
 	draw_arc(center, 50, 0, TAU, 40, Color("#f9ca24"), 3)
 	var font := get_theme_default_font()
 	var options: Array = provider.call()
-	var spots := button_positions(options.size())
+	var spots := button_positions(options)
 	for i in options.size():
 		var o: Dictionary = options[i]
 		var p := spots[i]
@@ -73,6 +82,7 @@ func _draw() -> void:
 
 func _centered_text(font: Font, text: String, at: Vector2, font_size: int, color: Color) -> void:
 	var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+	at.x = clampf(at.x, w / 2 + 6, size.x - w / 2 - 6)  # keep labels on screen
 	# Dark backing so labels stay readable over the map.
 	draw_rect(Rect2(at + Vector2(-w / 2 - 4, -font_size + 2), Vector2(w + 8, font_size + 4)), Color(0, 0, 0, 0.55))
 	draw_string(font, at - Vector2(w / 2, 0), text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, color)
