@@ -5,7 +5,7 @@
 set -euo pipefail
 GODOT=${GODOT:-$HOME/tools/godot}
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-OUT="$ROOT/../build/web"
+OUT="${OUT:-$ROOT/../build/web}"
 rm -rf "$OUT" && mkdir -p "$OUT"
 "$GODOT" --headless --path "$ROOT" --export-release Web "$OUT/index.html"
 cd "$OUT"
