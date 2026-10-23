@@ -18,6 +18,8 @@ var army_size := 0
 var huts := 0
 ## Mines built so far, e.g. {"gold": true}. Workers can only mine where one exists.
 var mines := {}
+## Military buildings built so far, e.g. {"barracks": true}; each unlocks a unit.
+var military := {}
 ## Building upgrades the player chose, e.g. {"mill": true}. Only the town
 ## center changes with the era; everything else changes through these.
 var upgrades := {}
@@ -204,6 +206,39 @@ func advance() -> bool:
 		return false
 	_pay(next_era_cost())
 	era_index += 1
+	changed.emit()
+	return true
+
+
+func can_build_military(id: String) -> bool:
+	var b: Dictionary = _cfg.military[id]
+	return not military.has(id) and era_index >= b.min_era and can_afford(b.cost)
+
+
+func build_military(id: String) -> bool:
+	if not can_build_military(id):
+		return false
+	_pay(_cfg.military[id].cost)
+	military[id] = true
+	changed.emit()
+	return true
+
+
+## The building that trains `unit_id` exists (fighters need a barracks, etc.).
+func unit_unlocked(unit_id: String) -> bool:
+	return military.has(_cfg.units[unit_id].requires)
+
+
+func can_train(unit_id: String) -> bool:
+	return unit_unlocked(unit_id) and has_room() and can_afford(_cfg.units[unit_id].cost)
+
+
+## Pays for a unit and counts it toward population; the caller spawns it.
+func train(unit_id: String) -> bool:
+	if not can_train(unit_id):
+		return false
+	_pay(_cfg.units[unit_id].cost)
+	army_size += 1
 	changed.emit()
 	return true
 

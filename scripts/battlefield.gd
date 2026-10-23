@@ -70,8 +70,9 @@ func spawn(team: int, unit_id: String, lane: int) -> Dictionary:
 	var unit := {
 		"team": team, "type": unit_id, "lane": lane, "y": TOWER_Y[team] + behind * MAIN_DIST[lane], "hp": float(stats.hp),
 		"max_hp": float(stats.hp), "speed": stats.speed, "dps": stats.damage_per_sec, "range": stats.range,
-		# What it is hitting this tick: "unit", "tower", "main" or "" when walking.
-		"target": "",
+		# What it is hitting this tick: "unit", "tower", "main" or "" when walking;
+		# `foe` is the unit it hits when target is "unit".
+		"target": "", "foe": null,
 		# Sideways spread inside the lane (-1..1) so walking units don't overlap.
 		"side": randf_range(-1.0, 1.0),
 	}
@@ -97,9 +98,11 @@ func _unit_act(u: Dictionary, delta: float) -> void:
 	var dir := 1.0 if u.team == PLAYER else -1.0
 	var foe = _nearest_foe_ahead(u)
 	u.target = ""
+	u.foe = null
 	if foe and absf(foe.y - u.y) <= u.range + REACH_EPS:
 		foe.hp -= u.dps * delta
 		u.target = "unit"
+		u.foe = foe
 		return
 	var enemy: int = 1 - u.team
 	var target_y: float

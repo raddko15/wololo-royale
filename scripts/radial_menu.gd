@@ -2,8 +2,8 @@ class_name RadialMenu
 extends Control
 ## Polytopia-style ring of round option buttons above a tapped building.
 ## Options come from a provider callable so costs and locks stay live:
-## each option is {"id", "icon", "title", "note", "enabled", "ring"}; ring 1
-## options sit on a second, wider arc outside ring 0.
+## each option is {"id", "icon", "title", "note", "enabled", "ring"}; rings
+## 1 and 2 sit on wider arcs outside ring 0.
 
 signal chosen(id: String)
 signal closed
@@ -29,7 +29,7 @@ func _process(_delta: float) -> void:
 func button_positions(options: Array) -> Array[Vector2]:
 	var result: Array[Vector2] = []
 	result.resize(options.size())
-	for ring in 2:
+	for ring in 3:
 		var idxs := []
 		for i in options.size():
 			if options[i].get("ring", 0) == ring:
@@ -119,6 +119,17 @@ func _draw_glyph(kind: String, c: Vector2, alpha: float) -> void:
 			draw_arc(c, 12, 0, TAU, 16, Color(0, 0, 0, alpha), 2)
 			draw_line(c + Vector2(14, -12), c + Vector2(14, 0), gold, 3)
 			draw_line(c + Vector2(8, -6), c + Vector2(20, -6), gold, 3)
+		"barracks":  # crossed sticks
+			draw_line(c + Vector2(-12, 12), c + Vector2(12, -12), Color("#8b5a2b", alpha), 4)
+			draw_line(c + Vector2(12, 12), c + Vector2(-12, -12), Color("#8b5a2b", alpha), 4)
+		"archery_range":  # target
+			draw_circle(c, 14, Color("#e8d27a", alpha))
+			draw_circle(c, 9, Color(1, 1, 1, alpha))
+			draw_circle(c, 4, Color("#c0392b", alpha))
+		"stables":  # horse head
+			draw_rect(Rect2(c + Vector2(-6, -12), Vector2(10, 24)), Color("#7a4a26", alpha))
+			draw_rect(Rect2(c + Vector2(-14, -12), Vector2(12, 8)), Color("#7a4a26", alpha))
+			draw_circle(c + Vector2(-10, -9), 1.5, Color(0, 0, 0, alpha))
 		"upgrade":  # up arrow
 			draw_colored_polygon(PackedVector2Array([c + Vector2(0, -18), c + Vector2(-14, -2), c + Vector2(14, -2)]), gold)
 			draw_rect(Rect2(c + Vector2(-6, -2), Vector2(12, 16)), gold)

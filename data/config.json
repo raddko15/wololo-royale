@@ -93,7 +93,32 @@
       "hp": 60,
       "speed": 0.06,
       "damage_per_sec": 10,
-      "range": 0.04
+      "range": 0.04,
+      "requires": "barracks"
+    },
+    "archer": {
+      "name": "Archer",
+      "cost": {
+        "food": 30,
+        "wood": 40
+      },
+      "hp": 40,
+      "damage_per_sec": 7,
+      "range": 0.15,
+      "speed": 0.06,
+      "requires": "archery_range"
+    },
+    "cavalry": {
+      "name": "Cavalry",
+      "cost": {
+        "food": 70,
+        "gold": 40
+      },
+      "hp": 110,
+      "damage_per_sec": 11,
+      "range": 0.04,
+      "speed": 0.11,
+      "requires": "stables"
     }
   },
   "buildings": {
@@ -134,7 +159,8 @@
   "ai": {
     "target_villagers": 16,
     "think_interval": 2.0,
-    "era1_max_army": 2
+    "era1_max_army": 2,
+    "gold_miners": 3
   },
   "population": {
     "starting_cap": 10,
@@ -232,6 +258,29 @@
       "gather_bonus": {
         "stone": 0.2
       }
+    }
+  },
+  "military": {
+    "barracks": {
+      "name": "Barracks",
+      "cost": {
+        "wood": 100
+      },
+      "min_era": 0
+    },
+    "archery_range": {
+      "name": "Archery Range",
+      "cost": {
+        "wood": 175
+      },
+      "min_era": 1
+    },
+    "stables": {
+      "name": "Stables",
+      "cost": {
+        "wood": 200
+      },
+      "min_era": 1
     }
   }
 }

@@ -73,8 +73,8 @@ func _start_game(civ_id: String, menu: Control) -> void:
 	var bar := HBoxContainer.new()
 	bar.add_theme_constant_override("separation", 10)
 	box.add_child(bar)
-	for id in ["villager", "fighter"]:
-		var title: String = {"villager": "Villager", "fighter": GameConfig.data().units.fighter.name}[id]
+	for id in ["villager"] + GameConfig.data().units.keys():
+		var title: String = "Villager" if id == "villager" else GameConfig.data().units[id].name
 		var card := Card.new(title)
 		card.pressed.connect(_on_card_pressed.bind(id))
 		bar.add_child(card)
@@ -173,8 +173,8 @@ func _tap(id: String) -> void:
 	match id:
 		"villager":
 			economy.recruit()
-		"fighter":
-			_flash_hint("Drag the Fighter card onto a lane")
+		_:
+			_flash_hint("Drag the %s card onto a lane" % GameConfig.data().units[id].name)
 
 
 func _drop(id: String, local: Vector2) -> void:
@@ -183,12 +183,10 @@ func _drop(id: String, local: Vector2) -> void:
 			var job := _view.job_at(local)
 			if job != "" and economy.recruit():
 				economy.reassign("idle", job)
-		"fighter":
+		_:
 			var lane := _view.lane_at(local)
-			var cost: Dictionary = GameConfig.data().units.fighter.cost
-			if lane != -1 and economy.has_room() and economy.spend(cost):
-				battle.spawn(Battlefield.PLAYER, "fighter", lane)
-				economy.army_size += 1
+			if lane != -1 and economy.train(id):
+				battle.spawn(Battlefield.PLAYER, id, lane)
 
 
 func _flash_hint(text: String) -> void:
@@ -230,6 +228,9 @@ func _on_menu_choice(id: String) -> void:
 				_close_menu()
 		"gold", "stone":
 			if economy.build_mine(id):
+				_close_menu()
+		"barracks", "archery_range", "stables":
+			if economy.build_military(id):
 				_close_menu()
 		"mill", "lumber_camp", "mill2", "lumber_camp2", "gold_mine2", "stone_mine2":
 			if economy.buy_upgrade(id):
@@ -289,10 +290,16 @@ func _menu_options(kind: String) -> Array:
 				var mnote: String = "built" if economy.mines.has(res) else \
 					(era_name.call(mine.min_era) if economy.era_index < mine.min_era else _cost_text(mine.cost))
 				opts.append(_option(res, res, "%s mine" % res.capitalize(), mnote, economy.can_build_mine(res)))
+			# Middle ring: military buildings.
+			for id in cfg.military:
+				var b: Dictionary = cfg.military[id]
+				var bnote: String = "built" if economy.military.has(id) else \
+					(era_name.call(b.min_era) if economy.era_index < b.min_era else _cost_text(b.cost))
+				opts.append(_option(id, id, b.name, bnote, economy.can_build_military(id), 1))
 			# Outer ring: the next upgrade of every building, so it can all be done from here.
 			for id in _next_upgrades():
 				var up := _upgrade_option(id)
-				up.ring = 1
+				up.ring = 2
 				opts.append(up)
 		"mill", "lumber_camp":
 			# Offer the next tier: the Era II upgrade, then the Era III one.
@@ -374,8 +381,12 @@ func _refresh() -> void:
 	var dragging: String = _press.get("card", "") if _ghost else ""
 	var vcost := economy.villager_cost()
 	_cards.villager.set_state("%d food" % vcost.food, economy.can_recruit(), dragging == "villager")
-	var fcost: Dictionary = GameConfig.data().units.fighter.cost
-	_cards.fighter.set_state("%d food · %d wood" % [fcost.food, fcost.wood], economy.has_room() and economy.can_afford(fcost), dragging == "fighter")
+	var cfg := GameConfig.data()
+	for id in cfg.units:
+		var unit: Dictionary = cfg.units[id]
+		var note: String = _cost_text(unit.cost).replace("\n", " ") if economy.unit_unlocked(id) \
+			else "needs %s" % cfg.military[unit.requires].name
+		_cards[id].set_state(note, economy.can_train(id), dragging == id)
 
 
 func _vbox(parent: Control, margin_px: int) -> VBoxContainer:

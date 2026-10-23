@@ -18,6 +18,7 @@ func _init() -> void:
 	for e in [main.economy, main.ai.economy]:
 		e.era_index = era
 		e.huts = 10
+		e.military = {"barracks": true} if era == 0 else {"barracks": true, "archery_range": true, "stables": true}
 		if mode == "era2up":
 			e.upgrades = {"mill": true, "lumber_camp": true}
 		elif mode == "era3":
@@ -34,9 +35,10 @@ func _init() -> void:
 	for job in ["food", "food", "wood", "wood"]:
 		main.ai.economy.villagers.idle += 1
 		main.ai.economy.reassign("idle", job)
-	for lane in [0, 1, 2, 1]:
-		main.battle.spawn(Battlefield.PLAYER, "fighter", lane)
-		main.battle.spawn(Battlefield.ENEMY, "fighter", lane)
+	var mix := ["fighter", "archer", "cavalry", "fighter"] if era >= 1 else ["fighter", "fighter", "fighter", "fighter"]
+	for i in 4:
+		main.battle.spawn(Battlefield.PLAYER, mix[i], [0, 1, 2, 1][i])
+		main.battle.spawn(Battlefield.ENEMY, mix[(i + 1) % 4], [0, 1, 2, 1][i])
 	for i in 300:
 		main.battle.tick(0.05)
 		main.economy.tick(0.05)

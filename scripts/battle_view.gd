@@ -77,6 +77,17 @@ func forest_rect(team := Battlefield.PLAYER) -> Rect2:
 	return _crect(team, 0.785, 0.20, 125, 5)
 
 
+## Military buildings: barracks beside the left tower, archery range and
+## stables on the grass between the roads.
+func military_pos(team: int, id: String) -> Vector2:
+	match id:
+		"barracks":
+			return _cp(team, 0.075, TOWER_DEPTH)
+		"archery_range":
+			return _cp(team, 0.34, 232)
+	return _cp(team, 0.66, 232)
+
+
 ## Gold / stone mine: small, on the grass between the lane towers.
 func mine_pos(team: int, res: String) -> Vector2:
 	return _cp(team, 0.34 if res == "gold" else 0.66, TOWER_DEPTH)
@@ -307,10 +318,11 @@ func _gui_input(event: InputEvent) -> void:
 func _draw() -> void:
 	var now := Time.get_ticks_msec() / 1000.0
 	draw_rect(Rect2(Vector2.ZERO, size), COLORS.grass)
-	var hover_lane := lane_at(drag_pos) if drag_card == "fighter" else -1
+	var unit_drag: bool = GameConfig.data().units.has(drag_card)
+	var hover_lane := lane_at(drag_pos) if unit_drag else -1
 	for lane in Battlefield.LANES:
 		var lane_color: Color = COLORS.lane
-		if drag_card == "fighter":
+		if unit_drag:
 			lane_color = Color("#f9ca24") if lane == hover_lane else COLORS.lane.lightened(0.2)
 		var top := tower_line(Battlefield.ENEMY)
 		draw_rect(Rect2((LANE_X[lane] - LANE_W / 2) * size.x, top, LANE_W * size.x, tower_line(Battlefield.PLAYER) - top), lane_color)
@@ -337,7 +349,14 @@ func _draw() -> void:
 	var positions := unit_positions()
 	for i in battle.units.size():
 		var u: Dictionary = battle.units[i]
-		_draw_fighter(u, positions[i], Color(econ(u.team).civ().color), now)
+		var color := Color(econ(u.team).civ().color)
+		match u.type:
+			"archer":
+				_draw_archer(u, positions[i], color, now, _target_pos(u, positions))
+			"cavalry":
+				_draw_cavalry(u, positions[i], color, now)
+			_:
+				_draw_fighter(u, positions[i], color, now)
 	for a in battle.arrows:
 		var idx := battle.units.find(a.target)
 		if idx != -1:
@@ -380,6 +399,8 @@ func _draw_city(team: int, now: float) -> void:
 		_draw_lean_to(wood_at)
 	for res in e.mines:
 		_draw_mine(mine_pos(team, res), res, e.upgrades.has(res + "_mine2"))
+	for id in e.military:
+		_draw_military(id, military_pos(team, id), color, e.era_index, style)
 	var tc := town_center(team)
 	_draw_fort(tc, color, e.era_index, style)
 	# Health bar on the fort's back side: under the player's gate, above the enemy's flag.
@@ -665,6 +686,55 @@ func _draw_ball(p: Vector2, r: float, color: Color) -> void:
 	draw_arc(p, r, 0, TAU, 16, Color.BLACK, 2)
 
 
+## Where a unit's current target stands on screen (Vector2.INF when walking).
+func _target_pos(u: Dictionary, positions: Array[Vector2]) -> Vector2:
+	match u.target:
+		"unit":
+			var idx := battle.units.find(u.foe)
+			return positions[idx] if idx != -1 else Vector2.INF
+		"tower":
+			return building_pos(1 - u.team, "tower", u.lane)
+		"main":
+			return town_center(1 - u.team)
+	return Vector2.INF
+
+
+## A ball with a bow; while attacking, an arrow flies to the target every second.
+func _draw_archer(u: Dictionary, p: Vector2, color: Color, now: float, target: Vector2) -> void:
+	var facing := -PI / 2 if u.team == Battlefield.PLAYER else PI / 2
+	if target != Vector2.INF:
+		facing = (target - p).angle()
+	var bow_c := p + Vector2.from_angle(facing) * 9
+	draw_arc(bow_c, 11, facing - 1.2, facing + 1.2, 10, COLORS.stick, 3)
+	var tip_a := bow_c + Vector2.from_angle(facing - 1.2) * 11
+	var tip_b := bow_c + Vector2.from_angle(facing + 1.2) * 11
+	draw_line(tip_a, tip_b, Color("#e8e8e8"), 1)
+	_draw_ball(p, FIGHTER_R - 1, color)
+	if target != Vector2.INF:
+		var t := fmod(now * 1.2 + u.side, 1.0)
+		var ap := p.lerp(target, t) + Vector2(0, -sin(PI * t) * 18)
+		var dir := (target - p).normalized()
+		draw_line(ap - dir * 12, ap, Color("#1b120a"), 2)
+		draw_circle(ap, 2, Color("#d0d0d0"))
+	_draw_hp(p + Vector2(0, -20), u.hp, u.max_hp, 28)
+
+
+## Rider (civ-colored ball) on a brown horse, lance pointing forward.
+func _draw_cavalry(u: Dictionary, p: Vector2, color: Color, now: float) -> void:
+	var dir := -1.0 if u.team == Battlefield.PLAYER else 1.0
+	var gait := sin(now * 14.0 + u.side * 5.0) * 2.0 if u.target == "" else 0.0
+	var horse := Color("#7a4a26")
+	draw_rect(Rect2(p + Vector2(-14, 2), Vector2(28, 11)), horse)  # body
+	draw_rect(Rect2(p + Vector2(10, -6), Vector2(7, 12)), horse)  # neck/head
+	for x in [-11, -5, 5, 10]:  # legs
+		draw_line(p + Vector2(x, 13), p + Vector2(x + gait * (1 if x > 0 else -1), 22), horse.darkened(0.3), 3)
+	_draw_ball(p + Vector2(-2, -4), FIGHTER_R - 2, color)
+	var lance_from := p + Vector2(4, -6)
+	var swing := sin(now * 10.0 + u.side * 7.0) * 0.3 if u.target != "" else 0.0
+	draw_line(lance_from, lance_from + Vector2.from_angle(PI / 2 * dir + PI + 0.6 * dir + swing) * -26, COLORS.stick, 3)
+	_draw_hp(p + Vector2(0, -24), u.hp, u.max_hp, 32)
+
+
 ## A ball holding a stick; the stick swings while attacking.
 func _draw_fighter(u: Dictionary, p: Vector2, color: Color, now: float) -> void:
 	var facing := -PI / 2 if u.team == Battlefield.PLAYER else PI / 2
@@ -869,6 +939,52 @@ func _draw_carpentry(c: Vector2) -> void:
 		draw_rect(Rect2(-16, 10 - k * 4, 26, 3), COLORS.wood.lightened(0.15))
 	draw_line(Vector2(20, 14), Vector2(28, 6), COLORS.stick, 2)
 	draw_line(Vector2(28, 14), Vector2(20, 6), COLORS.stick, 2)
+	draw_set_transform(Vector2.ZERO)
+
+
+## Barracks, archery range or stables around `c`. Era I: rough wood and
+## straw for everyone; later medieval (dark roofs, timber) or classical
+## (plaster, columns, terracotta), with the civ color on a banner or shield.
+func _draw_military(id: String, c: Vector2, civ_color: Color, era: int, style: String) -> void:
+	draw_set_transform(c, 0, Vector2(1.6, 1.6))
+	var classical := style == "classical" and era >= 1
+	var wall: Color = COLORS.plaster if classical else COLORS.wood
+	var roof: Color = COLORS.terracotta if classical else (COLORS.farm.darkened(0.15) if era == 0 else Color("#4a3b35"))
+	match id:
+		"barracks":
+			draw_rect(Rect2(-16, -4, 32, 18), wall)
+			if classical:
+				for x in [-15, -6, 3, 12]:
+					draw_rect(Rect2(x, -4, 3, 18), COLORS.marble_shade)
+			draw_colored_polygon(PackedVector2Array([Vector2(-19, -4), Vector2(0, -16), Vector2(19, -4)]), roof)
+			draw_rect(Rect2(-4, 4, 8, 10), Color("#2b1d10"))
+			draw_circle(Vector2(0, -8), 4, civ_color)  # shield emblem
+			for k in 3:  # spear rack
+				draw_line(Vector2(20 + k * 3, 14), Vector2(18 + k * 3, -6), COLORS.stick, 2)
+		"archery_range":
+			draw_rect(Rect2(-18, -2, 20, 16), wall)
+			draw_colored_polygon(PackedVector2Array([Vector2(-21, -2), Vector2(-8, -13), Vector2(5, -2)]), roof)
+			if classical:
+				for x in [-17, -5]:
+					draw_rect(Rect2(x, -2, 3, 16), COLORS.marble_shade)
+			var target := Vector2(16, 4)  # straw target on legs
+			draw_line(target + Vector2(-4, 8), target + Vector2(-5, 13), COLORS.stick, 2)
+			draw_line(target + Vector2(4, 8), target + Vector2(5, 13), COLORS.stick, 2)
+			draw_circle(target, 8, Color("#e8d27a"))
+			draw_circle(target, 5, Color.WHITE)
+			draw_circle(target, 2.5, civ_color)
+		"stables":
+			draw_rect(Rect2(-18, -4, 36, 18), wall)
+			draw_colored_polygon(PackedVector2Array([Vector2(-21, -4), Vector2(-12, -14), Vector2(12, -14), Vector2(21, -4)]), roof)
+			for x in [-12, 2]:  # stall doors / arches
+				if classical:
+					draw_rect(Rect2(x, 4, 10, 10), Color("#2b1d10"))
+					draw_circle(Vector2(x + 5, 4), 5, Color("#2b1d10"))
+				else:
+					draw_rect(Rect2(x, 2, 10, 12), Color("#2b1d10"))
+					draw_line(Vector2(x, 2), Vector2(x + 10, 14), COLORS.wood, 1.5)
+			draw_circle(Vector2(24, 10), 5, COLORS.farm)  # hay bale
+			draw_rect(Rect2(-5, -12, 10, 5), civ_color)
 	draw_set_transform(Vector2.ZERO)
 
 

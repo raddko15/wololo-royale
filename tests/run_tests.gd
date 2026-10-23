@@ -64,6 +64,24 @@ func _init() -> void:
 	_check(e.advance() and e.era_index == 2, "advance to Era III with 1000/1000/500/500")
 	_check(e.next_era_cost().is_empty() and not e.advance(), "no era beyond the last")
 
+	var m := Economy.new("franks")
+	m.resources = {"food": 1000.0, "wood": 1000.0, "gold": 1000.0, "stone": 0.0}
+	_check(not m.can_train("fighter"), "no fighters without a barracks")
+	_check(m.build_military("barracks") and m.can_train("fighter"), "barracks unlocks fighters")
+	_check(not m.build_military("stables"), "stables need Era II")
+	m.era_index = 1
+	_check(m.build_military("stables") and m.train("cavalry") and m.army_size == 1, "stables train cavalry, counted in population")
+	_check(not m.can_train("archer"), "archers need an archery range")
+
+	var ba := Battlefield.new()
+	var archer := ba.spawn(Battlefield.PLAYER, "archer", 1)
+	var dummy := ba.spawn(Battlefield.ENEMY, "fighter", 1)
+	archer.y = 0.5
+	dummy.y = 0.62
+	dummy.speed = 0.0
+	ba.tick(0.1)
+	_check(archer.target == "unit" and dummy.hp < 60 and archer.y == 0.5, "archer shoots from range without walking up")
+
 	var u2 := Economy.new("greeks")
 	u2.resources = {"food": 0.0, "wood": 1000.0, "gold": 0.0, "stone": 1000.0}
 	_check(not u2.buy_upgrade("mill"), "windmill needs Era II")
