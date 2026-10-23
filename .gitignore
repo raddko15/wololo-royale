@@ -1,0 +1,4 @@
+# Godot editor cache and imported assets
+.godot/
+# Web/Android export output lives outside the project (../build)
+*.tmp

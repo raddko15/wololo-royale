@@ -1,0 +1,156 @@
+{
+  "starting_resources": {
+    "food": 100,
+    "wood": 100,
+    "gold": 0,
+    "stone": 0
+  },
+  "starting_villagers": {
+    "idle": 5
+  },
+  "gathering": {
+    "rate_per_sec": {
+      "food": 1.0,
+      "wood": 1.0,
+      "gold": 0.8,
+      "stone": 0.8
+    },
+    "carry_capacity": 5,
+    "walk_time_sec": 1.5
+  },
+  "villager_cost": {
+    "food": 50
+  },
+  "civs": {
+    "romans": {
+      "name": "Romans",
+      "color": "#c0392b",
+      "gather_multiplier": {
+        "wood": 1.1
+      }
+    },
+    "greeks": {
+      "name": "Greeks",
+      "color": "#2e86de",
+      "gather_multiplier": {
+        "food": 1.1
+      }
+    }
+  },
+  "eras": [
+    {
+      "name": "Era I"
+    },
+    {
+      "name": "Era II",
+      "advance_cost": {
+        "food": 500,
+        "wood": 500
+      }
+    },
+    {
+      "name": "Era III",
+      "advance_cost": {
+        "food": 1000,
+        "wood": 1000,
+        "gold": 500,
+        "stone": 500
+      }
+    }
+  ],
+  "units": {
+    "fighter": {
+      "name": "Fighter",
+      "cost": {
+        "food": 40,
+        "wood": 30
+      },
+      "hp": 60,
+      "speed": 0.06,
+      "damage_per_sec": 10,
+      "range": 0.04
+    }
+  },
+  "buildings": {
+    "tower": {
+      "hp": 500,
+      "range": 0.2,
+      "arrow_damage": 6,
+      "attack_interval_sec": 1.0,
+      "arrow_flight_sec": 0.35
+    },
+    "main": {
+      "hp": 1000,
+      "arrow_damage": 8,
+      "attack_interval_sec": 1.0,
+      "range": 0.25
+    },
+    "hut": {
+      "name": "Hut",
+      "cost": {
+        "wood": 30
+      },
+      "population": 5
+    },
+    "towers": {
+      "name": "Towers",
+      "cost": {
+        "wood": 300
+      },
+      "min_era": 1
+    },
+    "mine": {
+      "cost": {
+        "wood": 150
+      },
+      "min_era": 1
+    }
+  },
+  "ai": {
+    "target_villagers": 16,
+    "think_interval": 2.0,
+    "era1_max_army": 2
+  },
+  "population": {
+    "starting_cap": 10,
+    "max_cap": 200
+  },
+  "testing": {
+    "player_starting_resources": {
+      "food": 2000,
+      "wood": 2500,
+      "gold": 500,
+      "stone": 500
+    }
+  },
+  "upgrades": {
+    "mill": {
+      "name": "Windmill",
+      "cost": {
+        "wood": 150
+      },
+      "min_era": 1,
+      "gather_bonus": {
+        "food": 0.15
+      }
+    },
+    "lumber_camp": {
+      "name": "Lumber Camp",
+      "cost": {
+        "wood": 150
+      },
+      "min_era": 1,
+      "gather_bonus": {
+        "wood": 0.15
+      }
+    },
+    "stone_towers": {
+      "name": "Stone Towers",
+      "cost": {
+        "stone": 300
+      },
+      "min_era": 2,
+      "tower_hp_bonus": 0.5
+    }
+  }
+}
