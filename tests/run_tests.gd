@@ -14,6 +14,9 @@ func _init() -> void:
 	_check(e.rate_per_villager("wood") > e.rate_per_villager("food"), "romans gather wood faster")
 	var g := Economy.new("greeks")
 	_check(g.rate_per_villager("food") > g.rate_per_villager("wood"), "greeks gather food faster")
+	var f := Economy.new("franks")
+	_check(f.rate_per_villager("stone") > f.rate_per_villager("gold") and f.style() == "medieval", "franks: medieval style, mine stone faster")
+	_check(g.style() == "classical" and g.upgrade_name("mill") == "Olive Press" and e.upgrade_name("mill") == "Olive Press" and f.upgrade_name("mill") == "Windmill", "romans and greeks press olives; franks build a windmill")
 
 	_check(e.reassign("idle", "food") and e.reassign("idle", "food") and e.villagers.food == 2, "assign idle to food")
 	var food_before: float = e.resources.food

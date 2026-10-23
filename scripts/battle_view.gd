@@ -23,6 +23,8 @@ const COLORS := {
 	"crop": Color("#e8d27a"), "crop_stem": Color("#7a8f3a"), "trunk": Color("#5b3a1e"),
 	"leaf_dark": Color("#1e4d2b"), "leaf_light": Color("#2f7a3f"), "villager": Color("#f5f6fa"),
 	"stone": Color("#a5a5a0"), "wood": Color("#8b5a2b"), "stick": Color("#4a3520"),
+	"marble": Color("#ecebe4"), "marble_shade": Color("#c9c4b8"), "terracotta": Color("#c8553d"),
+	"olive": Color("#6b7f3a"), "olive_leaf": Color("#8a9a5b"), "plaster": Color("#f2ead8"),
 }
 
 var economy: Economy
@@ -342,44 +344,61 @@ func _draw() -> void:
 func _draw_city(team: int, now: float) -> void:
 	var e := econ(team)
 	var color := Color(e.civ().color)
-	_draw_farm(farm_rect(team))
+	var style := e.style()
+	var olives := style == "classical" and e.upgrades.has("mill")
+	if olives:
+		_draw_olive_grove(farm_rect(team))
+	else:
+		_draw_farm(farm_rect(team))
 	for i in TREE_COLS * TREE_ROWS:
 		_draw_tree(work_spot(team, "wood", i))
 	# A granary hut and a lean-to until the player buys the windmill / lumber camp upgrades.
-	if e.upgrades.has("mill"):
+	if olives:
+		_draw_olive_press(drop_off(team, "food"))
+	elif e.upgrades.has("mill"):
 		_draw_mill(drop_off(team, "food"), now, 1.5)
 	else:
 		_draw_granary(drop_off(team, "food"))
-	if e.upgrades.has("lumber_camp"):
-		_draw_lumber_camp(drop_off(team, "wood"), 1.5)
-	else:
+	if not e.upgrades.has("lumber_camp"):
 		_draw_lean_to(drop_off(team, "wood"))
+	elif style == "classical":
+		_draw_timber_yard(drop_off(team, "wood"))
+	else:
+		_draw_lumber_camp(drop_off(team, "wood"), 1.5)
 	for res in e.mines:
 		_draw_mine(mine_pos(team, res), res)
 	var tc := town_center(team)
-	_draw_fort(tc, color, e.era_index, 1.0)
+	_draw_fort(tc, color, e.era_index, style)
 	# Health bar on the fort's back side: under the player's gate, above the enemy's flag.
 	var bar_y := 50.0 if team == Battlefield.PLAYER else -95.0
 	_draw_hp(tc + Vector2(0, bar_y), battle.buildings[team].main, battle.max_hp("main"), 110)
 	for i in e.huts:
-		_draw_hut(hut_pos(team, i))
+		_draw_hut(hut_pos(team, i), e.era_index, style)
 	for w in e.workers:
-		_draw_worker(worker_pos(team, w), w, now)
+		_draw_worker(worker_pos(team, w), w, now, olives)
 	for p in villager_spots(e.villagers.get("idle", 0), idle_area(team)):
 		_draw_ball(p, VILLAGER_R, COLORS.villager)
 	# Towers last so their health bars stay visible over the fields.
 	if not battle.towers_built[team]:
 		return
 	for lane in Battlefield.LANES:
-		_draw_tower(building_pos(team, "tower", lane), color, battle.buildings[team].towers[lane], e.upgrades.has("stone_towers"), battle.tower_max_hp[team])
+		_draw_tower(building_pos(team, "tower", lane), color, battle.buildings[team].towers[lane], e.upgrades.has("stone_towers"), style, battle.tower_max_hp[team])
 
 
-## Town center, drawn around (0, 0). Both sides share this look:
-## Era I a longhouse, Era II a wooden fort, Era III a stone castle.
-func _draw_fort(c: Vector2, civ_color: Color, era: int, scale: float) -> void:
-	draw_set_transform(c, 0, Vector2(scale, scale))
+## Town center, drawn around (0, 0). Era I is a longhouse for every civ.
+## Medieval (Franks): wooden fort, then stone castle. Classical (Romans,
+## Greeks): timber hall with wooden columns, then a marble palace.
+func _draw_fort(c: Vector2, civ_color: Color, era: int, style: String) -> void:
+	draw_set_transform(c, 0, Vector2.ONE)
 	if era == 0:
 		_draw_longhouse(civ_color)
+		draw_set_transform(Vector2.ZERO)
+		return
+	if style == "classical":
+		if era == 1:
+			_draw_timber_hall(civ_color)
+		else:
+			_draw_marble_palace(civ_color)
 		draw_set_transform(Vector2.ZERO)
 		return
 	var stone := era >= 2
@@ -511,21 +530,47 @@ func _draw_mine(c: Vector2, res: String) -> void:
 			draw_rect(Rect2(c + p - Vector2(3, 3), Vector2(6, 5)), bit)
 
 
-## Small wooden hut with a straw roof.
-func _draw_hut(c: Vector2) -> void:
+## House: a straw hut in Era I; from Era II a whitewashed house with a
+## terracotta roof (classical) or a timber-framed house (medieval).
+func _draw_hut(c: Vector2, era: int, style: String) -> void:
 	draw_set_transform(c, 0, Vector2(0.85, 0.85))
-	c = Vector2.ZERO
-	draw_rect(Rect2(c + Vector2(-9, -3), Vector2(18, 12)), COLORS.wood)
-	draw_rect(Rect2(c + Vector2(-2, 2), Vector2(4, 7)), Color("#2b1d10"))
-	draw_colored_polygon(PackedVector2Array([c + Vector2(-12, -3), c + Vector2(0, -13), c + Vector2(12, -3)]), COLORS.farm.darkened(0.2))
+	var door := Color("#2b1d10")
+	if era == 0:
+		draw_rect(Rect2(-9, -3, 18, 12), COLORS.wood)
+		draw_rect(Rect2(-2, 2, 4, 7), door)
+		draw_colored_polygon(PackedVector2Array([Vector2(-12, -3), Vector2(0, -13), Vector2(12, -3)]), COLORS.farm.darkened(0.2))
+	elif style == "classical":
+		draw_rect(Rect2(-10, -3, 20, 12), COLORS.plaster)
+		draw_rect(Rect2(-2, 2, 4, 7), door)
+		draw_colored_polygon(PackedVector2Array([Vector2(-12, -3), Vector2(0, -10), Vector2(12, -3)]), COLORS.terracotta)
+		draw_line(Vector2(-12, -3), Vector2(12, -3), COLORS.terracotta.darkened(0.3), 1.5)
+	else:
+		draw_rect(Rect2(-9, -3, 18, 12), COLORS.plaster)
+		for x in [-9, -1, 7]:
+			draw_rect(Rect2(x, -3, 2, 12), COLORS.trunk)
+		draw_line(Vector2(-9, 3), Vector2(9, 3), COLORS.trunk, 1.5)
+		draw_colored_polygon(PackedVector2Array([Vector2(-12, -3), Vector2(0, -14), Vector2(12, -3)]), Color("#4a3b35"))
 	draw_set_transform(Vector2.ZERO)
 
 
-## Lane tower: a wooden watchtower, or stone after the Stone Towers upgrade, with an
+## Lane tower: a wooden watchtower, or after the Stone Towers upgrade a stone
+## tower (medieval) or a marble tower (classical), with an
 ## arrow slit and a civ-colored roof. Destroyed towers leave broken logs.
-func _draw_tower(pos: Vector2, color: Color, hp: float, stone: bool, max_hp: float) -> void:
+func _draw_tower(pos: Vector2, color: Color, hp: float, stone: bool, style: String, max_hp: float) -> void:
 	draw_set_transform(pos, 0, Vector2(1.4, 1.4))
 	var c := Vector2.ZERO
+	if stone and style == "classical" and hp > 0:
+		# Marble tower with pilasters and a terracotta roof.
+		draw_rect(Rect2(-15, -18, 30, 40), COLORS.marble)
+		for x in [-13, -3, 7]:
+			draw_rect(Rect2(x, -16, 4, 36), COLORS.marble_shade)
+		draw_rect(Rect2(-17, -20, 34, 4), COLORS.marble_shade)
+		draw_rect(Rect2(-2, -12, 4, 9), Color("#1b120a"))
+		draw_colored_polygon(PackedVector2Array([Vector2(-19, -20), Vector2(0, -36), Vector2(19, -20)]), COLORS.terracotta)
+		draw_rect(Rect2(-4, -31, 8, 5), color)
+		draw_set_transform(Vector2.ZERO)
+		_draw_hp(pos + Vector2(0, -36 * 1.4 - 10), hp, max_hp)
+		return
 	var body: Color = COLORS.stone if stone else COLORS.wood
 	if hp <= 0:
 		for k in 4:
@@ -604,7 +649,7 @@ func _draw_fighter(u: Dictionary, p: Vector2, color: Color, now: float) -> void:
 
 
 ## Villager ball: farmers bob, lumberjacks swing an axe, walkers carry their load.
-func _draw_worker(p: Vector2, w: Dictionary, now: float) -> void:
+func _draw_worker(p: Vector2, w: Dictionary, now: float, olives := false) -> void:
 	var phase: float = w.spot * 1.7
 	if w.phase == "gather":
 		if w.job == "food":
@@ -618,7 +663,7 @@ func _draw_worker(p: Vector2, w: Dictionary, now: float) -> void:
 			draw_rect(Rect2(axe_end - Vector2(3, 3), Vector2(6, 6)), COLORS.stone)
 	_draw_ball(p, VILLAGER_R, COLORS.villager)
 	if w.phase == "to_drop":
-		var load_color: Color = {"food": COLORS.crop, "wood": COLORS.wood, "gold": Color("#f1c40f"), "stone": Color("#d5d8dc")}[w.job]
+		var load_color: Color = {"food": COLORS.olive if olives else COLORS.crop, "wood": COLORS.wood, "gold": Color("#f1c40f"), "stone": Color("#d5d8dc")}[w.job]
 		draw_rect(Rect2(p + Vector2(-6, -VILLAGER_R - 10), Vector2(12, 9)), load_color)
 		draw_rect(Rect2(p + Vector2(-6, -VILLAGER_R - 10), Vector2(12, 9)), Color.BLACK, false, 1.5)
 
@@ -642,6 +687,93 @@ func _draw_tree(c: Vector2) -> void:
 	draw_circle(c + Vector2(0, -4), 15, COLORS.leaf_dark)
 	draw_circle(c + Vector2(-5, -9), 8, COLORS.leaf_light)
 	draw_circle(c + Vector2(5, -2), 6, COLORS.leaf_light.darkened(0.15))
+	draw_set_transform(Vector2.ZERO)
+
+
+## Classical Era II town center around (0, 0): a timber hall on a low
+## platform with wooden columns and a terracotta tiled roof.
+func _draw_timber_hall(civ_color: Color) -> void:
+	var wood: Color = COLORS.wood
+	draw_rect(Rect2(-66, 30, 132, 10), wood.darkened(0.35))  # platform
+	draw_rect(Rect2(-56, -10, 112, 40), wood.darkened(0.15))  # back wall
+	draw_rect(Rect2(-10, 6, 20, 24), Color("#2b1d10"))  # doorway
+	for x in [-52, -32, 22, 42]:  # wooden columns
+		draw_rect(Rect2(x, -10, 10, 40), wood)
+		draw_rect(Rect2(x - 2, -13, 14, 4), wood.darkened(0.25))
+	draw_rect(Rect2(-62, -20, 124, 8), wood.darkened(0.3))  # beam
+	draw_colored_polygon(PackedVector2Array([Vector2(-68, -20), Vector2(0, -46), Vector2(68, -20)]), COLORS.terracotta)
+	for k in 4:  # roof tile rows
+		var y := -24.0 - k * 6
+		var half := 68.0 * (y + 46) / 26.0
+		draw_line(Vector2(-half, y), Vector2(half, y), COLORS.terracotta.darkened(0.25), 1.5)
+	draw_line(Vector2(0, -46), Vector2(0, -62), Color.BLACK, 2)
+	draw_colored_polygon(PackedVector2Array([Vector2(0, -62), Vector2(16, -57), Vector2(0, -52)]), civ_color)
+
+
+## Classical Era III town center around (0, 0): marble palace on steps with
+## a colonnade, an entablature and a pediment.
+func _draw_marble_palace(civ_color: Color) -> void:
+	for k in 3:  # steps
+		draw_rect(Rect2(-72 + k * 5, 30 + k * -5, 144 - k * 10, 6), COLORS.marble_shade if k % 2 == 0 else COLORS.marble)
+	draw_rect(Rect2(-58, -14, 116, 34), COLORS.marble_shade)  # cella wall
+	draw_rect(Rect2(-10, 0, 20, 20), Color("#2b1d10"))
+	for i in 6:  # columns with capitals and bases
+		var x := -60.0 + i * 22.0
+		draw_rect(Rect2(x, -14, 9, 34), COLORS.marble)
+		draw_line(Vector2(x + 3, -12), Vector2(x + 3, 18), COLORS.marble_shade, 1)
+		draw_rect(Rect2(x - 2, -18, 13, 4), COLORS.marble)
+		draw_rect(Rect2(x - 2, 18, 13, 3), COLORS.marble)
+	draw_rect(Rect2(-66, -28, 132, 10), COLORS.marble)  # entablature
+	draw_rect(Rect2(-66, -24, 132, 3), civ_color)  # painted frieze
+	draw_colored_polygon(PackedVector2Array([Vector2(-70, -28), Vector2(0, -52), Vector2(70, -28)]), COLORS.marble)
+	draw_colored_polygon(PackedVector2Array([Vector2(-52, -31), Vector2(0, -48), Vector2(52, -31)]), COLORS.marble_shade)
+	draw_circle(Vector2(0, -37), 5, civ_color)  # emblem in the pediment
+	for side in [-1, 1]:  # banners
+		var pole := Vector2(side * 76, 30)
+		draw_line(pole, pole + Vector2(0, -64), Color.BLACK, 2)
+		draw_rect(Rect2(pole + Vector2(-5 if side < 0 else 0, -62), Vector2(5, 22)), civ_color)
+
+
+## Olive grove: rows of small grey-green olive trees on dry ground.
+func _draw_olive_grove(area: Rect2) -> void:
+	draw_rect(area, Color("#b5a46a"))
+	var cell := area.size / Vector2(FARM_COLS, FARM_ROWS)
+	for i in FARM_COLS * FARM_ROWS:
+		var c := area.position + cell * Vector2(i % FARM_COLS + 0.5, i / FARM_COLS + 0.5)
+		draw_line(c + Vector2(0, 12), c + Vector2(-2, 0), COLORS.trunk, 3)
+		draw_circle(c + Vector2(-2, -6), 11, COLORS.olive)
+		draw_circle(c + Vector2(3, -9), 7, COLORS.olive_leaf)
+		for k in 3:  # olives
+			draw_circle(c + Vector2(-7 + k * 5, -3 + (k % 2) * 3), 1.8, Color("#2d3a1a"))
+
+
+## Olive press: stone basin with a crushing wheel, a wooden lever beam, and
+## amphorae of oil.
+func _draw_olive_press(c: Vector2) -> void:
+	draw_set_transform(c, 0, Vector2(1.5, 1.5))
+	draw_rect(Rect2(-18, -2, 30, 16), COLORS.plaster)  # little press house
+	draw_colored_polygon(PackedVector2Array([Vector2(-21, -2), Vector2(-3, -13), Vector2(15, -2)]), COLORS.terracotta)
+	draw_rect(Rect2(-6, 4, 7, 10), Color("#2b1d10"))
+	draw_circle(Vector2(18, 10), 7, COLORS.stone)  # basin
+	draw_circle(Vector2(18, 7), 4, COLORS.stone.darkened(0.2))  # wheel
+	draw_line(Vector2(18, 7), Vector2(28, -4), COLORS.trunk, 2)  # lever
+	for x in [-24, -19]:  # amphorae
+		draw_circle(Vector2(x, 10), 3, COLORS.terracotta)
+		draw_rect(Rect2(x - 1, 4, 2, 4), COLORS.terracotta.darkened(0.2))
+	draw_set_transform(Vector2.ZERO)
+
+
+## Classical lumber yard: tiled roof on two columns sheltering stacked logs.
+func _draw_timber_yard(c: Vector2) -> void:
+	draw_set_transform(c, 0, Vector2(1.5, 1.5))
+	for x in [-18, 12]:
+		draw_rect(Rect2(x, -6, 5, 20), COLORS.plaster)
+	draw_colored_polygon(PackedVector2Array([Vector2(-22, -6), Vector2(-16, -16), Vector2(16, -16), Vector2(22, -6)]), COLORS.terracotta)
+	for p in [Vector2(-8, 10), Vector2(0, 10), Vector2(8, 10), Vector2(-4, 4), Vector2(4, 4)]:
+		draw_circle(p, 4, COLORS.wood)
+		draw_circle(p, 1.8, COLORS.crop)
+	draw_line(Vector2(20, 14), Vector2(28, 6), COLORS.stick, 2)  # saw horse
+	draw_line(Vector2(28, 14), Vector2(20, 6), COLORS.stick, 2)
 	draw_set_transform(Vector2.ZERO)
 
 

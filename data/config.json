@@ -27,6 +27,11 @@
       "color": "#c0392b",
       "gather_multiplier": {
         "wood": 1.1
+      },
+      "style": "classical",
+      "bonus": "+10% wood",
+      "upgrade_names": {
+        "mill": "Olive Press"
       }
     },
     "greeks": {
@@ -34,6 +39,20 @@
       "color": "#2e86de",
       "gather_multiplier": {
         "food": 1.1
+      },
+      "style": "classical",
+      "bonus": "+10% food",
+      "upgrade_names": {
+        "mill": "Olive Press"
+      }
+    },
+    "franks": {
+      "name": "Franks",
+      "color": "#7d3c98",
+      "style": "medieval",
+      "bonus": "+10% stone",
+      "gather_multiplier": {
+        "stone": 1.1
       }
     }
   },

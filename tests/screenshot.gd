@@ -1,7 +1,8 @@
 extends SceneTree
 ## Renders game screens to PNGs (needs a display, e.g. xvfb-run).
-## Args: <out.png> <era1|era2|era3|window|mill>
-## era3 also buys every upgrade; window / mill open that building's ring menu.
+## Args: <out.png> <era1|era2|era2up|era3|window|mill> [player_civ] [enemy_civ]
+## era2up buys the mill and lumber upgrades, era3 every upgrade (both sides);
+## window / mill open that building's ring menu.
 
 func _init() -> void:
 	var args := OS.get_cmdline_user_args()
@@ -9,17 +10,22 @@ func _init() -> void:
 	var main = load("res://scenes/main.tscn").instantiate()
 	root.add_child(main)
 	await process_frame
-	main._start_game("romans", main.get_child(0))
-	var era: int = {"era1": 0, "era2": 1, "era3": 2, "window": 1, "mill": 1}[mode]
+	main._start_game(args[2] if args.size() > 2 else "romans", main.get_child(0))
+	if args.size() > 3:
+		main.ai.economy = Economy.new(args[3])
+		main._view.enemy_economy = main.ai.economy
+	var era: int = {"era1": 0, "era2": 1, "era2up": 1, "era3": 2, "window": 1, "mill": 1}[mode]
 	for e in [main.economy, main.ai.economy]:
 		e.era_index = era
 		e.huts = 10
+		if mode == "era2up":
+			e.upgrades = {"mill": true, "lumber_camp": true}
+		elif mode == "era3":
+			e.upgrades = {"mill": true, "lumber_camp": true, "stone_towers": true}
 	if era >= 1:
 		main.battle.build_towers(Battlefield.PLAYER)
 		main.battle.build_towers(Battlefield.ENEMY)
 		main.economy.mines = {"gold": true, "stone": true}
-	if era == 2:
-		main.economy.upgrades = {"mill": true, "lumber_camp": true, "stone_towers": true}
 	for job in ["food", "food", "food", "wood", "wood"] + (["gold", "gold", "stone", "stone"] if era >= 1 else []):
 		main.economy.villagers.idle += 1
 		main.economy.reassign("idle", job)

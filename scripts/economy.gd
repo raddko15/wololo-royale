@@ -99,6 +99,16 @@ func civ() -> Dictionary:
 	return _cfg.civs[civ_id]
 
 
+## "classical" (Romans, Greeks) or "medieval" (Franks): how buildings look from Era II on.
+func style() -> String:
+	return civ().get("style", "medieval")
+
+
+## Display name of an upgrade for this civ (Romans and Greeks press olives instead of milling).
+func upgrade_name(id: String) -> String:
+	return civ().get("upgrade_names", {}).get(id, _cfg.upgrades[id].name)
+
+
 func era() -> Dictionary:
 	return _cfg.eras[era_index]
 

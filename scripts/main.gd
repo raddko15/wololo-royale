@@ -39,10 +39,10 @@ func _show_civ_select() -> void:
 	for id in civs:
 		var card := Card.new(civs[id].name)
 		card.custom_minimum_size.y = 110
-		card.set_state("", true, false)
+		var look := "classical: wood to marble" if civs[id].style == "classical" else "medieval: forts and castles"
+		card.set_state("%s · %s" % [civs[id].bonus, look], true, false)
 		card.pressed.connect(_start_game.bind(id, box.get_parent()))
 		box.add_child(card)
-	box.add_child(_label("Romans: +10% wood   Greeks: +10% food", 24))
 
 
 func _start_game(civ_id: String, menu: Control) -> void:
@@ -53,7 +53,8 @@ func _start_game(civ_id: String, menu: Control) -> void:
 	if testing.has("player_starting_resources"):
 		economy.resources = testing.player_starting_resources.duplicate()
 	battle = Battlefield.new()
-	var enemy_civ: String = "greeks" if civ_id == "romans" else "romans"
+	var others: Array = GameConfig.data().civs.keys().filter(func(id): return id != civ_id)
+	var enemy_civ: String = others.pick_random()
 	ai = EnemyAI.new(enemy_civ, battle)
 	battle.unit_died.connect(func(team): if team == Battlefield.PLAYER: economy.army_size -= 1)
 	battle.game_over.connect(_on_game_over)
@@ -293,7 +294,7 @@ func _upgrade_option(id: String) -> Dictionary:
 		note = "needs %s" % cfg.eras[up.min_era].name
 	else:
 		note = _cost_text(up.cost)
-	return _option(id, "upgrade", up.name, note, economy.can_upgrade(id))
+	return _option(id, "upgrade", economy.upgrade_name(id), note, economy.can_upgrade(id))
 
 
 # --- Display ------------------------------------------------------------
