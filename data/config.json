@@ -31,7 +31,10 @@
       "style": "classical",
       "bonus": "+10% wood",
       "upgrade_names": {
-        "mill": "Olive Press"
+        "mill": "Olive Press",
+        "mill2": "Oil Workshop",
+        "lumber_camp2": "Carpentry",
+        "lumber_camp": "Timber Yard"
       }
     },
     "greeks": {
@@ -43,7 +46,10 @@
       "style": "classical",
       "bonus": "+10% food",
       "upgrade_names": {
-        "mill": "Olive Press"
+        "mill": "Olive Press",
+        "mill2": "Oil Workshop",
+        "lumber_camp2": "Carpentry",
+        "lumber_camp": "Timber Yard"
       }
     },
     "franks": {
@@ -170,6 +176,62 @@
       },
       "min_era": 2,
       "tower_hp_bonus": 0.5
+    },
+    "mill2": {
+      "name": "Grand Mill",
+      "cost": {
+        "wood": 300,
+        "gold": 100
+      },
+      "min_era": 2,
+      "requires": {
+        "upgrade": "mill"
+      },
+      "gather_bonus": {
+        "food": 0.2
+      }
+    },
+    "lumber_camp2": {
+      "name": "Sawmill",
+      "cost": {
+        "wood": 300,
+        "gold": 100
+      },
+      "min_era": 2,
+      "requires": {
+        "upgrade": "lumber_camp"
+      },
+      "gather_bonus": {
+        "wood": 0.2
+      }
+    },
+    "gold_mine2": {
+      "name": "Deep Gold Mine",
+      "cost": {
+        "wood": 200,
+        "stone": 100
+      },
+      "min_era": 2,
+      "requires": {
+        "mine": "gold"
+      },
+      "gather_bonus": {
+        "gold": 0.2
+      }
+    },
+    "stone_mine2": {
+      "name": "Stone Quarry",
+      "cost": {
+        "wood": 200,
+        "gold": 100
+      },
+      "min_era": 2,
+      "requires": {
+        "mine": "stone"
+      },
+      "gather_bonus": {
+        "stone": 0.2
+      }
     }
   }
 }

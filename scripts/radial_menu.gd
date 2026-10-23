@@ -104,6 +104,11 @@ func _draw_glyph(kind: String, c: Vector2, alpha: float) -> void:
 			draw_rect(Rect2(c + Vector2(-14, 0), Vector2(13, 11)), stone)
 			draw_rect(Rect2(c + Vector2(1, 0), Vector2(13, 11)), stone.darkened(0.1))
 			draw_rect(Rect2(c + Vector2(-7, -12), Vector2(14, 11)), stone.darkened(0.2))
+		"worker":
+			draw_circle(c, 12, Color("#f5f6fa", alpha))
+			draw_arc(c, 12, 0, TAU, 16, Color(0, 0, 0, alpha), 2)
+			draw_line(c + Vector2(14, -12), c + Vector2(14, 0), gold, 3)
+			draw_line(c + Vector2(8, -6), c + Vector2(20, -6), gold, 3)
 		"upgrade":  # up arrow
 			draw_colored_polygon(PackedVector2Array([c + Vector2(0, -18), c + Vector2(-14, -2), c + Vector2(14, -2)]), gold)
 			draw_rect(Rect2(c + Vector2(-6, -2), Vector2(12, 16)), gold)

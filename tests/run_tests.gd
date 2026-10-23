@@ -72,6 +72,12 @@ func _init() -> void:
 	_check(u2.buy_upgrade("mill") and is_equal_approx(u2.rate_per_villager("food"), food_rate * 1.15), "windmill: +15% food gathering")
 	_check(not u2.buy_upgrade("mill"), "upgrade bought only once")
 	_check(not u2.can_upgrade("stone_towers"), "stone towers need Era III")
+	u2.era_index = 2
+	u2.resources.gold = 1000.0
+	_check(not u2.can_upgrade("lumber_camp2"), "sawmill needs the lumber camp first")
+	_check(not u2.can_upgrade("gold_mine2"), "deep mine needs the gold mine first")
+	_check(u2.buy_upgrade("mill2") and is_equal_approx(u2.rate_per_villager("food"), food_rate * 1.35), "Era III food upgrade stacks: +15% +20%")
+	_check(u2.upgrade_name("mill2") == "Oil Workshop" and Economy.new("franks").upgrade_name("mill2") == "Grand Mill", "Era III food building named per style")
 	var bt := Battlefield.new()
 	bt.build_towers(Battlefield.PLAYER)
 	bt.buildings[Battlefield.PLAYER].towers[0] = 100.0

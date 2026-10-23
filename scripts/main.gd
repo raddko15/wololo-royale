@@ -231,9 +231,11 @@ func _on_menu_choice(id: String) -> void:
 		"gold", "stone":
 			if economy.build_mine(id):
 				_close_menu()
-		"mill", "lumber_camp":
+		"mill", "lumber_camp", "mill2", "lumber_camp2", "gold_mine2", "stone_mine2":
 			if economy.buy_upgrade(id):
 				_close_menu()
+		"worker_gold", "worker_stone":
+			economy.reassign("idle", id.trim_prefix("worker_"))
 		"stone_towers":
 			if economy.buy_upgrade(id):
 				battle.upgrade_towers(Battlefield.PLAYER, cfg.upgrades.stone_towers.tower_hp_bonus)
@@ -288,7 +290,13 @@ func _menu_options(kind: String) -> Array:
 					(era_name.call(mine.min_era) if economy.era_index < mine.min_era else _cost_text(mine.cost))
 				opts.append(_option(res, res, "%s mine" % res.capitalize(), mnote, economy.can_build_mine(res)))
 		"mill", "lumber_camp":
-			opts.append(_upgrade_option(kind))
+			# Offer the next tier: the Era II upgrade, then the Era III one.
+			opts.append(_upgrade_option(kind + "2" if economy.upgrades.has(kind) else kind))
+		"gold_mine", "stone_mine":
+			var res := kind.trim_suffix("_mine")
+			var idle: int = economy.villagers.get("idle", 0)
+			opts.append(_option("worker_" + res, "worker", "+ Worker", "%d idle" % idle, idle > 0))
+			opts.append(_upgrade_option(kind + "2"))
 		"towers":
 			opts.append(_upgrade_option("stone_towers"))
 	return opts
@@ -302,6 +310,8 @@ func _upgrade_option(id: String) -> Dictionary:
 		note = "done"
 	elif economy.era_index < up.min_era:
 		note = "needs %s" % cfg.eras[up.min_era].name
+	elif not economy.upgrade_unlocked(id):
+		note = "needs earlier upgrade"
 	else:
 		note = _cost_text(up.cost)
 	return _option(id, "upgrade", economy.upgrade_name(id), note, economy.can_upgrade(id))

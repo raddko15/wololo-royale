@@ -225,9 +225,19 @@ func build_mine(res: String) -> bool:
 	return true
 
 
+## Whatever an upgrade builds on (an earlier upgrade or a mine) is in place.
+func upgrade_unlocked(id: String) -> bool:
+	var req: Dictionary = _cfg.upgrades[id].get("requires", {})
+	if req.has("upgrade") and not upgrades.has(req.upgrade):
+		return false
+	if req.has("mine") and not mines.has(req.mine):
+		return false
+	return true
+
+
 func can_upgrade(id: String) -> bool:
 	var up: Dictionary = _cfg.upgrades[id]
-	return not upgrades.has(id) and era_index >= up.min_era and can_afford(up.cost)
+	return not upgrades.has(id) and era_index >= up.min_era and upgrade_unlocked(id) and can_afford(up.cost)
 
 
 func buy_upgrade(id: String) -> bool:

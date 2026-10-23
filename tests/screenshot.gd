@@ -14,14 +14,16 @@ func _init() -> void:
 	if args.size() > 3:
 		main.ai.economy = Economy.new(args[3])
 		main._view.enemy_economy = main.ai.economy
-	var era: int = {"era1": 0, "era2": 1, "era2up": 1, "era3": 2, "window": 1, "mill": 1}[mode]
+	var era: int = {"era1": 0, "era2": 1, "era2up": 1, "era3": 2, "window": 1, "mill": 1, "mine": 2}[mode]
 	for e in [main.economy, main.ai.economy]:
 		e.era_index = era
 		e.huts = 10
 		if mode == "era2up":
 			e.upgrades = {"mill": true, "lumber_camp": true}
 		elif mode == "era3":
-			e.upgrades = {"mill": true, "lumber_camp": true, "stone_towers": true}
+			e.upgrades = {"mill": true, "lumber_camp": true, "stone_towers": true, "mill2": true,
+				"lumber_camp2": true, "gold_mine2": true, "stone_mine2": true}
+			e.mines = {"gold": true, "stone": true}
 	if era >= 1:
 		main.battle.build_towers(Battlefield.PLAYER)
 		main.battle.build_towers(Battlefield.ENEMY)
@@ -44,6 +46,8 @@ func _init() -> void:
 		main._open_menu("town_center", main._view.town_center())
 	elif mode == "mill":
 		main._open_menu("mill", main._view.drop_off(Battlefield.PLAYER, "food"))
+	elif mode == "mine":
+		main._open_menu("gold_mine", main._view.mine_pos(Battlefield.PLAYER, "gold"))
 	for i in 5:
 		await process_frame
 	await RenderingServer.frame_post_draw
