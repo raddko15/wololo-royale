@@ -144,8 +144,8 @@
     "player_starting_resources": {
       "food": 2000,
       "wood": 2500,
-      "gold": 500,
-      "stone": 500
+      "gold": 1000,
+      "stone": 1000
     }
   },
   "upgrades": {
