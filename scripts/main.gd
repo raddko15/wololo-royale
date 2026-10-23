@@ -93,8 +93,18 @@ func _header() -> Control:
 	panel.add_theme_stylebox_override("panel", style)
 	var col := VBoxContainer.new()
 	panel.add_child(col)
+	# Title row with a restart button (testing aid) on the right.
+	var top := HBoxContainer.new()
+	col.add_child(top)
 	_ui.title = _label("", 26)
-	col.add_child(_ui.title)
+	_ui.title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top.add_child(_ui.title)
+	var restart := Button.new()
+	restart.text = "↻ Restart"
+	restart.add_theme_font_size_override("font_size", 20)
+	restart.focus_mode = Control.FOCUS_NONE
+	restart.pressed.connect(func(): get_tree().reload_current_scene())
+	top.add_child(restart)
 	for row_keys in [Economy.RESOURCES, ["villagers", "pop"]]:
 		var row := HBoxContainer.new()
 		col.add_child(row)

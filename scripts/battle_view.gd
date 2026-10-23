@@ -345,7 +345,8 @@ func _draw_city(team: int, now: float) -> void:
 	var e := econ(team)
 	var color := Color(e.civ().color)
 	var style := e.style()
-	var olives := style == "classical" and e.upgrades.has("mill")
+	# Romans and Greeks grow olives from the start; the press comes with the upgrade.
+	var olives := style == "classical"
 	if olives:
 		_draw_olive_grove(farm_rect(team))
 	else:
@@ -353,7 +354,7 @@ func _draw_city(team: int, now: float) -> void:
 	for i in TREE_COLS * TREE_ROWS:
 		_draw_tree(work_spot(team, "wood", i))
 	# A granary hut and a lean-to until the player buys the windmill / lumber camp upgrades.
-	if olives:
+	if olives and e.upgrades.has("mill"):
 		_draw_olive_press(drop_off(team, "food"))
 	elif e.upgrades.has("mill"):
 		_draw_mill(drop_off(team, "food"), now, 1.5)
