@@ -47,6 +47,11 @@ func _init() -> void:
 	_check(p.build_hut() and p.max_population() == 10 and p.resources.wood == 0, "hut costs 30 wood, still being built")
 	p.finish_jobs()
 	_check(p.max_population() == 15, "finished hut adds +5 cap")
+	p.era_index = 1
+	p.resources.wood = 30.0
+	p.build_hut()
+	p.finish_jobs()
+	_check(p.hut_eras == [0, 0, 1], "each hut remembers the era it was built in")
 	p.resources.wood = 1e6
 	while p.build_hut():
 		pass

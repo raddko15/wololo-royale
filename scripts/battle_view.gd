@@ -154,21 +154,56 @@ func _back(team: int) -> float:
 	return 1.0 if team == Battlefield.PLAYER else -1.0
 
 
-func idle_area(team := Battlefield.PLAYER) -> Rect2:
-	return _crect(team, 0.38, 0.24, 108, 78)
+## The village behind the town center: a campfire in the middle where idle
+## villagers gather, huts scattered around it.
+const CAMPFIRE_DEPTH := 64.0
 
 
-## Huts fill rows behind the town center, from the fort outward.
+func campfire_pos(team := Battlefield.PLAYER) -> Vector2:
+	return _cp(team, 0.5, CAMPFIRE_DEPTH)
+
+
+## Where idle villager `i` of `count` stands: a ring around the campfire
+## (a wider second ring when there are many).
+func idle_spot(team: int, i: int, count: int) -> Vector2:
+	var ring := 0 if i < 10 else 1
+	var in_ring := mini(count, 10) if ring == 0 else count - 10
+	var k := i if ring == 0 else i - 10
+	var a := TAU * k / maxi(in_ring, 1) - PI / 2
+	return campfire_pos(team) + Vector2(cos(a) * (24 + ring * 13), sin(a) * (16 + ring * 9))
+
+
+## Hut slots as (x fraction, depth from the back edge), nearest the campfire
+## first so the village grows outward. Staggered rows with a little jitter.
+var _hut_slots: Array[Vector2] = []
+
+
+func _slots() -> Array[Vector2]:
+	if _hut_slots.is_empty():
+		var center := Vector2(0.5 * 720.0, CAMPFIRE_DEPTH)
+		var raw := []
+		for row in 6:
+			for col in 10:
+				var x := 0.328 * 720.0 + 12 + col * 24.5 + (12 if row % 2 == 1 else 0)
+				var d := 10.0 + row * 21
+				var h := (row * 9 + col) * 2654435761 % 1000
+				x += float(h % 7) - 3.0
+				d += float((h / 7) % 7) - 3.0
+				var spot := Vector2(x, d)
+				if spot.distance_to(center) < 40.0:
+					continue  # keep the campfire clear
+				if d > 100.0 and absf(x - 360.0) < 90.0:
+					continue  # keep clear of the town center
+				raw.append(spot)
+		raw.sort_custom(func(a, b): return a.distance_to(center) < b.distance_to(center))
+		for spot in raw:
+			_hut_slots.append(Vector2(spot.x / 720.0, spot.y))
+	return _hut_slots
+
+
 func hut_pos(team: int, i: int) -> Vector2:
-	# 13 columns x 3 rows: room for every hut up to the 200 population cap.
-	var area := _crect(team, 0.33, 0.345, 70, 3)
-	var step := 19.0
-	var cols := int(area.size.x / step)
-	var row := i / cols
-	if team == Battlefield.ENEMY:
-		row = -row  # enemy rows grow toward the top edge
-		area.position.y = area.end.y - step
-	return area.position + Vector2(step / 2 + (i % cols) * step, step / 2 + row * step)
+	var slot: Vector2 = _slots()[mini(i, _slots().size() - 1)]
+	return _cp(team, slot.x, slot.y)
 
 
 ## Lane under a point on the battlefield, or -1 outside the lanes.
@@ -299,18 +334,6 @@ func unit_positions() -> Array[Vector2]:
 		u["view_pos"] = prev.move_toward(result[n], clampf(prev.distance_to(result[n]) * 0.15, 3.0, 6.0))
 		result[n] = u["view_pos"]
 	return result
-
-
-## Dot positions for `count` villagers laid out in centered rows inside `area`.
-func villager_spots(count: int, area: Rect2) -> Array[Vector2]:
-	var spots: Array[Vector2] = []
-	var step := VILLAGER_R * 2.6
-	var cols := maxi(1, int((area.size.x - 8) / step))
-	for i in count:
-		var in_row := mini(cols, count - (i / cols) * cols)
-		var left := area.get_center().x - (in_row - 1) * step / 2
-		spots.append(Vector2(left + (i % cols) * step, area.position.y + VILLAGER_R + 6 + (i / cols) * step))
-	return spots
 
 
 # --- Input --------------------------------------------------------------
@@ -548,15 +571,21 @@ func _draw_city(team: int, now: float) -> void:
 			_draw_pop_full(military_pos(team, id) + Vector2(0, -52), now)
 	var tc := town_center(team)
 	_draw_fort(tc, color, e.era_index, style)
-	# Health bar on the fort's back side: under the player's gate, above the enemy's flag.
-	var bar_y := 50.0 if team == Battlefield.PLAYER else -95.0
+	# Health bar: under the player's gate; in front of (below) the enemy's fort,
+	# since its back side holds the village.
+	var bar_y := 50.0
 	_draw_hp(tc + Vector2(0, bar_y), battle.buildings[team].main, battle.max_hp("main"), 110)
-	for i in e.huts:
-		_draw_hut(hut_pos(team, i), e.era_index, style)
+	# Huts back to front so nearer ones overlap farther ones.
+	var order := range(e.huts)
+	order.sort_custom(func(a, b): return hut_pos(team, a).y < hut_pos(team, b).y)
+	for i in order:
+		_draw_hut(hut_pos(team, i), e.hut_eras[i] if i < e.hut_eras.size() else e.era_index, style)
+	_draw_campfire(campfire_pos(team), now)
+	var idle: int = e.villagers.get("idle", 0)
+	for i in idle:
+		_draw_figure(idle_spot(team, i, idle) + Vector2(0, 6), VILLAGER_TUNIC, [], 0.6)
 	for w in e.workers:
 		_draw_worker(worker_pos(team, w), w, now, olives)
-	for p in villager_spots(e.villagers.get("idle", 0), idle_area(team)):
-		_draw_figure(p + Vector2(0, 6), VILLAGER_TUNIC, [], 0.6)
 	# Towers last so their health bars stay visible over the fields.
 	if battle.towers_built[team]:
 		for lane in Battlefield.LANES:
@@ -647,7 +676,7 @@ func _draw_jobs(team: int, e: Economy, now: float) -> void:
 
 ## Scaffold frames sit over the building art: [offset from the anchor, size].
 const SCAFFOLD := {
-	"hut": [Vector2(0, -3), Vector2(18, 16)],
+	"hut": [Vector2(0, -5), Vector2(24, 21)],
 	"military": [Vector2(0, -16), Vector2(62, 44)],
 	"mine": [Vector2(0, -10), Vector2(48, 34)],
 	"tower": [Vector2(0, -16), Vector2(40, 62)],
@@ -775,7 +804,20 @@ func _draw_mine(c: Vector2, res: String, upgraded := false) -> void:
 ## or a whitewashed house with a terracotta roof (classical).
 func _draw_hut(c: Vector2, era: int, style: String) -> void:
 	var look := "era0" if era == 0 else ("classical" if style == "classical" else "medieval")
-	_draw_art("hut_" + look, c + Vector2(0, -3), Vector2(22, 20))
+	_draw_art("hut_" + look, c + Vector2(0, -5), Vector2(30, 27))
+
+
+## Village campfire: crossed logs, a flickering flame and a warm glow.
+func _draw_campfire(c: Vector2, now: float) -> void:
+	draw_circle(c, 15, Color(1.0, 0.6, 0.2, 0.12))
+	draw_circle(c + Vector2(0, 3), 7, Color(0.3, 0.3, 0.3, 0.6))
+	for a in [0.4, -0.4]:
+		var d := Vector2.from_angle(a) * 8
+		draw_line(c + Vector2(0, 3) - d, c + Vector2(0, 3) + d, OUTLINE, 5)
+		draw_line(c + Vector2(0, 3) - d, c + Vector2(0, 3) + d, Color("#8a5a33"), 3)
+	var f := 1.0 + sin(now * 9.0) * 0.12 + sin(now * 13.7) * 0.08
+	draw_colored_polygon(PackedVector2Array([c + Vector2(-5, 2), c + Vector2(0, -11 * f), c + Vector2(5, 2)]), Color("#e67e22"))
+	draw_colored_polygon(PackedVector2Array([c + Vector2(-2.5, 2), c + Vector2(0, -6 * f), c + Vector2(2.5, 2)]), Color("#f9ca24"))
 
 
 ## Lane tower: a wooden watchtower, or after the Stone Towers upgrade a stone
@@ -785,7 +827,9 @@ func _draw_tower(pos: Vector2, color: Color, hp: float, stone: bool, style: Stri
 	var name := "tower_ruin" if hp <= 0 else ("tower_wood" if not stone else ("tower_marble" if style == "classical" else "tower_stone"))
 	_draw_art(name, pos + Vector2(0, -10), Vector2(56, 84), color)
 	if hp > 0:
-		_draw_hp(pos + Vector2(0, -60), hp, max_hp)
+		# Bars sit on the lane side: above the player's towers, below the enemy's.
+		var below := pos.y < size.y / 2
+		_draw_hp(pos + Vector2(0, 40 if below else -60), hp, max_hp)
 
 
 ## Arrow from a tower's slit to its target, rising and falling in a short arc.
@@ -1094,11 +1138,12 @@ func _draw_carpentry(c: Vector2) -> void:
 	_draw_art("carpentry", c + Vector2(0, -8), Vector2(62, 46))
 
 
-## Barracks, archery range or stables: Era I wood and straw for everyone, then
-## the civ's style (medieval timber frame / classical plaster and columns).
-## Shields show at level 2, a stone base and pennants at level 3.
-func _draw_military(id: String, c: Vector2, civ_color: Color, era: int, style: String, tier := 0) -> void:
-	var look := "era0" if era == 0 else ("classical" if style == "classical" else "medieval")
+## Barracks, archery range or stables. The era never changes them; their own
+## upgrades do: rough wood and straw when built, the civ's style (medieval
+## timber frame / classical plaster and columns) with shields after the first
+## upgrade, plus a stone base and pennants after the second.
+func _draw_military(id: String, c: Vector2, civ_color: Color, _era: int, style: String, tier := 0) -> void:
+	var look := "era0" if tier == 0 else ("classical" if style == "classical" else "medieval")
 	var at := c + Vector2(0, -12)
 	var sz := Vector2(80, 65)
 	_draw_art("%s_%s" % [id, look], at, sz, civ_color)

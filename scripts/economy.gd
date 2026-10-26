@@ -19,6 +19,8 @@ var villagers: Dictionary = {}
 ## Living military units; they count toward the population cap with villagers.
 var army_size := 0
 var huts := 0
+## Era each hut was built in; a hut keeps that look when the era advances.
+var hut_eras: Array[int] = []
 ## Mines built so far, e.g. {"gold": true}. Workers can only mine where one exists.
 var mines := {}
 ## Military buildings built so far, e.g. {"barracks": true}; each unlocks a unit.
@@ -47,6 +49,8 @@ func _init(civ: String, cfg: Dictionary = GameConfig.data()) -> void:
 	civ_id = civ
 	resources = _cfg.starting_resources.duplicate()
 	huts = _cfg.population.get("starting_huts", 0)
+	for i in huts:
+		hut_eras.append(0)
 	villagers = {"idle": 0, "food": 0, "wood": 0, "gold": 0, "stone": 0}
 	for job in _cfg.starting_villagers:
 		for i in _cfg.starting_villagers[job]:
@@ -130,6 +134,7 @@ func _complete(j: Dictionary) -> void:
 			era_index += 1
 		"hut":
 			huts += 1
+			hut_eras.append(era_index)
 		"mine":
 			mines[j.id] = true
 		"military":
