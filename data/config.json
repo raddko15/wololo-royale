@@ -165,7 +165,7 @@
       },
       "hp": 170,
       "damage_per_sec": 13,
-      "range": 0.14,
+      "range": 0.2,
       "speed": 0.085,
       "requires": "stables",
       "upgrades_as": "cavalry",
