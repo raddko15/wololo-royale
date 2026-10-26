@@ -235,7 +235,10 @@ func _lane_pos_at(lane: int, y: float, side: float) -> Vector2:
 	if y < 0.0:
 		return _along(road(Battlefield.PLAYER, lane), -y / Battlefield.MAIN_DIST[lane])
 	var sy := lerpf(tower_line(Battlefield.PLAYER), tower_line(Battlefield.ENEMY), y)
-	return Vector2(LANE_X[lane] * size.x + side * size.x * 0.025, sy)
+	# Sideways spread fades out near both tower lines, where the roads (which
+	# have no spread) join, so units don't snap sideways there.
+	var fade := smoothstep(0.0, 0.08, minf(y, 1.0 - y))
+	return Vector2(LANE_X[lane] * size.x + side * size.x * 0.025 * fade, sy)
 
 
 ## Direction a unit faces on screen: toward its target while fighting,
@@ -288,6 +291,13 @@ func unit_positions() -> Array[Vector2]:
 			var in_ring := mini(per_ring, idxs.size() - ring * per_ring)
 			var a := front if in_ring == 1 else front - spread / 2 + spread * (n % per_ring) / (in_ring - 1)
 			result[idxs[n]] = center + Vector2.from_angle(a) * (radius + ring * 30)
+	# Glide toward the spot instead of jumping (e.g. into or out of an attack
+	# formation): move at most a few pixels per frame.
+	for n in result.size():
+		var u: Dictionary = battle.units[n]
+		var prev: Vector2 = u.get("view_pos", result[n])
+		u["view_pos"] = prev.move_toward(result[n], clampf(prev.distance_to(result[n]) * 0.15, 3.0, 6.0))
+		result[n] = u["view_pos"]
 	return result
 
 
