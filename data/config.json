@@ -218,6 +218,10 @@
     },
     "main": {
       "hp": 1000,
+      "regen_delay_sec": 5,
+      "regen_per_sec": 5,
+      "era_armor": [0.0, 0.2, 0.35],
+      "era_heal": 0.4,
       "arrow_damage": 8,
       "attack_interval_sec": 1.0,
       "range": 0.25

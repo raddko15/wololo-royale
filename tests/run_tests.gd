@@ -168,7 +168,9 @@ func _init() -> void:
 	for i in 400:
 		b0.tick(0.1)
 	_check(b0.units.size() == 1 and b0.buildings[Battlefield.PLAYER].main < 1000, "the Era I fort does not shoot: a fighter hacks at it unharmed")
-	b0.fort_armed[Battlefield.PLAYER] = true
+	var hurt: float = b0.buildings[Battlefield.PLAYER].main
+	b0.fort_new_era(Battlefield.PLAYER, 1)
+	_check(is_equal_approx(b0.buildings[Battlefield.PLAYER].main, minf(hurt + 400.0, 1000.0)) and b0.fort_armor[Battlefield.PLAYER] == 0.2, "a new era heals the fort 40% and gives it 20% armor")
 	for i in 200:
 		b0.tick(0.1)
 	_check(b0.units.is_empty(), "from Era II the fort shoots it down")
@@ -272,6 +274,14 @@ func _init() -> void:
 	_check(is_equal_approx(mb.villager_time(), 6.0), "villagers take 6 s in Era I")
 	mb.era_index = 2
 	_check(mb.villager_time() < 4.5, "the town center trains villagers faster in later eras")
+
+	var rb := Battlefield.new()
+	rb.buildings[Battlefield.PLAYER].main = 500.0
+	rb.tick(4.0)
+	_check(rb.buildings[Battlefield.PLAYER].main == 500.0, "no repairs within 5 s of the last hit")
+	for i in 20:
+		rb.tick(0.1)
+	_check(rb.buildings[Battlefield.PLAYER].main > 500.0 and rb.buildings[Battlefield.PLAYER].main < 520.0, "then the fort slowly repairs itself")
 
 	# Unique units: one per civ, Era III, sharing their building's upgrades.
 	var gr := Economy.new("greeks")

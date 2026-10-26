@@ -19,7 +19,7 @@ func _init() -> void:
 	if args.size() > 3:
 		main.ai.economy = Economy.new(args[3])
 		main._view.enemy_economy = main.ai.economy
-	var era: int = {"era1": 0, "era2": 1, "era2up": 1, "era3": 2, "window": 1, "mill": 1, "mine": 2, "jobs": 1, "sites": 1, "sites0": 0, "corpses": 1, "start": 0, "victory": 0, "unique": 2, "walkstrip": 2}[mode]
+	var era: int = {"era1": 0, "era2": 1, "era2up": 1, "era3": 2, "window": 1, "mill": 1, "mine": 2, "jobs": 1, "sites": 1, "sites0": 0, "corpses": 1, "start": 0, "victory": 0, "unique": 2, "walkstrip": 2, "fightstrip": 0}[mode]
 	if mode == "start":
 		# A real opening: the AI plays its first 30 seconds, the player nothing.
 		for i in 600:
@@ -46,6 +46,9 @@ func _init() -> void:
 				"barracks2": true, "archery_range1": true, "stables1": true}
 			e.mines = {"gold": true, "stone": true}
 			e.military = {"barracks": 3, "archery_range": 1, "stables": 2}
+	for team in [Battlefield.PLAYER, Battlefield.ENEMY]:
+		main.battle.fort_new_era(team, era)
+	main.battle.buildings[Battlefield.PLAYER].main = 700.0
 	if era >= 1 and mode != "sites":
 		main.battle.build_towers(Battlefield.PLAYER)
 		main.battle.build_towers(Battlefield.ENEMY)
@@ -57,10 +60,18 @@ func _init() -> void:
 		main.ai.economy.villagers.idle += 1
 		main.ai.economy.reassign("idle", job)
 	var mix := ["fighter", "archer", "cavalry", "fighter"] if era >= 1 else ["fighter", "fighter", "fighter", "fighter"]
-	if mode == "walkstrip":
+	if mode == "walkstrip" or mode == "fightstrip":
 		main.battle.units.clear()
-		main.battle.spawn(Battlefield.PLAYER, "knight", 1)
-		main.battle.spawn(Battlefield.PLAYER, "cavalry", 0)
+		if mode == "walkstrip":
+			main.battle.spawn(Battlefield.PLAYER, "knight", 1)
+			main.battle.spawn(Battlefield.PLAYER, "cavalry", 0)
+		else:
+			# Two Era I fighters trading blows mid-lane, with plenty of HP.
+			for team in [Battlefield.PLAYER, Battlefield.ENEMY]:
+				var f: Dictionary = main.battle.spawn(team, "fighter", 1)
+				f.y = 0.5 if team == Battlefield.PLAYER else 0.535
+				f.hp = 9999.0
+				f.max_hp = 9999.0
 		for f in 12:
 			for i in 3:
 				await process_frame

@@ -822,13 +822,15 @@ func _draw_city(team: int, now: float) -> void:
 	# Health bar: under the player's gate; in front of (below) the enemy's fort,
 	# since its back side holds the village.
 	var bar_y := 50.0
-	_draw_hp(tc + Vector2(0, bar_y), battle.buildings[team].main, battle.max_hp("main"), 110)
 	# Huts back to front so nearer ones overlap farther ones.
 	var order := range(e.huts)
 	order.sort_custom(func(a, b): return hut_pos(team, a).y < hut_pos(team, b).y)
 	for i in order:
 		_draw_hut(hut_pos(team, i), e.era_index, style)
 	_draw_campfire(campfire_pos(team), now)
+	# The fort's bar after the huts, so none of them hides it.
+	_draw_hp(tc + Vector2(0, bar_y), battle.buildings[team].main, battle.max_hp("main"), 110)
+	_draw_fort_status(team, tc + Vector2(0, bar_y), now)
 	# Idle villagers sit at the campfire, except those helping on a building site.
 	var helping := _helper_spots(team, e)
 	var at_fire: int = e.villagers.get("idle", 0) - helping.size()
@@ -908,6 +910,27 @@ func _draw_build_site(site: Array, e: Economy, now: float) -> void:
 	draw_circle(at, 11, Color("#f9ca24").lerp(Color("#ffe58a"), pulse) if affordable else Color("#8f8a80"))
 	draw_line(at + Vector2(-6, 0), at + Vector2(6, 0), OUTLINE, 3)
 	draw_line(at + Vector2(0, -6), at + Vector2(0, 6), OUTLINE, 3)
+
+
+## Beside the fort's health bar: a shield with its armor (from Era II), and
+## a pulsing green + while it repairs itself.
+func _draw_fort_status(team: int, bar: Vector2, now: float) -> void:
+	var armor: float = battle.fort_armor[team]
+	if armor > 0:
+		var c := bar + Vector2(-72, 0)
+		var shield := PackedVector2Array([c + Vector2(-9, -9), c + Vector2(9, -9), c + Vector2(9, 1), c + Vector2(0, 10), c + Vector2(-9, 1)])
+		draw_colored_polygon(shield, Color("#c9d0d4"))
+		draw_polyline(shield + PackedVector2Array([shield[0]]), OUTLINE, 1.6)
+		var font := get_theme_default_font()
+		var text := "%d" % roundi(armor * 100)
+		var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
+		draw_string(font, c + Vector2(-w / 2, 3), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, OUTLINE)
+	if battle.fort_repairing(team):
+		var c := bar + Vector2(72, 0)
+		var a := 0.5 + 0.5 * sin(now * 4.0)
+		draw_circle(c, 9, Color(0.15, 0.6, 0.25, 0.4 + 0.5 * a))
+		draw_line(c + Vector2(-5, 0), c + Vector2(5, 0), Color.WHITE, 3)
+		draw_line(c + Vector2(0, -5), c + Vector2(0, 5), Color.WHITE, 3)
 
 
 ## Gold arrow badges: one over every building with an upgrade the player can
@@ -1543,10 +1566,20 @@ func _draw_hoplite(u: Dictionary, p: Vector2, color: Color, now: float, target: 
 ## Fighter: a figure with a club (helmet and shield at level 2; great helm,
 ## chainmail and a sword at level 3). The weapon swings while attacking.
 func _draw_fighter(u: Dictionary, p: Vector2, color: Color, now: float) -> void:
-	var facing := -PI / 2 if u.team == Battlefield.PLAYER else PI / 2
-	var angle := facing + 0.5  # held forward-right at rest
+	# Weapon angles are on screen: it rests on the shoulder pointing up; in a
+	# fight it is raised high over the head, then chopped down fast and lifted
+	# back up more slowly (an overhead blow, not an upswing from the hip).
+	var angle := -PI / 2 + 0.45
+	var grip := Vector2(26, 27)
 	if u.target != "":
-		angle = facing + 0.2 + sin(now * 12.0 + u.side * 7.0) * 0.9
+		var t := fmod(now * 1.8 + u.side * 3.0 + 10.0, 1.0)
+		var raised := -PI / 2 - 0.5
+		var struck := 0.35
+		if t < 0.25:
+			angle = lerpf(raised, struck, ease(t / 0.25, 2.2))
+		else:
+			angle = lerpf(struck, raised, ease((t - 0.25) / 0.75, 0.6))
+		grip = Vector2(24, 22)
 	var tier: int = u.get("tier", 0)
 	var gear := ["helmet_1"] if tier == 1 else (["chainmail", "helmet_2"] if tier >= 2 else [])
 	var k := UNIT_SCALE
@@ -1557,7 +1590,7 @@ func _draw_fighter(u: Dictionary, p: Vector2, color: Color, now: float) -> void:
 	var o := _figure_origin(p, k)
 	if tier >= 1:
 		_draw_shield(o + Vector2(6, 26) * k, color, k)
-	_draw_weapon("sword" if tier >= 2 else "club", Vector2(10, 30), Vector2(5, 27), o + Vector2(26, 27) * k, angle, k)
+	_draw_weapon("sword" if tier >= 2 else "club", Vector2(10, 30), Vector2(5, 27), o + grip * k, angle, k)
 	_draw_hp(p + Vector2(0, -30), u.hp, u.max_hp, 26)
 
 

@@ -43,7 +43,7 @@ func _on_job_done(job: Dictionary) -> void:
 		"towers":
 			battle.build_towers(team)
 		"era":
-			battle.fort_armed[team] = true
+			battle.fort_new_era(team, economy.era_index)
 		"upgrade":
 			if job.id == "stone_towers":
 				battle.upgrade_towers(team, _cfg.upgrades.stone_towers.tower_hp_bonus)

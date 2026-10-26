@@ -36,6 +36,10 @@ var main_cooldowns := [0.0, 0.0]
 var winner := -1
 ## Whether each side's fort shoots: not in Era I, from Era II on.
 var fort_armed := [false, false]
+## Share of damage each fort shrugs off (rises with each era).
+var fort_armor := [0.0, 0.0]
+## Seconds since each fort was last hit; after a while it slowly repairs.
+var fort_quiet := [0.0, 0.0]
 
 var _cfg: Dictionary
 
@@ -45,6 +49,27 @@ func _init(cfg: Dictionary = GameConfig.data()) -> void:
 	for team in 2:
 		buildings.append({"towers": [0.0, 0.0, 0.0], "main": float(_cfg.buildings.main.hp)})
 		tower_max_hp[team] = float(_cfg.buildings.tower.hp)
+
+
+## A fort left alone for regen_delay_sec repairs itself slowly.
+func _repair_forts(delta: float) -> void:
+	var fort: Dictionary = _cfg.buildings.main
+	for team in 2:
+		fort_quiet[team] += delta
+		if fort_quiet[team] >= fort.regen_delay_sec and buildings[team].main > 0:
+			buildings[team].main = minf(buildings[team].main + fort.regen_per_sec * delta, max_hp("main"))
+
+
+func fort_repairing(team: int) -> bool:
+	return fort_quiet[team] >= _cfg.buildings.main.regen_delay_sec and buildings[team].main < max_hp("main")
+
+
+## A new era: the fort shoots (from Era II), gets tougher and is patched up.
+func fort_new_era(team: int, era: int) -> void:
+	var fort: Dictionary = _cfg.buildings.main
+	fort_armed[team] = era >= 1
+	fort_armor[team] = fort.era_armor[mini(era, fort.era_armor.size() - 1)]
+	buildings[team].main = minf(buildings[team].main + max_hp("main") * fort.era_heal, max_hp("main"))
 
 
 ## All three lane towers of `team` at full health.
@@ -105,6 +130,7 @@ func tick(delta: float) -> void:
 		_unit_act(u, delta)
 	_towers_shoot(delta)
 	_remove_dead()
+	_repair_forts(delta)
 	for team in 2:
 		if buildings[team].main <= 0:
 			winner = 1 - team
@@ -133,7 +159,8 @@ func _unit_act(u: Dictionary, delta: float) -> void:
 			buildings[enemy].towers[u.lane] -= u.dps * delta
 			u.target = "tower"
 		else:
-			buildings[enemy].main -= u.dps * delta
+			buildings[enemy].main -= u.dps * (1.0 - fort_armor[enemy]) * delta
+			fort_quiet[enemy] = 0.0
 			u.target = "main"
 		return
 	var step: float = u.speed * delta
