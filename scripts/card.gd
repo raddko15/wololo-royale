@@ -27,6 +27,11 @@ func _init(title: String) -> void:
 	_title.text = title
 	_title.add_theme_font_size_override("font_size", 28)
 	_cost.add_theme_font_size_override("font_size", 22)
+	# Fixed text space so a longer note (e.g. "2 queued") never makes the card
+	# taller and shifts the map above it.
+	_title.max_lines_visible = 1
+	_cost.max_lines_visible = 2
+	_cost.custom_minimum_size.y = 56
 	set_state("", true, false)
 
 

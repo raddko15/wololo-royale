@@ -163,7 +163,9 @@ func _header() -> Control:
 			row.add_child(item)
 	_ui.hint = _label("", 22)
 	_ui.hint.add_theme_color_override("font_color", Color("#f9ca24"))
-	_ui.hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	# Always exactly one line (long hints end in "…"), so the map never shifts.
+	_ui.hint.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_ui.hint.clip_text = true
 	col.add_child(_ui.hint)
 	return panel
 
@@ -453,13 +455,16 @@ func _refresh() -> void:
 		_ui[res].text = "%d" % r[res]
 	_ui.villagers.text = "%d (%d idle)" % [economy.total_villagers(), economy.villagers.get("idle", 0)]
 	_ui.pop.text = "%d/%d" % [economy.population(), economy.max_population()]
+	var full := not economy.has_room()
+	_ui.pop.add_theme_color_override("font_color", Color("#e55039") if full else Color.WHITE)
 	if Time.get_ticks_msec() > _ui.get("hint_until", 0):
 		_ui.hint.text = "Tap a unit card for AUTO · drag it for one unit · lanes on play get them"
 
 	var dragging: String = _press.get("card", "") if _ghost else ""
 	var vcost := economy.villager_cost()
 	var vq := economy.pending_count("villager")
-	_cards.villager.set_state("%d food%s" % [vcost.food, " · %d queued" % vq if vq else ""], economy.can_recruit(), dragging == "villager")
+	var vnote := "pop full: build huts" if full else "%d food%s" % [vcost.food, " · %d queued" % vq if vq else ""]
+	_cards.villager.set_state(vnote, economy.can_recruit(), dragging == "villager")
 	var cfg := GameConfig.data()
 	for id in cfg.units:
 		var unit: Dictionary = cfg.units[id]
@@ -468,6 +473,8 @@ func _refresh() -> void:
 		var queued := economy.jobs.filter(func(j): return j.kind == "unit" and j.id == id).size()
 		if queued:
 			note += " · %d queued" % queued
+		if full and economy.unit_unlocked(id):
+			note = "pop full: build huts"
 		_cards[id].set_state(note, economy.can_train(id), dragging == id, _auto.has(id))
 
 

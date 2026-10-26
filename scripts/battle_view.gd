@@ -331,15 +331,15 @@ func _draw() -> void:
 	# Chevrons moving up every active lane.
 	var top := tower_line(Battlefield.ENEMY) + 40
 	var bottom := tower_line(Battlefield.PLAYER) - 40
-	var shift := fmod(Time.get_ticks_msec() / 1000.0 * 40.0, 60.0)
+	var shift := fmod(Time.get_ticks_msec() / 1000.0 * 30.0, 90.0)
 	for lane in Battlefield.LANES:
 		if not active_lanes[lane]:
 			continue
 		var lx: float = LANE_X[lane] * size.x
 		var y := bottom - shift
 		while y > top:
-			draw_polyline(PackedVector2Array([Vector2(lx - 14, y + 8), Vector2(lx, y - 4), Vector2(lx + 14, y + 8)]), Color(1, 1, 1, 0.35), 4)
-			y -= 60
+			draw_polyline(PackedVector2Array([Vector2(lx - 10, y + 6), Vector2(lx, y - 3), Vector2(lx + 10, y + 6)]), Color(1, 1, 1, 0.13), 3)
+			y -= 90
 	for team in [Battlefield.ENEMY, Battlefield.PLAYER]:
 		for lane in Battlefield.LANES:
 			var path := road(team, lane)
@@ -415,6 +415,8 @@ func _draw_city(team: int, now: float) -> void:
 		_draw_mine(mine_pos(team, res), res, e.upgrades.has(res + "_mine2"))
 	for id in e.military:
 		_draw_military(id, military_pos(team, id), color, e.era_index, style)
+		if team == Battlefield.PLAYER and not e.has_room():
+			_draw_pop_full(military_pos(team, id) + Vector2(0, -52), now)
 	var tc := town_center(team)
 	_draw_fort(tc, color, e.era_index, style)
 	# Health bar on the fort's back side: under the player's gate, above the enemy's flag.
@@ -487,6 +489,21 @@ func _upgrade_sites(team: int, id: String) -> Array[Vector2]:
 func _queue_label(e: Economy, job: Dictionary) -> String:
 	var n := e.queue_length(job.queue)
 	return "×%d" % n if n > 1 else ""
+
+
+## Red "POP FULL" sign that pulses above a building that can't train.
+func _draw_pop_full(c: Vector2, now: float) -> void:
+	var font := get_theme_default_font()
+	var text := "POP FULL"
+	var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
+	var pulse := 0.75 + 0.25 * sin(now * 5.0)
+	var r := Rect2(c - Vector2(w / 2 + 8, 12), Vector2(w + 16, 24))
+	var box := StyleBoxFlat.new()
+	box.bg_color = Color("#c0392b", pulse)
+	box.set_corner_radius_all(8)
+	draw_style_box(box, r)
+	draw_colored_polygon(PackedVector2Array([c + Vector2(-6, 12), c + Vector2(6, 12), c + Vector2(0, 19)]), Color("#c0392b", pulse))
+	draw_string(font, c + Vector2(-w / 2, 6), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color.WHITE)
 
 
 func _draw_progress(center: Vector2, width: float, frac: float, color: Color, label := "") -> void:
