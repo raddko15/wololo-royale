@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c575kqt3h8e0p"
-path="res://.godot/imported/barding_up_tint.svg-13ab2f5f55a6e8c31d95e9a56c21fa54.ctex"
+uid="uid://b4ousj7wjgcsy"
+path="res://.godot/imported/cav_barding_tint.svg-751773919248d4b1c0d7bc6cb92e983a.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/art/barding_up_tint.svg"
-dest_files=["res://.godot/imported/barding_up_tint.svg-13ab2f5f55a6e8c31d95e9a56c21fa54.ctex"]
+source_file="res://assets/art/cav_barding_tint.svg"
+dest_files=["res://.godot/imported/cav_barding_tint.svg-751773919248d4b1c0d7bc6cb92e983a.ctex"]
 
 [params]
 

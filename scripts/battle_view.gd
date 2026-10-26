@@ -224,13 +224,32 @@ func _along(points: PackedVector2Array, frac: float) -> Vector2:
 ## Where a unit stands: on its lane between the tower lines, or past the
 ## enemy tower on the road to the enemy fort.
 func _unit_lane_pos(u: Dictionary) -> Vector2:
-	# Lane y beyond 1 is on the enemy's road, below 0 on the player's road.
-	if u.y > 1.0:
-		return _along(road(Battlefield.ENEMY, u.lane), (u.y - 1.0) / Battlefield.MAIN_DIST[u.lane])
-	if u.y < 0.0:
-		return _along(road(Battlefield.PLAYER, u.lane), -u.y / Battlefield.MAIN_DIST[u.lane])
-	var y := lerpf(tower_line(Battlefield.PLAYER), tower_line(Battlefield.ENEMY), u.y)
-	return Vector2(LANE_X[u.lane] * size.x + u.side * size.x * 0.025, y)
+	return _lane_pos_at(u.lane, u.y, u.side)
+
+
+## Screen point for lane coordinate `y` (beyond 1: on the enemy's road, below
+## 0: on the player's road), with sideways spread `side` on the lane itself.
+func _lane_pos_at(lane: int, y: float, side: float) -> Vector2:
+	if y > 1.0:
+		return _along(road(Battlefield.ENEMY, lane), (y - 1.0) / Battlefield.MAIN_DIST[lane])
+	if y < 0.0:
+		return _along(road(Battlefield.PLAYER, lane), -y / Battlefield.MAIN_DIST[lane])
+	var sy := lerpf(tower_line(Battlefield.PLAYER), tower_line(Battlefield.ENEMY), y)
+	return Vector2(LANE_X[lane] * size.x + side * size.x * 0.025, sy)
+
+
+## Direction a unit faces on screen: toward its target while fighting,
+## otherwise along its path (so it turns at the road corners). Smoothed.
+func _heading(u: Dictionary, target: Vector2) -> float:
+	var want: float
+	if target != Vector2.INF:
+		want = (target - _unit_lane_pos(u)).angle()
+	else:
+		var ahead := 0.02 if u.team == Battlefield.PLAYER else -0.02
+		want = (_lane_pos_at(u.lane, u.y + ahead, u.side) - _lane_pos_at(u.lane, u.y, u.side)).angle()
+	var h: float = lerp_angle(u.get("view_heading", want), want, 0.2)
+	u["view_heading"] = h
+	return h
 
 
 ## Screen positions for all units. Walkers spread sideways in their lane;
@@ -468,7 +487,7 @@ func _draw() -> void:
 			"archer":
 				_draw_archer(u, positions[i], color, now, _target_pos(u, positions))
 			"cavalry":
-				_draw_cavalry(u, positions[i], color, now)
+				_draw_cavalry(u, positions[i], color, now, _target_pos(u, positions))
 			_:
 				_draw_fighter(u, positions[i], color, now)
 	for a in battle.arrows:
@@ -1095,48 +1114,42 @@ func _draw_archer(u: Dictionary, p: Vector2, color: Color, now: float, target: V
 	_draw_hp(p + Vector2(0, -30), u.hp, u.max_hp, 26)
 
 
-## Rider on a horse seen from above at an angle, the way the camera looks at
-## the field: riding up (the player's) the head leads at the top and the
-## tail trails below; riding down (the enemy's) the face comes toward you.
-## The rider sits on the saddle in the middle. Armored horse at level 2;
-## knight (helm, shield, pennant) at level 3.
-func _draw_cavalry(u: Dictionary, p: Vector2, color: Color, now: float) -> void:
+## Cavalry seen from directly above, so the whole unit can turn: it rotates
+## to follow its road (round the L corners) and to face what it attacks.
+## Hooves step at the sides while galloping. Armored horse at level 2; knight
+## with a plumed helm, shield and pennant at level 3.
+func _draw_cavalry(u: Dictionary, p: Vector2, color: Color, now: float, target: Vector2) -> void:
 	var tier: int = u.get("tier", 0)
-	var up: bool = u.team == Battlefield.PLAYER
-	var view := "up" if up else "down"
 	var gallop := _walk_phase(u, now, 13.0)
-	var bob := -absf(sin(gallop)) * 1.5 if gallop >= 0.0 else 0.0
-	var k := UNIT_SCALE * 1.35
-	var box := Rect2(p + Vector2(-15, -40 + bob) * k, Vector2(30, 52) * k)
-	# Legs reach out at the sides, front and hind pairs swinging opposite ways.
-	var body_y := 30.0 if up else 23.0
-	for leg in [[-1, -7, 0.0], [1, -7, PI], [-1, 7, PI], [1, 7, 0.0]]:
-		var a: float = sin(gallop + leg[2]) * 3.0 if gallop >= 0.0 else 0.0
-		var root: Vector2 = box.position + Vector2(15 + leg[0] * 7, body_y + leg[1]) * k
-		var foot: Vector2 = root + Vector2(leg[0] * 5, a) * k
-		draw_line(root, foot, OUTLINE, 4.0 * k)
-		draw_line(root, foot, Color("#7a4a26"), 2.4 * k)
-	draw_texture_rect(_tex("horse_" + view), box, false)
+	var k := UNIT_SCALE * 1.15
+	var heading := _heading(u, target)
+	# Local space: art points up, centered on the rider at (15, 31).
+	draw_set_transform(p + Vector2(0, -8), heading + PI / 2, Vector2(k, k))
+	var o := -Vector2(15, 31)
+	for hoof in [[8.0, 24.0, 0.0], [22.0, 24.0, PI], [8.0, 43.0, PI], [22.0, 43.0, 0.0]]:
+		var step: float = sin(gallop + hoof[2]) * 2.5 if gallop >= 0.0 else 0.0
+		draw_circle(o + Vector2(hoof[0], hoof[1] + step), 2.2, Color("#2b1d10"))
+	var box := Rect2(o, Vector2(30, 56))
+	draw_texture_rect(_tex("cav_horse"), box, false)
 	if tier >= 1:
-		draw_texture_rect(_tex("barding_" + view), box, false)
-		draw_texture_rect(_tex("barding_%s_tint" % view), box, false, color)
-	var saddle := box.position + Vector2(15, body_y) * k
-	var rider := saddle + Vector2(0, -1) * k
-	# Seated astride, facing the way the horse runs: back to us when riding up.
-	_draw_figure(rider, color, ["helmet_2"] if tier >= 2 else [], 0.55 * k, -1.0, up, true)
+		draw_texture_rect(_tex("cav_barding"), box, false)
+		draw_texture_rect(_tex("cav_barding_tint"), box, false, color)
+	if tier >= 2:  # shield on the left arm
+		var sh := Rect2(o + Vector2(1, 26), Vector2(10, 10))
+		draw_texture_rect(_tex("shield"), sh, false)
+		draw_texture_rect(_tex("shield_tint"), sh, false, color)
+	draw_texture_rect(_tex("cav_rider"), box, false)
+	draw_texture_rect(_tex("cav_rider_tint"), box, false, color)
+	draw_texture_rect(_tex("cav_helm" if tier >= 2 else "cav_head"), box, false)
+	# Lance couched under the right arm, pointing ahead; it jabs while fighting.
+	var jab := maxf(sin(now * 10.0 + u.side * 7.0), 0.0) * 4.0 if u.target != "" else 0.0
+	var lance := _tex("lance")
+	var grip := o + Vector2(21, 30 - jab)
+	draw_texture_rect(lance, Rect2(grip - Vector2(4, 44) * 0.85, Vector2(8, 56) * 0.85), false)
 	if tier >= 2:
-		_draw_shield(rider + Vector2(-7, -2) * k, color, 0.55 * k)
-	var forward := -PI / 2 if up else PI / 2
-	var swing := sin(now * 10.0 + u.side * 7.0) * 0.25 if u.target != "" else 0.0
-	var lance_angle := forward + (0.25 if up else -0.25) + swing
-	var hand := rider + Vector2(5.5, -2) * k
-	_draw_weapon("lance", Vector2(8, 56), Vector2(4, 44), hand, lance_angle, k * 0.75)
-	if tier >= 2:
-		var t := _tex("pennant_tint")
-		draw_set_transform(hand, lance_angle + PI / 2, Vector2(k, k) * 0.75)
-		draw_texture_rect(t, Rect2(-Vector2(4, 44), Vector2(8, 56)), false, color)
-		draw_set_transform(Vector2.ZERO)
-	_draw_hp(p + Vector2(0, -58), u.hp, u.max_hp, 30)
+		draw_texture_rect(_tex("pennant_tint"), Rect2(grip - Vector2(4, 44) * 0.85, Vector2(8, 56) * 0.85), false, color)
+	draw_set_transform(Vector2.ZERO)
+	_draw_hp(p + Vector2(0, -42), u.hp, u.max_hp, 30)
 
 
 ## Fighter: a figure with a club (helmet and shield at level 2; great helm,
