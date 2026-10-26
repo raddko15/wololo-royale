@@ -296,14 +296,11 @@ func _on_menu_choice(id: String) -> void:
 		"barracks", "archery_range", "stables":
 			if economy.build_military(id):
 				_close_menu()
-		"mill", "lumber_camp", "mill2", "lumber_camp2", "gold_mine2", "stone_mine2":
+		_ when cfg.upgrades.has(id):
 			if economy.buy_upgrade(id):
 				_close_menu()
 		"worker_gold", "worker_stone":
 			economy.reassign("idle", id.trim_prefix("worker_"))
-		"stone_towers":
-			if economy.buy_upgrade(id):
-				_close_menu()
 	_refresh()
 
 
@@ -311,7 +308,7 @@ func _on_menu_choice(id: String) -> void:
 func _on_job_done(job: Dictionary) -> void:
 	match job.kind:
 		"unit":
-			battle.spawn(Battlefield.PLAYER, job.id, job.lane)
+			battle.spawn(Battlefield.PLAYER, job.id, job.lane, economy.unit_bonus(job.id), economy.unit_tier(job.id))
 		"towers":
 			battle.build_towers(Battlefield.PLAYER)
 		"upgrade":
@@ -389,6 +386,8 @@ func _menu_options(kind: String) -> Array:
 			opts.append(_upgrade_option(kind + "2"))
 		"towers":
 			opts.append(_upgrade_option("stone_towers"))
+		"barracks", "archery_range", "stables":
+			opts.append(_upgrade_option(kind + ("2" if economy.upgrades.has(kind + "1") else "1")))
 	return opts
 
 
@@ -405,6 +404,11 @@ func _next_upgrades() -> Array:
 	for res in Economy.MINED:
 		if economy.mines.has(res) and not economy.upgrades.has(res + "_mine2"):
 			ids.append(res + "_mine2")
+	for id in economy.military:
+		for next in [id + "1", id + "2"]:
+			if not economy.upgrades.has(next):
+				ids.append(next)
+				break
 	return ids
 
 
@@ -476,6 +480,8 @@ func _refresh() -> void:
 		if full and economy.unit_unlocked(id):
 			note = "pop full: build huts"
 		_cards[id].set_state(note, economy.can_train(id), dragging == id, _auto.has(id))
+		var tier := economy.unit_tier(id)
+		_cards[id]._title.text = unit.name + (" Lv%d" % (tier + 1) if tier else "")
 
 
 func _vbox(parent: Control, margin_px: int) -> VBoxContainer:

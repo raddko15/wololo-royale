@@ -99,6 +99,14 @@ func _init() -> void:
 	m.tick(0.61)
 	_check(spawned.size() == 3, "testing job speed: 10x faster training")
 	_check(not m.can_train("archer"), "archers need an archery range")
+	m.resources.gold = 1000.0
+	_check(not m.can_upgrade("archery_range1"), "archery upgrade needs the range")
+	_check(m.buy_upgrade("barracks1"), "barracks upgrade in Era II")
+	m.finish_jobs()
+	_check(m.unit_tier("fighter") == 1 and is_equal_approx(m.unit_bonus("fighter").hp, 0.4), "veteran fighters: tier 1, +40% HP")
+	var bv := Battlefield.new()
+	var vet := bv.spawn(Battlefield.PLAYER, "fighter", 0, m.unit_bonus("fighter"), m.unit_tier("fighter"))
+	_check(is_equal_approx(vet.max_hp, 84) and is_equal_approx(vet.dps, 13) and vet.tier == 1, "upgraded fighter spawns stronger")
 
 	var ba := Battlefield.new()
 	var archer := ba.spawn(Battlefield.PLAYER, "archer", 1)

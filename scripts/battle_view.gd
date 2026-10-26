@@ -5,7 +5,7 @@ extends Control
 ## mirrored at the top, with 3 lanes between the tower lines.
 
 ## A building of the player's was tapped: "town_center", "mill", "lumber_camp",
-## "towers", "gold_mine" or "stone_mine".
+## "towers", "gold_mine", "stone_mine", "barracks", "archery_range" or "stables".
 signal building_tapped(kind: String, at: Vector2)
 
 const LANE_X := [0.18, 0.5, 0.82]
@@ -291,6 +291,10 @@ func _gui_input(event: InputEvent) -> void:
 		if economy.mines.has(res) and pos.distance_to(mine_pos(Battlefield.PLAYER, res)) < 36:
 			building_tapped.emit(res + "_mine", mine_pos(Battlefield.PLAYER, res))
 			return
+	for id in economy.military:
+		if pos.distance_to(military_pos(Battlefield.PLAYER, id)) < 36:
+			building_tapped.emit(id, military_pos(Battlefield.PLAYER, id))
+			return
 	var job := job_at(pos)
 	if job != "":
 		# Tapping a working villager sends it back to idle; tapping the area sends an idle one in.
@@ -414,7 +418,7 @@ func _draw_city(team: int, now: float) -> void:
 	for res in e.mines:
 		_draw_mine(mine_pos(team, res), res, e.upgrades.has(res + "_mine2"))
 	for id in e.military:
-		_draw_military(id, military_pos(team, id), color, e.era_index, style)
+		_draw_military(id, military_pos(team, id), color, e.era_index, style, int(e.upgrades.has(id + "1")) + int(e.upgrades.has(id + "2")))
 		if team == Battlefield.PLAYER and not e.has_room():
 			_draw_pop_full(military_pos(team, id) + Vector2(0, -52), now)
 	var tc := town_center(team)
@@ -433,6 +437,39 @@ func _draw_city(team: int, now: float) -> void:
 		for lane in Battlefield.LANES:
 			_draw_tower(building_pos(team, "tower", lane), color, battle.buildings[team].towers[lane], e.upgrades.has("stone_towers"), style, battle.tower_max_hp[team])
 	_draw_jobs(team, e, now)
+	if team == Battlefield.PLAYER:
+		_draw_upgrade_badges(e, now)
+
+
+## A bobbing gold arrow over every building with an upgrade the player can
+## buy right now (the town center: the next era).
+func _draw_upgrade_badges(e: Economy, now: float) -> void:
+	var spots := []
+	if e.can_advance():
+		spots.append(town_center() + Vector2(70, -60))
+	var food_next := "mill2" if e.upgrades.has("mill") else "mill"
+	if e.can_upgrade(food_next):
+		spots.append(drop_off(Battlefield.PLAYER, "food") + Vector2(24, -40))
+	var wood_next := "lumber_camp2" if e.upgrades.has("lumber_camp") else "lumber_camp"
+	if e.can_upgrade(wood_next):
+		spots.append(drop_off(Battlefield.PLAYER, "wood") + Vector2(24, -40))
+	for res in e.mines:
+		if e.can_upgrade(res + "_mine2"):
+			spots.append(mine_pos(Battlefield.PLAYER, res) + Vector2(22, -34))
+	if e.can_upgrade("stone_towers"):
+		spots.append(building_pos(Battlefield.PLAYER, "tower", 1) + Vector2(30, -70))
+	for id in e.military:
+		var next: String = id + ("2" if e.upgrades.has(id + "1") else "1")
+		if e.can_upgrade(next):
+			# The barracks stands right of the screen edge's tower bar, so its badge goes left.
+			spots.append(military_pos(Battlefield.PLAYER, id) + Vector2(-26 if id == "barracks" else 30, -36))
+	var bob := sin(now * 4.0) * 3.0
+	for p in spots:
+		var c: Vector2 = p + Vector2(0, bob)
+		draw_circle(c, 13, Color("#2b2620"))
+		draw_arc(c, 13, 0, TAU, 20, Color("#f9ca24"), 2.5)
+		draw_colored_polygon(PackedVector2Array([c + Vector2(0, -8), c + Vector2(-7, 0), c + Vector2(7, 0)]), Color("#f9ca24"))
+		draw_rect(Rect2(c + Vector2(-3, 0), Vector2(6, 7)), Color("#f9ca24"))
 
 
 ## Everything under way: scaffolding with a hammering builder for buildings,
@@ -827,12 +864,26 @@ func _draw_archer(u: Dictionary, p: Vector2, color: Color, now: float, target: V
 	var facing := -PI / 2 if u.team == Battlefield.PLAYER else PI / 2
 	if target != Vector2.INF:
 		facing = (target - p).angle()
-	var bow_c := p + Vector2.from_angle(facing) * 9
-	draw_arc(bow_c, 11, facing - 1.2, facing + 1.2, 10, COLORS.stick, 3)
-	var tip_a := bow_c + Vector2.from_angle(facing - 1.2) * 11
-	var tip_b := bow_c + Vector2.from_angle(facing + 1.2) * 11
-	draw_line(tip_a, tip_b, Color("#e8e8e8"), 1)
+	var tier: int = u.get("tier", 0)
+	if tier >= 1:  # quiver on the back
+		var back := p - Vector2.from_angle(facing) * 8
+		draw_line(back + Vector2(-3, -6), back + Vector2(3, 6), Color("#7a4a26"), 5)
+	if tier >= 2:  # crossbow: stock forward and a short bow across it
+		var stock := p + Vector2.from_angle(facing) * 18
+		draw_line(p, stock, COLORS.stick, 3)
+		var across := Vector2.from_angle(facing + PI / 2) * 9
+		draw_line(stock - across, stock + across, Color("#7f8c8d"), 3)
+	else:
+		var bow_c := p + Vector2.from_angle(facing) * 9
+		draw_arc(bow_c, 11, facing - 1.2, facing + 1.2, 10, COLORS.stick, 3)
+		var tip_a := bow_c + Vector2.from_angle(facing - 1.2) * 11
+		var tip_b := bow_c + Vector2.from_angle(facing + 1.2) * 11
+		draw_line(tip_a, tip_b, Color("#e8e8e8"), 1)
 	_draw_ball(p, FIGHTER_R - 1, color)
+	if tier == 1:  # green hood
+		draw_arc(p, FIGHTER_R - 1, PI + 0.2, TAU - 0.2, 12, Color("#27ae60"), 4)
+	elif tier >= 2:  # steel cap
+		draw_arc(p, FIGHTER_R - 1, PI + 0.2, TAU - 0.2, 12, Color("#95a5a6"), 4)
 	if target != Vector2.INF:
 		var t := fmod(now * 1.2 + u.side, 1.0)
 		var ap := p.lerp(target, t) + Vector2(0, -sin(PI * t) * 18)
@@ -847,14 +898,25 @@ func _draw_cavalry(u: Dictionary, p: Vector2, color: Color, now: float) -> void:
 	var dir := -1.0 if u.team == Battlefield.PLAYER else 1.0
 	var gait := sin(now * 14.0 + u.side * 5.0) * 2.0 if u.target == "" else 0.0
 	var horse := Color("#7a4a26")
+	var tier: int = u.get("tier", 0)
 	draw_rect(Rect2(p + Vector2(-14, 2), Vector2(28, 11)), horse)  # body
+	if tier >= 1:  # barding: armor blanket in steel with a civ-color trim
+		draw_rect(Rect2(p + Vector2(-14, 2), Vector2(28, 8)), Color("#95a5a6"))
+		draw_rect(Rect2(p + Vector2(-14, 9), Vector2(28, 2)), color)
 	draw_rect(Rect2(p + Vector2(10, -6), Vector2(7, 12)), horse)  # neck/head
 	for x in [-11, -5, 5, 10]:  # legs
 		draw_line(p + Vector2(x, 13), p + Vector2(x + gait * (1 if x > 0 else -1), 22), horse.darkened(0.3), 3)
 	_draw_ball(p + Vector2(-2, -4), FIGHTER_R - 2, color)
 	var lance_from := p + Vector2(4, -6)
 	var swing := sin(now * 10.0 + u.side * 7.0) * 0.3 if u.target != "" else 0.0
-	draw_line(lance_from, lance_from + Vector2.from_angle(PI / 2 * dir + PI + 0.6 * dir + swing) * -26, COLORS.stick, 3)
+	var lance_dir := Vector2.from_angle(PI / 2 * dir + PI + 0.6 * dir + swing) * -1
+	draw_line(lance_from, lance_from + lance_dir * (32 if tier >= 2 else 26), COLORS.stick, 3)
+	if tier >= 2:  # knight: helmet, plume, shield and a pennant on the lance
+		draw_arc(p + Vector2(-2, -4), FIGHTER_R - 2, PI + 0.3, TAU - 0.3, 12, Color("#bdc3c7"), 4)
+		draw_line(p + Vector2(-2, -13), p + Vector2(-7, -21), Color("#e74c3c"), 3)
+		draw_circle(p + Vector2(-10, -2), 5, color.darkened(0.35))
+		var pen := lance_from + lance_dir * 30
+		draw_colored_polygon(PackedVector2Array([pen, pen + Vector2(8, 3), pen + lance_dir * -6]), color)
 	_draw_hp(p + Vector2(0, -24), u.hp, u.max_hp, 32)
 
 
@@ -865,9 +927,22 @@ func _draw_fighter(u: Dictionary, p: Vector2, color: Color, now: float) -> void:
 	var angle := facing + 0.5  # stick held forward-right at rest
 	if u.target != "":
 		angle = facing + 0.2 + sin(now * 12.0 + u.side * 7.0) * 0.9
-	draw_line(hand, hand + Vector2.from_angle(angle) * 20, COLORS.stick, 4)
+	var tier: int = u.get("tier", 0)
+	if tier >= 2:  # steel sword with a crossguard
+		var tip := hand + Vector2.from_angle(angle) * 24
+		draw_line(hand, tip, Color("#dfe6e9"), 4)
+		draw_line(hand + Vector2.from_angle(angle + PI / 2) * 5, hand - Vector2.from_angle(angle + PI / 2) * 5, Color("#7f6a3a"), 3)
+	else:
+		draw_line(hand, hand + Vector2.from_angle(angle) * 20, COLORS.stick, 4)
 	_draw_ball(p, FIGHTER_R, color)
-	_draw_hp(p + Vector2(0, -20), u.hp, u.max_hp, 28)
+	if tier >= 1:  # helmet and a round shield on the off hand
+		draw_arc(p, FIGHTER_R, PI + 0.3, TAU - 0.3, 12, Color("#95a5a6"), 4)
+		var off := p + Vector2.from_angle(facing - PI / 2) * FIGHTER_R
+		draw_circle(off, 6, color.darkened(0.35))
+		draw_arc(off, 6, 0, TAU, 12, Color("#dfe6e9"), 1.5)
+	if tier >= 2:  # plume
+		draw_line(p + Vector2(0, -FIGHTER_R), p + Vector2(-4, -FIGHTER_R - 8), Color("#e74c3c"), 3)
+	_draw_hp(p + Vector2(0, -22), u.hp, u.max_hp, 28)
 
 
 ## Villager ball: farmers bob, lumberjacks swing an axe, walkers carry their load.
@@ -1068,8 +1143,10 @@ func _draw_carpentry(c: Vector2) -> void:
 ## Barracks, archery range or stables around `c`. Era I: rough wood and
 ## straw for everyone; later medieval (dark roofs, timber) or classical
 ## (plaster, columns, terracotta), with the civ color on a banner or shield.
-func _draw_military(id: String, c: Vector2, civ_color: Color, era: int, style: String) -> void:
+func _draw_military(id: String, c: Vector2, civ_color: Color, era: int, style: String, tier := 0) -> void:
 	draw_set_transform(c, 0, Vector2(1.6, 1.6))
+	if tier >= 2:  # stone foundation under an elite building
+		draw_rect(Rect2(-22, 12, 44, 5), COLORS.stone)
 	var classical := style == "classical" and era >= 1
 	var wall: Color = COLORS.plaster if classical else COLORS.wood
 	var roof: Color = COLORS.terracotta if classical else (COLORS.farm.darkened(0.15) if era == 0 else Color("#4a3b35"))
@@ -1108,6 +1185,14 @@ func _draw_military(id: String, c: Vector2, civ_color: Color, era: int, style: S
 					draw_line(Vector2(x, 2), Vector2(x + 10, 14), COLORS.wood, 1.5)
 			draw_circle(Vector2(24, 10), 5, COLORS.farm)  # hay bale
 			draw_rect(Rect2(-5, -12, 10, 5), civ_color)
+	if tier >= 1:  # shields hung on the wall
+		for x in [-12, 12]:
+			draw_circle(Vector2(x, 2), 3.5, civ_color.darkened(0.3))
+			draw_arc(Vector2(x, 2), 3.5, 0, TAU, 10, Color("#dfe6e9"), 1)
+	if tier >= 2:  # pennants on poles
+		for x in [-20, 20]:
+			draw_line(Vector2(x, 12), Vector2(x, -22), Color.BLACK, 1.5)
+			draw_colored_polygon(PackedVector2Array([Vector2(x, -22), Vector2(x + 8 * sign(x), -19), Vector2(x, -16)]), civ_color)
 	draw_set_transform(Vector2.ZERO)
 
 

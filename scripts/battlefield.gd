@@ -64,12 +64,16 @@ func fort_y(team: int, lane: int) -> float:
 	return TOWER_Y[team] + (-1.0 if team == PLAYER else 1.0) * MAIN_DIST[lane]
 
 
-func spawn(team: int, unit_id: String, lane: int) -> Dictionary:
+## `bonus` comes from the owner's upgrades ({"hp", "damage", "range"} as
+## fractions); `tier` is how many upgrades it has, for its look.
+func spawn(team: int, unit_id: String, lane: int, bonus := {}, tier := 0) -> Dictionary:
 	var stats: Dictionary = _cfg.units[unit_id]
+	var hp: float = stats.hp * (1.0 + bonus.get("hp", 0.0))
 	var behind := -1.0 if team == PLAYER else 1.0
 	var unit := {
-		"team": team, "type": unit_id, "lane": lane, "y": TOWER_Y[team] + behind * MAIN_DIST[lane], "hp": float(stats.hp),
-		"max_hp": float(stats.hp), "speed": stats.speed, "dps": stats.damage_per_sec, "range": stats.range,
+		"team": team, "type": unit_id, "lane": lane, "y": TOWER_Y[team] + behind * MAIN_DIST[lane], "hp": hp,
+		"max_hp": hp, "speed": stats.speed, "dps": stats.damage_per_sec * (1.0 + bonus.get("damage", 0.0)),
+		"range": stats.range * (1.0 + bonus.get("range", 0.0)), "tier": tier,
 		# What it is hitting this tick: "unit", "tower", "main" or "" when walking;
 		# `foe` is the unit it hits when target is "unit".
 		"target": "", "foe": null,

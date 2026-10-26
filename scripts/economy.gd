@@ -361,7 +361,25 @@ func upgrade_unlocked(id: String) -> bool:
 		return false
 	if req.has("mine") and not mines.has(req.mine):
 		return false
+	if req.has("military") and not military.has(req.military):
+		return false
 	return true
+
+
+## How many military upgrades a unit type has (0-2): drives its look.
+func unit_tier(unit_id: String) -> int:
+	return upgrades.keys().filter(func(id): return _cfg.upgrades[id].get("unit", "") == unit_id).size()
+
+
+## Summed stat bonuses from upgrades for a unit type, e.g. {"hp": 0.8, "damage": 0.6}.
+func unit_bonus(unit_id: String) -> Dictionary:
+	var total := {}
+	for id in upgrades:
+		var up: Dictionary = _cfg.upgrades[id]
+		if up.get("unit", "") == unit_id:
+			for stat in up.unit_bonus:
+				total[stat] = total.get(stat, 0.0) + up.unit_bonus[stat]
+	return total
 
 
 func can_upgrade(id: String) -> bool:
@@ -378,6 +396,9 @@ static func upgrade_site(id: String) -> String:
 		return "lumber_camp"
 	if id == "stone_towers":
 		return "towers"
+	for b in ["barracks", "archery_range", "stables"]:
+		if id.begins_with(b):
+			return b
 	return id.trim_suffix("_mine2")  # "gold" / "stone"
 
 

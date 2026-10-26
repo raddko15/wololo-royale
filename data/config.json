@@ -274,6 +274,107 @@
         "stone": 0.2
       },
       "time": 30
+    },
+    "barracks1": {
+      "name": "Veteran Fighters",
+      "cost": {
+        "food": 150,
+        "gold": 100
+      },
+      "min_era": 1,
+      "requires": {
+        "military": "barracks"
+      },
+      "unit": "fighter",
+      "unit_bonus": {
+        "hp": 0.4,
+        "damage": 0.3
+      },
+      "time": 20
+    },
+    "barracks2": {
+      "name": "Elite Swordsmen",
+      "cost": {
+        "food": 300,
+        "gold": 200
+      },
+      "min_era": 2,
+      "requires": {
+        "upgrade": "barracks1"
+      },
+      "unit": "fighter",
+      "unit_bonus": {
+        "hp": 0.4,
+        "damage": 0.3
+      },
+      "time": 30
+    },
+    "archery_range1": {
+      "name": "Longbows",
+      "cost": {
+        "food": 150,
+        "gold": 100
+      },
+      "min_era": 1,
+      "requires": {
+        "military": "archery_range"
+      },
+      "unit": "archer",
+      "unit_bonus": {
+        "damage": 0.3,
+        "range": 0.2
+      },
+      "time": 20
+    },
+    "archery_range2": {
+      "name": "Elite Archers",
+      "cost": {
+        "food": 300,
+        "gold": 200
+      },
+      "min_era": 2,
+      "requires": {
+        "upgrade": "archery_range1"
+      },
+      "unit": "archer",
+      "unit_bonus": {
+        "damage": 0.3,
+        "hp": 0.4
+      },
+      "time": 30
+    },
+    "stables1": {
+      "name": "Armored Horses",
+      "cost": {
+        "food": 150,
+        "gold": 100
+      },
+      "min_era": 1,
+      "requires": {
+        "military": "stables"
+      },
+      "unit": "cavalry",
+      "unit_bonus": {
+        "hp": 0.4
+      },
+      "time": 20
+    },
+    "stables2": {
+      "name": "Knights",
+      "cost": {
+        "food": 300,
+        "gold": 200
+      },
+      "min_era": 2,
+      "requires": {
+        "upgrade": "stables1"
+      },
+      "unit": "cavalry",
+      "unit_bonus": {
+        "hp": 0.4,
+        "damage": 0.3
+      },
+      "time": 30
     }
   },
   "military": {

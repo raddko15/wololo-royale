@@ -26,7 +26,7 @@ func _init(civ_id: String, field: Battlefield, cfg: Dictionary = GameConfig.data
 func _on_job_done(job: Dictionary) -> void:
 	match job.kind:
 		"unit":
-			battle.spawn(Battlefield.ENEMY, job.id, job.lane)
+			battle.spawn(Battlefield.ENEMY, job.id, job.lane, economy.unit_bonus(job.id), economy.unit_tier(job.id))
 		"towers":
 			battle.build_towers(Battlefield.ENEMY)
 
@@ -66,7 +66,7 @@ func tick(delta: float) -> void:
 	if economy.era_index >= 1 and not economy.has_towers and not economy.is_pending("towers", "towers"):
 		economy.build_towers()
 		return
-	for id in ["mill", "lumber_camp"]:
+	for id in ["mill", "lumber_camp", "barracks1", "archery_range1", "stables1"]:
 		if economy.buy_upgrade(id):
 			return
 	if economy.era_index >= 1:
