@@ -34,6 +34,8 @@ var arrows: Array[Dictionary] = []
 var cooldowns := [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
 var main_cooldowns := [0.0, 0.0]
 var winner := -1
+## Whether each side's fort shoots: not in Era I, from Era II on.
+var fort_armed := [false, false]
 
 var _cfg: Dictionary
 
@@ -144,12 +146,12 @@ func _nearest_foe_ahead(u: Dictionary):
 
 ## Each living tower shoots an arrow at the closest enemy in its own lane
 ## within range, once per attack interval. Forts shoot at enemies close to
-## them in any lane, so a side without towers is not defenseless.
+## them in any lane (from Era II), so a side without towers is not defenseless.
 func _towers_shoot(delta: float) -> void:
 	var fort: Dictionary = _cfg.buildings.main
 	for team in 2:
 		main_cooldowns[team] = maxf(main_cooldowns[team] - delta, 0.0)
-		if buildings[team].main <= 0 or main_cooldowns[team] > 0:
+		if not fort_armed[team] or buildings[team].main <= 0 or main_cooldowns[team] > 0:
 			continue
 		var target = null
 		for o in units:

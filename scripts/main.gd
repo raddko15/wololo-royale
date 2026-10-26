@@ -421,6 +421,8 @@ func _on_job_done(job: Dictionary) -> void:
 			battle.spawn(Battlefield.PLAYER, job.id, job.lane, economy.unit_bonus(job.id), economy.unit_tier(job.id))
 		"towers":
 			battle.build_towers(Battlefield.PLAYER)
+		"era":
+			battle.fort_armed[Battlefield.PLAYER] = true
 		"upgrade":
 			if job.id == "stone_towers":
 				battle.upgrade_towers(Battlefield.PLAYER, GameConfig.data().upgrades.stone_towers.tower_hp_bonus)

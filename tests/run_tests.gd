@@ -164,7 +164,11 @@ func _init() -> void:
 	_check(not b0.towers_built[Battlefield.PLAYER], "no towers in Era I")
 	for i in 400:
 		b0.tick(0.1)
-	_check(b0.units.is_empty() and b0.buildings[Battlefield.PLAYER].main < 1000, "with no towers, a fighter reaches the fort, which shoots it down")
+	_check(b0.units.size() == 1 and b0.buildings[Battlefield.PLAYER].main < 1000, "the Era I fort does not shoot: a fighter hacks at it unharmed")
+	b0.fort_armed[Battlefield.PLAYER] = true
+	for i in 200:
+		b0.tick(0.1)
+	_check(b0.units.is_empty(), "from Era II the fort shoots it down")
 
 	var b := Battlefield.new()
 	b.build_towers(Battlefield.ENEMY)
