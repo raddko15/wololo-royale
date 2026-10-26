@@ -379,13 +379,29 @@ func unit_positions() -> Array[Vector2]:
 			center = path[-1]
 			front = (path[-2] - path[-1]).angle()
 			radius = 26.0
+		# Each attacker keeps the formation slot it got on arrival, so the
+		# others stay put when one of them falls. Slots fill from the middle
+		# outward (0, right, left, further right, ...), 7 per ring.
 		var per_ring := 7
-		var spread := deg_to_rad(150.0)
-		for n in idxs.size():
-			var ring := n / per_ring
-			var in_ring := mini(per_ring, idxs.size() - ring * per_ring)
-			var a := front if in_ring == 1 else front - spread / 2 + spread * (n % per_ring) / (in_ring - 1)
-			result[idxs[n]] = center + Vector2.from_angle(a) * (radius + ring * 30)
+		var step := deg_to_rad(150.0) / (per_ring - 1)
+		var taken := {}
+		for n in idxs:
+			var m: Dictionary = battle.units[n]
+			if m.get("slot_key", "") == key:
+				taken[m.slot] = true
+		for n in idxs:
+			var m: Dictionary = battle.units[n]
+			if m.get("slot_key", "") != key:
+				var free := 0
+				while taken.has(free):
+					free += 1
+				taken[free] = true
+				m["slot_key"] = key
+				m["slot"] = free
+			var k: int = m.slot % per_ring
+			var side := (k + 1) / 2 * (1 if k % 2 == 1 else -1)
+			var a := front + side * step
+			result[n] = center + Vector2.from_angle(a) * (radius + m.slot / per_ring * 30)
 	# Glide toward the spot instead of jumping (e.g. into or out of an attack
 	# formation): move at most a few pixels per frame.
 	for n in result.size():

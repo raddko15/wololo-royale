@@ -215,6 +215,23 @@ func _init() -> void:
 	_check(ai.economy.total_villagers() >= 10 and b5.units.size() + 0 >= 0 and ai.economy.army_size >= 0, "AI recruits villagers")
 	_check(ai.economy.army_size == b5.units.filter(func(x): return x.team == Battlefield.ENEMY).size(), "AI army count matches its living units")
 
+	# Attackers around a tower keep their spots when one of them falls.
+	var vb := Battlefield.new()
+	var view: BattleView = load("res://scripts/battle_view.gd").new()
+	view.battle = vb
+	view.size = Vector2(720, 1100)
+	for i in 4:
+		vb.spawn(Battlefield.PLAYER, "fighter", 1).target = "tower"
+	for i in 60:
+		view.unit_positions()
+	var before_pos := view.unit_positions()
+	vb.units.remove_at(1)
+	for i in 60:
+		view.unit_positions()
+	var after_pos := view.unit_positions()
+	_check(after_pos[0] == before_pos[0] and after_pos[1] == before_pos[2] and after_pos[2] == before_pos[3], "attackers stay put when one of them dies")
+	view.free()
+
 	print("FAILURES: %d" % _failures)
 	quit(1 if _failures else 0)
 
