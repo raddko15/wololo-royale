@@ -808,48 +808,9 @@ func _draw_granary(c: Vector2) -> void:
 	_draw_art("granary", c + Vector2(0, -6), Vector2(84, 67))
 
 
-func _draw_granary_shapes(c: Vector2) -> void:
-	draw_set_transform(c, 0, Vector2(1.5, 1.5))
-	var mud := Color("#9c7a54")
-	var straw: Color = COLORS.farm.darkened(0.15)
-	draw_circle(Vector2(-4, 6), 14, mud)
-	draw_rect(Rect2(-18, 0, 28, 14), mud)
-	draw_rect(Rect2(-8, 4, 8, 10), Color("#2b1d10"))
-	draw_colored_polygon(PackedVector2Array([Vector2(-22, 2), Vector2(-4, -22), Vector2(14, 2)]), straw)
-	for k in 3:  # straw bands
-		var y := -14.0 + k * 6
-		var half := (y + 22) * 0.75
-		draw_line(Vector2(-4 - half, y), Vector2(-4 + half, y), straw.darkened(0.25), 1)
-	# Grindstone: flat rock with a round stone on top.
-	draw_rect(Rect2(14, 8, 14, 6), Color("#7f7f7a"))
-	draw_circle(Vector2(21, 6), 5, Color("#a5a5a0"))
-	draw_circle(Vector2(21, 6), 1.5, Color("#5a5a55"))
-	# Basket of grain.
-	draw_rect(Rect2(-26, 8, 8, 7), Color("#a0784a"))
-	draw_circle(Vector2(-22, 8), 3.5, COLORS.crop)
-	draw_set_transform(Vector2.ZERO)
-
-
-## Era I woodcutter camp: slanted pole-and-bark lean-to, a chopping stump with
-## an axe in it, and a few logs.
+## Era I woodcutter camp: pole-and-bark lean-to, chopping stump, log pile.
 func _draw_lean_to(c: Vector2) -> void:
-	draw_set_transform(c, 0, Vector2(1.6, 1.6))
-	var bark := Color("#6b4a2b")
-	draw_colored_polygon(PackedVector2Array([Vector2(-20, 12), Vector2(-14, -14), Vector2(8, 12)]), bark)
-	for k in 4:  # poles
-		var x := -18.0 + k * 7
-		draw_line(Vector2(x, 12), Vector2(-14 + k * 1.5, -14), COLORS.trunk, 2)
-	draw_line(Vector2(-16, -16), Vector2(-10, -10), COLORS.trunk, 2)
-	# Chopping stump with an axe.
-	draw_rect(Rect2(12, 4, 10, 9), COLORS.trunk)
-	draw_circle(Vector2(17, 4), 5, Color("#c8a26b"))
-	draw_line(Vector2(17, 3), Vector2(25, -8), COLORS.stick, 2)
-	draw_rect(Rect2(14, 0, 5, 5), COLORS.stone)
-	# Log pile.
-	for p in [Vector2(-6, 15), Vector2(2, 15), Vector2(-2, 10)]:
-		draw_circle(p, 3.5, COLORS.wood)
-		draw_circle(p, 1.5, COLORS.crop)
-	draw_set_transform(Vector2.ZERO)
+	_draw_art("lean_to", c + Vector2(0, -8), Vector2(62, 46))
 
 
 ## Small rocky mine: grey mound with gold nuggets or pale stone blocks, and a
@@ -859,54 +820,11 @@ func _draw_mine(c: Vector2, res: String, upgraded := false) -> void:
 	_draw_art(res + ("_mine2" if upgraded else "_mine"), c + Vector2(0, -8), Vector2(62, 49))
 
 
-func _draw_mine_shapes(c: Vector2, res: String, upgraded := false) -> void:
-	if upgraded and res == "stone":
-		for k in 3:  # terraces cut into the rock
-			draw_rect(Rect2(c + Vector2(-24 + k * 6, -12 + k * 8), Vector2(48 - k * 12, 9)), Color("#9a9a94").darkened(k * 0.1))
-		for p in [Vector2(18, 10), Vector2(24, 10), Vector2(21, 4)]:
-			draw_rect(Rect2(c + p - Vector2(3, 3), Vector2(6, 5)), Color("#d5d8dc"))
-		return
-	var rock := Color("#7f7f7a")
-	draw_colored_polygon(PackedVector2Array([c + Vector2(-22, 12), c + Vector2(-14, -8), c + Vector2(-2, -16), c + Vector2(12, -10), c + Vector2(22, 12)]), rock)
-	draw_colored_polygon(PackedVector2Array([c + Vector2(-6, 12), c + Vector2(-6, 2), c + Vector2(0, -3), c + Vector2(6, 2), c + Vector2(6, 12)]), Color("#1b120a"))
-	var bit := Color("#f1c40f") if res == "gold" else Color("#d5d8dc")
-	for p in [Vector2(-13, 0), Vector2(11, -2), Vector2(-4, -10), Vector2(15, 7)]:
-		if res == "gold":
-			draw_circle(c + p, 3, bit)
-		else:
-			draw_rect(Rect2(c + p - Vector2(3, 3), Vector2(6, 5)), bit)
-	if upgraded:  # headframe over the shaft and a cart of ore
-		draw_line(c + Vector2(-10, 4), c + Vector2(0, -26), COLORS.trunk, 3)
-		draw_line(c + Vector2(10, 4), c + Vector2(0, -26), COLORS.trunk, 3)
-		draw_circle(c + Vector2(0, -26), 5, COLORS.trunk)
-		draw_circle(c + Vector2(0, -26), 2, Color("#1b120a"))
-		draw_rect(Rect2(c + Vector2(16, 4), Vector2(14, 8)), COLORS.wood)
-		draw_circle(c + Vector2(23, 3), 4, bit)
-		draw_circle(c + Vector2(19, 13), 2.5, Color.BLACK)
-		draw_circle(c + Vector2(27, 13), 2.5, Color.BLACK)
-
-
-## House: a straw hut in Era I; from Era II a whitewashed house with a
-## terracotta roof (classical) or a timber-framed house (medieval).
+## House: a straw hut in Era I; from Era II a timber-framed house (medieval)
+## or a whitewashed house with a terracotta roof (classical).
 func _draw_hut(c: Vector2, era: int, style: String) -> void:
-	draw_set_transform(c, 0, Vector2(0.85, 0.85))
-	var door := Color("#2b1d10")
-	if era == 0:
-		draw_rect(Rect2(-9, -3, 18, 12), COLORS.wood)
-		draw_rect(Rect2(-2, 2, 4, 7), door)
-		draw_colored_polygon(PackedVector2Array([Vector2(-12, -3), Vector2(0, -13), Vector2(12, -3)]), COLORS.farm.darkened(0.2))
-	elif style == "classical":
-		draw_rect(Rect2(-10, -3, 20, 12), COLORS.plaster)
-		draw_rect(Rect2(-2, 2, 4, 7), door)
-		draw_colored_polygon(PackedVector2Array([Vector2(-12, -3), Vector2(0, -10), Vector2(12, -3)]), COLORS.terracotta)
-		draw_line(Vector2(-12, -3), Vector2(12, -3), COLORS.terracotta.darkened(0.3), 1.5)
-	else:
-		draw_rect(Rect2(-9, -3, 18, 12), COLORS.plaster)
-		for x in [-9, -1, 7]:
-			draw_rect(Rect2(x, -3, 2, 12), COLORS.trunk)
-		draw_line(Vector2(-9, 3), Vector2(9, 3), COLORS.trunk, 1.5)
-		draw_colored_polygon(PackedVector2Array([Vector2(-12, -3), Vector2(0, -14), Vector2(12, -3)]), Color("#4a3b35"))
-	draw_set_transform(Vector2.ZERO)
+	var look := "era0" if era == 0 else ("classical" if style == "classical" else "medieval")
+	_draw_art("hut_" + look, c + Vector2(0, -3), Vector2(22, 20))
 
 
 ## Lane tower: a wooden watchtower, or after the Stone Towers upgrade a stone
@@ -917,48 +835,6 @@ func _draw_tower(pos: Vector2, color: Color, hp: float, stone: bool, style: Stri
 	_draw_art(name, pos + Vector2(0, -10), Vector2(56, 84), color)
 	if hp > 0:
 		_draw_hp(pos + Vector2(0, -60), hp, max_hp)
-
-
-func _draw_tower_shapes(pos: Vector2, color: Color, hp: float, stone: bool, style: String, max_hp: float) -> void:
-	draw_set_transform(pos, 0, Vector2(1.4, 1.4))
-	var c := Vector2.ZERO
-	if stone and style == "classical" and hp > 0:
-		# Marble tower with pilasters and a terracotta roof.
-		draw_rect(Rect2(-15, -18, 30, 40), COLORS.marble)
-		for x in [-13, -3, 7]:
-			draw_rect(Rect2(x, -16, 4, 36), COLORS.marble_shade)
-		draw_rect(Rect2(-17, -20, 34, 4), COLORS.marble_shade)
-		draw_rect(Rect2(-2, -12, 4, 9), Color("#1b120a"))
-		draw_colored_polygon(PackedVector2Array([Vector2(-19, -20), Vector2(0, -36), Vector2(19, -20)]), COLORS.terracotta)
-		draw_rect(Rect2(-4, -31, 8, 5), color)
-		draw_set_transform(Vector2.ZERO)
-		_draw_hp(pos + Vector2(0, -36 * 1.4 - 10), hp, max_hp)
-		return
-	var body: Color = COLORS.stone if stone else COLORS.wood
-	if hp <= 0:
-		for k in 4:
-			var a := 0.4 + k * 0.7
-			var p := c + Vector2(-14 + k * 9, 10 - (k % 2) * 6)
-			draw_line(p, p + Vector2.from_angle(a) * 16, body.darkened(0.25), 5)
-		draw_set_transform(Vector2.ZERO)
-		return
-	if stone:
-		draw_rect(Rect2(c + Vector2(-16, -14), Vector2(32, 36)), body)
-		for x in [-16, -6, 4]:
-			draw_rect(Rect2(c + Vector2(x, -20), Vector2(7, 6)), body)
-	else:
-		# Four log legs with a cross brace, then the lookout on top.
-		for x in [-14, -5, 4, 11]:
-			draw_rect(Rect2(c + Vector2(x, -2), Vector2(4, 24)), COLORS.trunk)
-		draw_line(c + Vector2(-13, 2), c + Vector2(13, 18), COLORS.trunk, 2)
-		draw_line(c + Vector2(13, 2), c + Vector2(-13, 18), COLORS.trunk, 2)
-		draw_rect(Rect2(c + Vector2(-18, -4), Vector2(36, 5)), body.darkened(0.2))
-		draw_rect(Rect2(c + Vector2(-14, -20), Vector2(28, 16)), body)
-	draw_rect(Rect2(c + Vector2(-2, -15), Vector2(4, 9)), Color("#1b120a"))  # arrow slit
-	var roof_y := -20.0
-	draw_colored_polygon(PackedVector2Array([c + Vector2(-19, roof_y), c + Vector2(0, roof_y - 16), c + Vector2(19, roof_y)]), color)
-	draw_set_transform(Vector2.ZERO)
-	_draw_hp(pos + Vector2(0, (roof_y - 16) * 1.4 - 10), hp, max_hp)
 
 
 ## Arrow from a tower's slit to its target, rising and falling in a short arc.
@@ -1216,30 +1092,8 @@ func _draw_farm(area: Rect2) -> void:
 		draw_texture_rect(_tex("wheat_plot"), plot, false)
 
 
-func _draw_farm_shapes(area: Rect2) -> void:
-	draw_rect(area, COLORS.farm)
-	var cell := area.size / Vector2(FARM_COLS, FARM_ROWS)
-	for i in FARM_COLS * FARM_ROWS:
-		var plot := Rect2(area.position + cell * Vector2(i % FARM_COLS, i / FARM_COLS), cell).grow(-4)
-		draw_rect(plot, COLORS.farm.darkened(0.12))
-		for k in 4:  # a few wheat stalks per plot
-			var base := plot.position + Vector2(plot.size.x * (0.2 + 0.2 * k), plot.size.y * 0.85)
-			draw_line(base, base + Vector2(0, -plot.size.y * 0.55), COLORS.crop_stem, 2)
-			draw_circle(base + Vector2(0, -plot.size.y * 0.6), 3, COLORS.crop)
-
-
 func _draw_tree(c: Vector2) -> void:
 	_draw_art("tree", c + Vector2(0, -6), Vector2(44, 51))
-
-
-func _draw_tree_shapes(c: Vector2) -> void:
-	draw_set_transform(c, 0, Vector2(1.25, 1.25))
-	c = Vector2.ZERO
-	draw_rect(Rect2(c + Vector2(-3, 2), Vector2(6, 14)), COLORS.trunk)
-	draw_circle(c + Vector2(0, -4), 15, COLORS.leaf_dark)
-	draw_circle(c + Vector2(-5, -9), 8, COLORS.leaf_light)
-	draw_circle(c + Vector2(5, -2), 6, COLORS.leaf_light.darkened(0.15))
-	draw_set_transform(Vector2.ZERO)
 
 
 ## Classical Era II town center around (0, 0): a timber hall on a low
@@ -1296,194 +1150,78 @@ func _draw_olive_grove(area: Rect2) -> void:
 		_draw_art("olive_tree", c + Vector2(0, -3), Vector2(34, 34))
 
 
-func _draw_olive_grove_shapes(area: Rect2) -> void:
-	draw_rect(area, Color("#b5a46a"))
-	var cell := area.size / Vector2(FARM_COLS, FARM_ROWS)
-	for i in FARM_COLS * FARM_ROWS:
-		var c := area.position + cell * Vector2(i % FARM_COLS + 0.5, i / FARM_COLS + 0.5)
-		draw_line(c + Vector2(0, 12), c + Vector2(-2, 0), COLORS.trunk, 3)
-		draw_circle(c + Vector2(-2, -6), 11, COLORS.olive)
-		draw_circle(c + Vector2(3, -9), 7, COLORS.olive_leaf)
-		for k in 3:  # olives
-			draw_circle(c + Vector2(-7 + k * 5, -3 + (k % 2) * 3), 1.8, Color("#2d3a1a"))
-
-
-## Olive press: stone basin with a crushing wheel, a wooden lever beam, and
-## amphorae of oil.
+## Olive press: plaster press house, stone basin with a crushing wheel, amphorae.
 func _draw_olive_press(c: Vector2) -> void:
-	draw_set_transform(c, 0, Vector2(1.5, 1.5))
-	draw_rect(Rect2(-18, -2, 30, 16), COLORS.plaster)  # little press house
-	draw_colored_polygon(PackedVector2Array([Vector2(-21, -2), Vector2(-3, -13), Vector2(15, -2)]), COLORS.terracotta)
-	draw_rect(Rect2(-6, 4, 7, 10), Color("#2b1d10"))
-	draw_circle(Vector2(18, 10), 7, COLORS.stone)  # basin
-	draw_circle(Vector2(18, 7), 4, COLORS.stone.darkened(0.2))  # wheel
-	draw_line(Vector2(18, 7), Vector2(28, -4), COLORS.trunk, 2)  # lever
-	for x in [-24, -19]:  # amphorae
-		draw_circle(Vector2(x, 10), 3, COLORS.terracotta)
-		draw_rect(Rect2(x - 1, 4, 2, 4), COLORS.terracotta.darkened(0.2))
-	draw_set_transform(Vector2.ZERO)
+	_draw_art("olive_press", c + Vector2(0, -10), Vector2(64, 56))
 
 
-## Classical lumber yard: tiled roof on two columns sheltering stacked logs.
+## Classical timber yard: tiled roof on columns over stacked logs.
 func _draw_timber_yard(c: Vector2) -> void:
-	draw_set_transform(c, 0, Vector2(1.5, 1.5))
-	for x in [-18, 12]:
-		draw_rect(Rect2(x, -6, 5, 20), COLORS.plaster)
-	draw_colored_polygon(PackedVector2Array([Vector2(-22, -6), Vector2(-16, -16), Vector2(16, -16), Vector2(22, -6)]), COLORS.terracotta)
-	for p in [Vector2(-8, 10), Vector2(0, 10), Vector2(8, 10), Vector2(-4, 4), Vector2(4, 4)]:
-		draw_circle(p, 4, COLORS.wood)
-		draw_circle(p, 1.8, COLORS.crop)
-	draw_line(Vector2(20, 14), Vector2(28, 6), COLORS.stick, 2)  # saw horse
-	draw_line(Vector2(28, 14), Vector2(20, 6), COLORS.stick, 2)
-	draw_set_transform(Vector2.ZERO)
+	_draw_art("timber_yard", c + Vector2(0, -8), Vector2(62, 46))
 
 
-## Era III medieval food: round stone tower windmill with big sails and sacks.
+## Era III medieval food: tall stone tower windmill with bigger sails.
 func _draw_grand_mill(c: Vector2, now: float) -> void:
-	draw_set_transform(c, 0, Vector2(1.5, 1.5))
-	draw_rect(Rect2(-12, -14, 24, 30), COLORS.stone)
-	draw_circle(Vector2(0, -14), 12, COLORS.stone)
-	for y in [-6, 2, 10]:
-		draw_line(Vector2(-12, y), Vector2(12, y), COLORS.stone.darkened(0.2), 1)
-	draw_rect(Rect2(-4, 6, 8, 10), Color("#2b1d10"))
-	var hub := Vector2(0, -16)
-	for k in 4:
-		var a := now * 1.2 + k * PI / 2
-		var tip := hub + Vector2.from_angle(a) * 32
-		draw_line(hub, tip, COLORS.trunk, 3)
-		draw_line(tip, tip + Vector2.from_angle(a + PI / 2) * 9, Color("#f5f6fa"), 6)
-	draw_circle(hub, 4, Color.BLACK)
-	for p in [Vector2(18, 12), Vector2(24, 12), Vector2(21, 6)]:  # grain sacks
-		draw_circle(p, 4, Color("#d9c49a"))
-	draw_set_transform(Vector2.ZERO)
+	_draw_windmill("grand_mill_base", c, now, Vector2(29, 14), 32.0)
 
 
 ## Era III classical food: columned oil workshop with rows of amphorae.
 func _draw_oil_workshop(c: Vector2) -> void:
-	draw_set_transform(c, 0, Vector2(1.5, 1.5))
-	draw_rect(Rect2(-22, 14, 44, 4), COLORS.marble_shade)
-	draw_rect(Rect2(-18, -4, 36, 18), COLORS.plaster)
-	for x in [-20, -8, 4, 16]:
-		draw_rect(Rect2(x, -4, 4, 18), COLORS.marble)
-	draw_colored_polygon(PackedVector2Array([Vector2(-24, -4), Vector2(0, -18), Vector2(24, -4)]), COLORS.terracotta)
-	for i in 5:  # amphorae
-		var p := Vector2(-22 + i * 6, 24)
-		draw_circle(p, 3, COLORS.terracotta)
-		draw_rect(Rect2(p.x - 1, p.y - 7, 2, 4), COLORS.terracotta.darkened(0.2))
-	draw_set_transform(Vector2.ZERO)
+	_draw_art("oil_workshop", c + Vector2(0, -10), Vector2(64, 56))
 
 
-## Era III medieval wood: sawmill with a turning water wheel and planks.
+## Era III medieval wood: sawmill with a turning water wheel.
 func _draw_sawmill(c: Vector2, now: float) -> void:
-	draw_set_transform(c, 0, Vector2(1.5, 1.5))
-	draw_rect(Rect2(-14, -6, 28, 22), COLORS.wood)
-	draw_colored_polygon(PackedVector2Array([Vector2(-18, -6), Vector2(0, -20), Vector2(18, -6)]), Color("#4a3b35"))
-	var wheel := Vector2(-20, 8)
-	draw_circle(wheel, 10, Color("#3f6f8f"))
-	draw_arc(wheel, 10, 0, TAU, 20, COLORS.trunk, 3)
-	for k in 6:
-		draw_line(wheel, wheel + Vector2.from_angle(now * 2.0 + k * PI / 3) * 10, COLORS.trunk, 2)
-	draw_circle(Vector2(4, 4), 6, COLORS.stone)  # saw blade
-	for k in 3:  # planks
-		draw_rect(Rect2(16, 14 - k * 4, 16, 3), COLORS.wood.lightened(0.2))
-	draw_set_transform(Vector2.ZERO)
+	var rect := Rect2(c + Vector2(-31, -31), Vector2(62, 46))
+	draw_texture_rect(_tex("sawmill"), rect, false)
+	var k := rect.size.x / 64.0
+	var hub := rect.position + Vector2(10, 31) * k
+	draw_circle(hub, 9 * k, Color("#6e4a28"))
+	draw_arc(hub, 9 * k, 0, TAU, 20, OUTLINE, 1.4)
+	for n in 6:
+		draw_line(hub, hub + Vector2.from_angle(now * 2.0 + n * PI / 3) * 9 * k, Color("#c08a50"), 2)
 
 
-## Era III classical wood: carpentry workshop with marble columns and planks.
+## Era III classical wood: columned carpentry with plank stacks.
 func _draw_carpentry(c: Vector2) -> void:
-	draw_set_transform(c, 0, Vector2(1.5, 1.5))
-	draw_rect(Rect2(-22, 14, 44, 4), COLORS.marble_shade)
-	for x in [-20, -6, 8]:
-		draw_rect(Rect2(x, -6, 5, 20), COLORS.marble)
-	draw_rect(Rect2(-22, -9, 44, 4), COLORS.marble)
-	draw_colored_polygon(PackedVector2Array([Vector2(-24, -9), Vector2(0, -20), Vector2(24, -9)]), COLORS.terracotta)
-	for k in 3:
-		draw_rect(Rect2(-16, 10 - k * 4, 26, 3), COLORS.wood.lightened(0.15))
-	draw_line(Vector2(20, 14), Vector2(28, 6), COLORS.stick, 2)
-	draw_line(Vector2(28, 14), Vector2(20, 6), COLORS.stick, 2)
-	draw_set_transform(Vector2.ZERO)
+	_draw_art("carpentry", c + Vector2(0, -8), Vector2(62, 46))
 
 
-## Barracks, archery range or stables around `c`. Era I: rough wood and
-## straw for everyone; later medieval (dark roofs, timber) or classical
-## (plaster, columns, terracotta), with the civ color on a banner or shield.
+## Barracks, archery range or stables: Era I wood and straw for everyone, then
+## the civ's style (medieval timber frame / classical plaster and columns).
+## Shields show at level 2, a stone base and pennants at level 3.
 func _draw_military(id: String, c: Vector2, civ_color: Color, era: int, style: String, tier := 0) -> void:
-	draw_set_transform(c, 0, Vector2(1.6, 1.6))
-	if tier >= 2:  # stone foundation under an elite building
-		draw_rect(Rect2(-22, 12, 44, 5), COLORS.stone)
-	var classical := style == "classical" and era >= 1
-	var wall: Color = COLORS.plaster if classical else COLORS.wood
-	var roof: Color = COLORS.terracotta if classical else (COLORS.farm.darkened(0.15) if era == 0 else Color("#4a3b35"))
-	match id:
-		"barracks":
-			draw_rect(Rect2(-16, -4, 32, 18), wall)
-			if classical:
-				for x in [-15, -6, 3, 12]:
-					draw_rect(Rect2(x, -4, 3, 18), COLORS.marble_shade)
-			draw_colored_polygon(PackedVector2Array([Vector2(-19, -4), Vector2(0, -16), Vector2(19, -4)]), roof)
-			draw_rect(Rect2(-4, 4, 8, 10), Color("#2b1d10"))
-			draw_circle(Vector2(0, -8), 4, civ_color)  # shield emblem
-			for k in 3:  # spear rack
-				draw_line(Vector2(20 + k * 3, 14), Vector2(18 + k * 3, -6), COLORS.stick, 2)
-		"archery_range":
-			draw_rect(Rect2(-18, -2, 20, 16), wall)
-			draw_colored_polygon(PackedVector2Array([Vector2(-21, -2), Vector2(-8, -13), Vector2(5, -2)]), roof)
-			if classical:
-				for x in [-17, -5]:
-					draw_rect(Rect2(x, -2, 3, 16), COLORS.marble_shade)
-			var target := Vector2(16, 4)  # straw target on legs
-			draw_line(target + Vector2(-4, 8), target + Vector2(-5, 13), COLORS.stick, 2)
-			draw_line(target + Vector2(4, 8), target + Vector2(5, 13), COLORS.stick, 2)
-			draw_circle(target, 8, Color("#e8d27a"))
-			draw_circle(target, 5, Color.WHITE)
-			draw_circle(target, 2.5, civ_color)
-		"stables":
-			draw_rect(Rect2(-18, -4, 36, 18), wall)
-			draw_colored_polygon(PackedVector2Array([Vector2(-21, -4), Vector2(-12, -14), Vector2(12, -14), Vector2(21, -4)]), roof)
-			for x in [-12, 2]:  # stall doors / arches
-				if classical:
-					draw_rect(Rect2(x, 4, 10, 10), Color("#2b1d10"))
-					draw_circle(Vector2(x + 5, 4), 5, Color("#2b1d10"))
-				else:
-					draw_rect(Rect2(x, 2, 10, 12), Color("#2b1d10"))
-					draw_line(Vector2(x, 2), Vector2(x + 10, 14), COLORS.wood, 1.5)
-			draw_circle(Vector2(24, 10), 5, COLORS.farm)  # hay bale
-			draw_rect(Rect2(-5, -12, 10, 5), civ_color)
-	if tier >= 1:  # shields hung on the wall
-		for x in [-12, 12]:
-			draw_circle(Vector2(x, 2), 3.5, civ_color.darkened(0.3))
-			draw_arc(Vector2(x, 2), 3.5, 0, TAU, 10, Color("#dfe6e9"), 1)
-	if tier >= 2:  # pennants on poles
-		for x in [-20, 20]:
-			draw_line(Vector2(x, 12), Vector2(x, -22), Color.BLACK, 1.5)
-			draw_colored_polygon(PackedVector2Array([Vector2(x, -22), Vector2(x + 8 * sign(x), -19), Vector2(x, -16)]), civ_color)
-	draw_set_transform(Vector2.ZERO)
+	var look := "era0" if era == 0 else ("classical" if style == "classical" else "medieval")
+	var at := c + Vector2(0, -12)
+	var sz := Vector2(80, 65)
+	_draw_art("%s_%s" % [id, look], at, sz, civ_color)
+	if tier >= 2:
+		_draw_art("mil_tier2", at, sz, civ_color)
+	if tier >= 1:
+		_draw_art("mil_tier1", at, sz, civ_color)
 
 
-## Stone base, roof, and four blades turning slowly.
-func _draw_mill(c: Vector2, now: float, scale: float) -> void:
-	draw_set_transform(c, 0, Vector2(scale, scale))
-	c = Vector2.ZERO
-	draw_rect(Rect2(c + Vector2(-16, -6), Vector2(32, 30)), COLORS.stone)
-	draw_colored_polygon(PackedVector2Array([c + Vector2(-20, -6), c + Vector2(0, -22), c + Vector2(20, -6)]), COLORS.wood)
-	var hub := c + Vector2(0, -12)
+## Windmill: stone base from the art, four sails turning slowly.
+func _draw_mill(c: Vector2, now: float, _scale := 1.0) -> void:
+	_draw_windmill("windmill_base", c, now, Vector2(29, 22), 26.0)
+
+
+func _draw_windmill(base: String, c: Vector2, now: float, hub_px: Vector2, blade: float) -> void:
+	var rect := Rect2(c + Vector2(-32, -38), Vector2(64, 56))
+	draw_texture_rect(_tex(base), rect, false)
+	var hub := rect.position + hub_px
 	for k in 4:
 		var a := now * 1.5 + k * PI / 2
-		var tip := hub + Vector2.from_angle(a) * 26
-		draw_line(hub, tip, COLORS.trunk, 3)
-		draw_line(tip, tip + Vector2.from_angle(a + PI / 2) * 7, Color("#f5f6fa"), 5)
-	draw_circle(hub, 4, Color.BLACK)
-	draw_set_transform(Vector2.ZERO)
+		var tip := hub + Vector2.from_angle(a) * blade
+		draw_line(hub, tip, OUTLINE, 4)
+		draw_line(hub, tip, Color("#6b4426"), 2)
+		var side := Vector2.from_angle(a + PI / 2) * 6
+		var sail := PackedVector2Array([hub + Vector2.from_angle(a) * blade * 0.35, tip, tip + side, hub + Vector2.from_angle(a) * blade * 0.35 + side])
+		draw_colored_polygon(sail, Color("#f5f1e6"))
+		draw_polyline(sail + PackedVector2Array([sail[0]]), OUTLINE, 1.2)
+	draw_circle(hub, 3.5, OUTLINE)
 
 
-## Small hut with a pile of logs next to it.
-func _draw_lumber_camp(c: Vector2, scale: float) -> void:
-	draw_set_transform(c, 0, Vector2(scale, scale))
-	c = Vector2.ZERO
-	draw_rect(Rect2(c + Vector2(-18, -4), Vector2(30, 24)), COLORS.wood)
-	draw_colored_polygon(PackedVector2Array([c + Vector2(-22, -4), c + Vector2(-3, -20), c + Vector2(16, -4)]), COLORS.trunk)
-	for k in 3:
-		var log := c + Vector2(20 + (k % 2) * 8, 16 - (k / 2) * 8 - (k % 2) * 0)
-		draw_circle(log, 4.5, COLORS.wood)
-		draw_circle(log, 2, COLORS.crop)
-	draw_set_transform(Vector2.ZERO)
+## Medieval lumber camp: plank hut with a log pile.
+func _draw_lumber_camp(c: Vector2, _scale := 1.0) -> void:
+	_draw_art("lumber_camp", c + Vector2(0, -8), Vector2(62, 46))

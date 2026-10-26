@@ -23,7 +23,8 @@ func _init() -> void:
 			e.upgrades = {"mill": true, "lumber_camp": true}
 		elif mode == "era3":
 			e.upgrades = {"mill": true, "lumber_camp": true, "stone_towers": true, "mill2": true,
-				"lumber_camp2": true, "gold_mine2": true, "stone_mine2": true}
+				"lumber_camp2": true, "gold_mine2": true, "stone_mine2": true, "barracks1": true,
+				"barracks2": true, "archery_range1": true, "stables1": true}
 			e.mines = {"gold": true, "stone": true}
 	if era >= 1:
 		main.battle.build_towers(Battlefield.PLAYER)
