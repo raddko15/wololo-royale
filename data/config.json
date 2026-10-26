@@ -411,6 +411,7 @@
         "wood": 100
       },
       "min_era": 0,
+      "requires_camp": "lumberjack",
       "time": 15
     },
     "archery_range": {

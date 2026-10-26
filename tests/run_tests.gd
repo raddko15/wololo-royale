@@ -22,6 +22,11 @@ func _init() -> void:
 	e.resources.wood = 90.0
 	_check(e.build_camp("farm") and e.build_camp("lumberjack") and e.resources.wood == 0, "farm costs 50 wood, lumberjack 40")
 	_check(not e.can_upgrade("mill"), "no mill upgrade without a farm")
+	var nb := Economy.new("romans")
+	nb.resources.wood = 1000.0
+	_check(not nb.build_military("barracks") and nb.build_camp("lumberjack"), "no barracks before the lumberjack")
+	nb.finish_jobs()
+	_check(nb.build_military("barracks"), "barracks once the lumberjack stands")
 	e.finish_jobs()
 	e.resources.wood = 100.0
 	_check(e.reassign("idle", "food") and e.reassign("idle", "food") and e.villagers.food == 2, "assign idle to food")

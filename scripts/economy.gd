@@ -327,7 +327,9 @@ func site_open(kind: String, id: String) -> bool:
 		return false
 	match kind:
 		"military":
-			return not military.has(id) and era_index >= _cfg.military[id].min_era
+			var camp: String = _cfg.military[id].get("requires_camp", "")
+			return not military.has(id) and era_index >= _cfg.military[id].min_era \
+				and (camp == "" or camps.has(camp))
 		"mine":
 			return not mines.has(id) and era_index >= _cfg.buildings.mine.min_era
 		"camp":

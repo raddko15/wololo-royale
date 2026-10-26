@@ -502,6 +502,9 @@ func _menu_options(kind: String) -> Array:
 			for id in cfg.military:
 				var b: Dictionary = cfg.military[id]
 				var bnote := _status_note(economy.military.has(id), "military", id, b.min_era, b.cost)
+				var camp: String = b.get("requires_camp", "")
+				if camp != "" and not economy.camps.has(camp) and not economy.military.has(id):
+					bnote = "needs " + cfg.buildings[camp].name
 				opts.append(_option(id, id, b.name, bnote, economy.can_build_military(id), 1))
 			# Outer ring: the next upgrade of every building, so it can all be done from here.
 			for id in _next_upgrades():
