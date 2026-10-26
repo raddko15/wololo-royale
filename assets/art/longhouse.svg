@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="240" viewBox="0 0 150 120">
+  <g stroke="#2b1d10" stroke-width="1.5" stroke-linejoin="round">
+    <ellipse cx="76" cy="104" rx="66" ry="10" fill="#000" fill-opacity="0.25" stroke="none"/>
+    <!-- side wall (shaded) and front gable wall (lit) -->
+    <polygon points="98,62 124,50 124,82 98,94" fill="#6e4a28"/>
+    <polygon points="34,94 34,62 66,36 98,62 98,94" fill="#a0703f"/>
+    <polygon points="34,94 34,62 66,36 66,94" fill="#c08a50" stroke="none"/>
+    <polygon points="34,94 34,62 66,36 98,62 98,94" fill="none"/>
+    <g stroke="#6e4a28" stroke-width="1" stroke-opacity="0.8">
+      <line x1="42" y1="66" x2="42" y2="94"/><line x1="50" y1="59" x2="50" y2="94"/>
+      <line x1="58" y1="52" x2="58" y2="94"/><line x1="74" y1="52" x2="74" y2="94"/>
+      <line x1="82" y1="59" x2="82" y2="94"/><line x1="90" y1="66" x2="90" y2="94"/>
+    </g>
+    <path d="M58 94 L58 76 Q66 68 74 76 L74 94 Z" fill="#2b1d10"/>
+    <!-- straw roof: long slope running back, overhang over the gable -->
+    <polygon points="66,32 92,20 130,48 102,62" fill="#e2c36b"/>
+    <polygon points="66,32 92,20 130,48 102,62" fill="#b8984a" fill-opacity="0.35" stroke="none"/>
+    <polygon points="28,66 66,32 102,62 98,64 66,38 32,68" fill="#f0d68a"/>
+    <g stroke="#b8984a" stroke-width="1">
+      <line x1="75" y1="36" x2="113" y2="64"/><line x1="84" y1="32" x2="122" y2="58"/>
+    </g>
+    <!-- low stake fence in front -->
+    <g fill="#a0703f">
+      <polygon points="14,108 14,98 16,95 18,98 18,108"/><polygon points="22,108 22,98 24,95 26,98 26,108"/>
+      <polygon points="30,108 30,98 32,95 34,98 34,108"/><polygon points="98,108 98,98 100,95 102,98 102,108"/>
+      <polygon points="106,108 106,98 108,95 110,98 110,108"/><polygon points="114,108 114,98 116,95 118,98 118,108"/>
+      <polygon points="122,108 122,98 124,95 126,98 126,108"/>
+    </g>
+    <line x1="12" y1="102" x2="36" y2="102" stroke-width="1.2"/>
+    <line x1="96" y1="102" x2="128" y2="102" stroke-width="1.2"/>
+    <!-- campfire -->
+    <polygon points="80,106 92,106 86,100" fill="#6b4426"/>
+    <path d="M86 88 Q81 96 86 100 Q91 96 86 88 Z" fill="#e67e22"/>
+    <path d="M86 93 Q84 97 86 99 Q88 97 86 93 Z" fill="#f9ca24" stroke="none"/>
+    <!-- banner pole on the ridge -->
+    <line x1="92" y1="20" x2="92" y2="2" stroke-width="1.5"/>
+  </g>
+</svg>

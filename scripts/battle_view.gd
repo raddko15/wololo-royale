@@ -34,6 +34,8 @@ const COLORS := {
 
 var economy: Economy
 var enemy_economy: Economy
+## Loaded art textures by name (res://assets/art/<name>.svg).
+var _art := {}
 var battle: Battlefield
 ## Card being dragged ("" when none) and where the finger is, in local coordinates.
 var drag_card := ""
@@ -335,6 +337,24 @@ func _gui_input(event: InputEvent) -> void:
 
 # --- Drawing ------------------------------------------------------------
 
+func _tex(name: String) -> Texture2D:
+	if not _art.has(name):
+		var path := "res://assets/art/%s.svg" % name
+		_art[name] = load(path) if ResourceLoader.exists(path) else null
+	return _art[name]
+
+
+## Draws an art asset centered on `center` at `size`; its `_tint` layer (if
+## any) is drawn on top in `tint` (the civ color).
+func _draw_art(name: String, center: Vector2, size_px: Vector2, tint := Color.WHITE) -> void:
+	var rect := Rect2(center - size_px / 2, size_px)
+	var base := _tex(name)
+	if base:
+		draw_texture_rect(base, rect, false)
+	var t := _tex(name + "_tint")
+	if t:
+		draw_texture_rect(t, rect, false, tint)
+
 func _draw() -> void:
 	var now := Time.get_ticks_msec() / 1000.0
 	draw_rect(Rect2(Vector2.ZERO, size), COLORS.grass)
@@ -604,6 +624,12 @@ func _draw_scaffold(c: Vector2, sz: Vector2, frac: float, now: float, new_site: 
 ## Medieval (Franks): wooden fort, then stone castle. Classical (Romans,
 ## Greeks): timber hall with wooden columns, then a marble palace.
 func _draw_fort(c: Vector2, civ_color: Color, era: int, style: String) -> void:
+	if era == 0:
+		_draw_art("longhouse", c + Vector2(0, -16), Vector2(150, 120), civ_color)
+		return
+	if era == 1 and style != "classical":
+		_draw_art("fort_wood", c + Vector2(0, -20), Vector2(170, 140), civ_color)
+		return
 	draw_set_transform(c, 0, Vector2.ONE)
 	if era == 0:
 		_draw_longhouse(civ_color)
@@ -688,6 +714,10 @@ func _draw_longhouse(civ_color: Color) -> void:
 ## Era I food store: round mud hut with a cone of straw, a hand grindstone
 ## on a flat rock, and a basket of grain.
 func _draw_granary(c: Vector2) -> void:
+	_draw_art("granary", c + Vector2(0, -6), Vector2(84, 67))
+
+
+func _draw_granary_shapes(c: Vector2) -> void:
 	draw_set_transform(c, 0, Vector2(1.5, 1.5))
 	var mud := Color("#9c7a54")
 	var straw: Color = COLORS.farm.darkened(0.15)
@@ -955,14 +985,13 @@ func _draw_fighter(u: Dictionary, p: Vector2, color: Color, now: float) -> void:
 		draw_line(hand + Vector2.from_angle(angle + PI / 2) * 5, hand - Vector2.from_angle(angle + PI / 2) * 5, Color("#7f6a3a"), 3)
 	else:
 		draw_line(hand, hand + Vector2.from_angle(angle) * 20, COLORS.stick, 4)
-	_draw_ball(p, FIGHTER_R, color)
-	if tier >= 1:  # helmet and a round shield on the off hand
-		draw_arc(p, FIGHTER_R, PI + 0.3, TAU - 0.3, 12, Color("#95a5a6"), 4)
+	_draw_art("unit_body", p, Vector2(30, 30), color)
+	if tier >= 1:  # a round shield on the off hand
 		var off := p + Vector2.from_angle(facing - PI / 2) * FIGHTER_R
 		draw_circle(off, 6, color.darkened(0.35))
 		draw_arc(off, 6, 0, TAU, 12, Color("#dfe6e9"), 1.5)
-	if tier >= 2:  # plume
-		draw_line(p + Vector2(0, -FIGHTER_R), p + Vector2(-4, -FIGHTER_R - 8), Color("#e74c3c"), 3)
+	if tier >= 1:  # helmet (with a plume at the elite level)
+		_draw_art("helmet_%d" % mini(tier, 2), p, Vector2(30, 30))
 	_draw_hp(p + Vector2(0, -22), u.hp, u.max_hp, 28)
 
 
@@ -999,6 +1028,10 @@ func _draw_farm(area: Rect2) -> void:
 
 
 func _draw_tree(c: Vector2) -> void:
+	_draw_art("tree", c + Vector2(0, -6), Vector2(44, 51))
+
+
+func _draw_tree_shapes(c: Vector2) -> void:
 	draw_set_transform(c, 0, Vector2(1.25, 1.25))
 	c = Vector2.ZERO
 	draw_rect(Rect2(c + Vector2(-3, 2), Vector2(6, 14)), COLORS.trunk)

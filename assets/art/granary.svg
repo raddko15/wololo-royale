@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="128" viewBox="0 0 80 64">
+  <g stroke="#2b1d10" stroke-width="1.5" stroke-linejoin="round">
+    <ellipse cx="38" cy="56" rx="28" ry="5" fill="#000" fill-opacity="0.25" stroke="none"/>
+    <!-- mud drum: lit left half, shaded right half -->
+    <path d="M18 34 L18 52 Q34 60 50 52 L50 34 Z" fill="#a8835c"/>
+    <path d="M18 34 L18 52 Q26 56 34 56 L34 36 Z" fill="#c9a27a" stroke="none"/>
+    <path d="M42 35 L42 55 Q47 54 50 52 L50 34 Z" fill="#7c5d3e" stroke="none"/>
+    <path d="M18 34 L18 52 Q34 60 50 52 L50 34" fill="none"/>
+    <rect x="29" y="42" width="9" height="13" rx="2" fill="#2b1d10"/>
+    <!-- straw cone -->
+    <polygon points="34,8 12,36 34,42 56,36" fill="#e2c36b"/>
+    <polygon points="34,8 12,36 34,42" fill="#f0d68a" stroke="none"/>
+    <polygon points="34,8 46,39 56,36" fill="#b8984a" stroke="none"/>
+    <polygon points="34,8 12,36 34,42 56,36" fill="none"/>
+    <polyline points="20,27 34,30 49,27" fill="none" stroke="#b8984a" stroke-width="1"/>
+    <polyline points="25,20 34,22 43,20" fill="none" stroke="#b8984a" stroke-width="1"/>
+    <!-- grindstone on a flat rock, and a grain basket -->
+    <polygon points="56,52 74,52 72,46 58,46" fill="#8c877c"/>
+    <ellipse cx="65" cy="44" rx="7" ry="4" fill="#d6d2c6"/>
+    <circle cx="65" cy="44" r="1.5" fill="#2b1d10" stroke="none"/>
+    <polygon points="4,52 13,52 12,45 5,45" fill="#a0703f"/>
+    <ellipse cx="8.5" cy="45" rx="4" ry="2" fill="#f0d68a"/>
+  </g>
+</svg>

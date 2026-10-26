@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="340" height="280" viewBox="0 0 170 140">
+  <g stroke="#2b1d10" stroke-width="1.5" stroke-linejoin="round">
+    <!-- keep roof: lit gable slope white, back slope grey so it tints darker -->
+    <polygon points="85,22 101,14 134,38 118,46" fill="#a8a8a8"/>
+    <polygon points="52,48 85,22 118,46 114,48 85,28 56,50" fill="#ffffff"/>
+    <polygon points="56,50 85,28 114,48" fill="#e2e2e2"/>
+    <!-- tower roofs -->
+    <polygon points="4,82 18,66 32,82" fill="#ffffff"/>
+    <polygon points="18,66 32,82 24,82" fill="#a8a8a8" stroke="none"/>
+    <polygon points="138,82 152,66 166,82" fill="#ffffff"/>
+    <polygon points="152,66 166,82 158,82" fill="#a8a8a8" stroke="none"/>
+    <!-- flag -->
+    <polygon points="85,8 100,12 85,17" fill="#ffffff" stroke-width="1.2"/>
+  </g>
+</svg>

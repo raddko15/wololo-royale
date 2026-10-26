@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="340" height="280" viewBox="0 0 170 140">
+  <g stroke="#2b1d10" stroke-width="1.5" stroke-linejoin="round">
+    <ellipse cx="86" cy="126" rx="80" ry="11" fill="#000" fill-opacity="0.25" stroke="none"/>
+    <!-- back wall, in shade -->
+    <polygon points="26,80 26,55 29.5,50 33,55 33,80" fill="#6e4a28"/>
+    <polygon points="26,80 26,55 29.5,50 29.5,80" fill="#8a5f36" stroke="none"/>
+    <polygon points="34,80 34,55 37.5,50 41,55 41,80" fill="#6e4a28"/>
+    <polygon points="34,80 34,55 37.5,50 37.5,80" fill="#8a5f36" stroke="none"/>
+    <polygon points="42,80 42,55 45.5,50 49,55 49,80" fill="#6e4a28"/>
+    <polygon points="42,80 42,55 45.5,50 45.5,80" fill="#8a5f36" stroke="none"/>
+    <polygon points="50,80 50,55 53.5,50 57,55 57,80" fill="#6e4a28"/>
+    <polygon points="50,80 50,55 53.5,50 53.5,80" fill="#8a5f36" stroke="none"/>
+    <polygon points="58,80 58,55 61.5,50 65,55 65,80" fill="#6e4a28"/>
+    <polygon points="58,80 58,55 61.5,50 61.5,80" fill="#8a5f36" stroke="none"/>
+    <polygon points="66,80 66,55 69.5,50 73,55 73,80" fill="#6e4a28"/>
+    <polygon points="66,80 66,55 69.5,50 69.5,80" fill="#8a5f36" stroke="none"/>
+    <polygon points="74,80 74,55 77.5,50 81,55 81,80" fill="#6e4a28"/>
+    <polygon points="74,80 74,55 77.5,50 77.5,80" fill="#8a5f36" stroke="none"/>
+    <polygon points="82,80 82,55 85.5,50 89,55 89,80" fill="#6e4a28"/>
+    <polygon points="82,80 82,55 85.5,50 85.5,80" fill="#8a5f36" stroke="none"/>
+    <polygon points="90,80 90,55 93.5,50 97,55 97,80" fill="#6e4a28"/>
+    <polygon points="90,80 90,55 93.5,50 93.5,80" fill="#8a5f36" stroke="none"/>
+    <polygon points="98,80 98,55 101.5,50 105,55 105,80" fill="#6e4a28"/>
+    <polygon points="98,80 98,55 101.5,50 101.5,80" fill="#8a5f36" stroke="none"/>
+    <polygon points="106,80 106,55 109.5,50 113,55 113,80" fill="#6e4a28"/>
+    <polygon points="106,80 106,55 109.5,50 109.5,80" fill="#8a5f36" stroke="none"/>
+    <polygon points="114,80 114,55 117.5,50 121,55 121,80" fill="#6e4a28"/>
+    <polygon points="114,80 114,55 117.5,50 117.5,80" fill="#8a5f36" stroke="none"/>
+    <polygon points="122,80 122,55 125.5,50 129,55 129,80" fill="#6e4a28"/>
+    <polygon points="122,80 122,55 125.5,50 125.5,80" fill="#8a5f36" stroke="none"/>
+    <polygon points="130,80 130,55 133.5,50 137,55 137,80" fill="#6e4a28"/>
+    <polygon points="130,80 130,55 133.5,50 133.5,80" fill="#8a5f36" stroke="none"/>
+    <polygon points="138,80 138,55 141.5,50 145,55 145,80" fill="#6e4a28"/>
+    <polygon points="138,80 138,55 141.5,50 141.5,80" fill="#8a5f36" stroke="none"/>
+    <!-- keep: lit front, shaded side; roof is in the tint file -->
+    <polygon points="112,46 128,38 128,80 112,88" fill="#6e4a28"/>
+    <polygon points="58,46 112,46 112,88 58,88" fill="#a0703f"/>
+    <polygon points="58,46 85,46 85,88 58,88" fill="#c08a50" stroke="none"/>
+    <polygon points="58,46 112,46 112,88 58,88" fill="none"/>
+    <rect x="68" y="56" width="6" height="9" fill="#2b1d10" stroke="none"/>
+    <rect x="96" y="56" width="6" height="9" fill="#2b1d10" stroke="none"/>
+    <!-- front palisade -->
+    <polygon points="14,120 14,91 18.0,86 22,91 22,120" fill="#a0703f"/>
+    <polygon points="14,120 14,91 18.0,86 18.0,120" fill="#c08a50" stroke="none"/>
+    <polygon points="23,120 23,91 27.0,86 31,91 31,120" fill="#a0703f"/>
+    <polygon points="23,120 23,91 27.0,86 27.0,120" fill="#c08a50" stroke="none"/>
+    <polygon points="32,120 32,91 36.0,86 40,91 40,120" fill="#a0703f"/>
+    <polygon points="32,120 32,91 36.0,86 36.0,120" fill="#c08a50" stroke="none"/>
+    <polygon points="41,120 41,91 45.0,86 49,91 49,120" fill="#a0703f"/>
+    <polygon points="41,120 41,91 45.0,86 45.0,120" fill="#c08a50" stroke="none"/>
+    <polygon points="50,120 50,91 54.0,86 58,91 58,120" fill="#a0703f"/>
+    <polygon points="50,120 50,91 54.0,86 54.0,120" fill="#c08a50" stroke="none"/>
+    <polygon points="59,120 59,91 63.0,86 67,91 67,120" fill="#a0703f"/>
+    <polygon points="59,120 59,91 63.0,86 63.0,120" fill="#c08a50" stroke="none"/>
+    <polygon points="68,120 68,91 72.0,86 76,91 76,120" fill="#a0703f"/>
+    <polygon points="68,120 68,91 72.0,86 72.0,120" fill="#c08a50" stroke="none"/>
+    <polygon points="77,120 77,91 81.0,86 85,91 85,120" fill="#a0703f"/>
+    <polygon points="77,120 77,91 81.0,86 81.0,120" fill="#c08a50" stroke="none"/>
+    <polygon points="86,120 86,91 90.0,86 94,91 94,120" fill="#a0703f"/>
+    <polygon points="86,120 86,91 90.0,86 90.0,120" fill="#c08a50" stroke="none"/>
+    <polygon points="95,120 95,91 99.0,86 103,91 103,120" fill="#a0703f"/>
+    <polygon points="95,120 95,91 99.0,86 99.0,120" fill="#c08a50" stroke="none"/>
+    <polygon points="104,120 104,91 108.0,86 112,91 112,120" fill="#a0703f"/>
+    <polygon points="104,120 104,91 108.0,86 108.0,120" fill="#c08a50" stroke="none"/>
+    <polygon points="113,120 113,91 117.0,86 121,91 121,120" fill="#a0703f"/>
+    <polygon points="113,120 113,91 117.0,86 117.0,120" fill="#c08a50" stroke="none"/>
+    <polygon points="122,120 122,91 126.0,86 130,91 130,120" fill="#a0703f"/>
+    <polygon points="122,120 122,91 126.0,86 126.0,120" fill="#c08a50" stroke="none"/>
+    <polygon points="131,120 131,91 135.0,86 139,91 139,120" fill="#a0703f"/>
+    <polygon points="131,120 131,91 135.0,86 135.0,120" fill="#c08a50" stroke="none"/>
+    <polygon points="140,120 140,91 144.0,86 148,91 148,120" fill="#a0703f"/>
+    <polygon points="140,120 140,91 144.0,86 144.0,120" fill="#c08a50" stroke="none"/>
+    <polygon points="149,120 149,91 153.0,86 157,91 157,120" fill="#a0703f"/>
+    <polygon points="149,120 149,91 153.0,86 153.0,120" fill="#c08a50" stroke="none"/>
+    <!-- gate -->
+    <path d="M70 120 L70 100 Q85 86 100 100 L100 120 Z" fill="#2b1d10"/>
+    <rect x="66" y="94" width="5" height="26" fill="#6b4426"/>
+    <rect x="99" y="94" width="5" height="26" fill="#6b4426"/>
+    <!-- corner watchtowers -->
+    <line x1="9" y1="122" x2="11" y2="96" stroke-width="3"/>
+    <line x1="27" y1="122" x2="25" y2="96" stroke-width="3"/>
+    <line x1="10" y1="118" x2="26" y2="102" stroke-width="1.5"/>
+    <polygon points="6,96 30,96 30,80 6,80" fill="#a0703f"/>
+    <polygon points="6,96 18,96 18,80 6,80" fill="#c08a50" stroke="none"/>
+    <polygon points="6,96 30,96 30,80 6,80" fill="none"/>
+    <rect x="16" y="84" width="4" height="7" fill="#2b1d10" stroke="none"/>
+    <line x1="143" y1="122" x2="145" y2="96" stroke-width="3"/>
+    <line x1="161" y1="122" x2="159" y2="96" stroke-width="3"/>
+    <line x1="144" y1="118" x2="160" y2="102" stroke-width="1.5"/>
+    <polygon points="140,96 164,96 164,80 140,80" fill="#a0703f"/>
+    <polygon points="140,96 152,96 152,80 140,80" fill="#c08a50" stroke="none"/>
+    <polygon points="140,96 164,96 164,80 140,80" fill="none"/>
+    <rect x="150" y="84" width="4" height="7" fill="#2b1d10" stroke="none"/>
+    <line x1="85" y1="8" x2="85" y2="22" stroke-width="1.5"/>
+  </g>
+</svg>
