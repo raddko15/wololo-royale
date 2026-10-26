@@ -1288,14 +1288,19 @@ func _draw_hp(center: Vector2, hp: float, max_hp: float, width := 70.0) -> void:
 
 
 ## A villager dot with a "back" arrow; faded when nobody works there.
-## "Call a worker back" button, with how many work there on a small tag.
+## "Call a worker back" button: a villager's head with a red minus (the same
+## look as "− Worker" at the mines), with how many work there on a small tag.
 func _draw_unassign_icon(c: Vector2, workers: int) -> void:
 	var alpha := 1.0 if workers > 0 else 0.35
 	draw_circle(c, 26, Color("#2b2620", alpha))
 	draw_arc(c, 26, 0, TAU, 24, Color("#f9ca24", alpha), 3)
-	draw_circle(c + Vector2(6, 0), 8, Color(COLORS.villager, alpha))
-	draw_line(c + Vector2(-16, 0), c + Vector2(-4, 0), Color("#f9ca24", alpha), 3)
-	draw_colored_polygon(PackedVector2Array([c + Vector2(-18, 0), c + Vector2(-10, -7), c + Vector2(-10, 7)]), Color("#f9ca24", alpha))
+	# The head sits at (16, 12) in its 32x40 art: scale it up around that point.
+	var k := 1.7
+	draw_texture_rect(_tex("head"), Rect2(c + Vector2(-3, -2) - Vector2(16, 12) * k, Vector2(32, 40) * k), false, Color(1, 1, 1, alpha))
+	var badge := c + Vector2(12, 11)
+	draw_circle(badge, 9, Color(OUTLINE, alpha))
+	draw_circle(badge, 7.5, Color("#c0392b", alpha))
+	draw_line(badge + Vector2(-4, 0), badge + Vector2(4, 0), Color(1, 1, 1, alpha), 2.5)
 	if workers > 0:
 		var tag := c + Vector2(0, 34)
 		draw_circle(tag, 13, OUTLINE)

@@ -191,15 +191,16 @@ func _draw_glyph(kind: String, c: Vector2, alpha: float) -> void:
 			draw_rect(Rect2(c + Vector2(-14, 0), Vector2(13, 11)), stone)
 			draw_rect(Rect2(c + Vector2(1, 0), Vector2(13, 11)), stone.darkened(0.1))
 			draw_rect(Rect2(c + Vector2(-7, -12), Vector2(14, 11)), stone.darkened(0.2))
-		"worker":
-			draw_circle(c, 12, Color("#f5f6fa", alpha))
-			draw_arc(c, 12, 0, TAU, 16, Color(0, 0, 0, alpha), 2)
-			draw_line(c + Vector2(14, -12), c + Vector2(14, 0), gold, 3)
-			draw_line(c + Vector2(8, -6), c + Vector2(20, -6), gold, 3)
-		"unworker":  # villager with a minus
-			draw_circle(c, 12, Color("#f5f6fa", alpha))
-			draw_arc(c, 12, 0, TAU, 16, Color(0, 0, 0, alpha), 2)
-			draw_line(c + Vector2(8, -6), c + Vector2(20, -6), gold, 3)
+		"worker", "unworker":  # villager's head with + (send in) or − (call back)
+			# The head sits at (16, 12) in its 32x40 art: scale it up around that point.
+			var k := 2.0
+			draw_texture_rect(_tex("head"), Rect2(c + Vector2(-3, -1) - Vector2(16, 12) * k, Vector2(32, 40) * k), false, Color(1, 1, 1, alpha))
+			var badge := c + Vector2(13, 12)
+			draw_circle(badge, 10, Color(OUTLINE, alpha))
+			draw_circle(badge, 8.5, Color("#27ae60" if kind == "worker" else "#c0392b", alpha))
+			draw_line(badge + Vector2(-5, 0), badge + Vector2(5, 0), Color(1, 1, 1, alpha), 3)
+			if kind == "worker":
+				draw_line(badge + Vector2(0, -5), badge + Vector2(0, 5), Color(1, 1, 1, alpha), 3)
 		"barracks":  # crossed sticks
 			draw_line(c + Vector2(-12, 12), c + Vector2(12, -12), Color("#8b5a2b", alpha), 4)
 			draw_line(c + Vector2(12, 12), c + Vector2(-12, -12), Color("#8b5a2b", alpha), 4)
