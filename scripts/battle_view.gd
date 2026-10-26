@@ -173,32 +173,80 @@ func idle_spot(team: int, i: int, count: int) -> Vector2:
 	return campfire_pos(team) + Vector2(cos(a) * (24 + ring * 13), sin(a) * (16 + ring * 9))
 
 
-## Hut slots as (x fraction, depth from the back edge), nearest the campfire
-## first so the village grows outward. Staggered rows with a little jitter.
+## Hut slots as (x fraction, depth from the back edge): every free patch of
+## grass behind the towers (between fields, workshops, military buildings and
+## roads), loosely nearest the campfire first so the village grows outward.
 var _hut_slots: Array[Vector2] = []
+var _slots_for := Vector2.ZERO
+## Enough for the population cap (200 / 5 per hut) with a few spare.
+const MIN_HUT_SLOTS := 44
+
+
+## Places huts must not cover, in the player's screen coordinates.
+func _village_blockers() -> Array[Rect2]:
+	var t := Battlefield.PLAYER
+	var r: Array[Rect2] = [farm_rect(t).grow(4), forest_rect(t).grow(4)]
+	var box := func(c: Vector2, s: Vector2) -> Rect2: return Rect2(c - s / 2, s)
+	r.append(box.call(campfire_pos(t), Vector2(132, 92)))  # campfire and the idle circle around it
+	r.append(box.call(town_center(t) + Vector2(0, -24), Vector2(170, 112)))
+	r.append(box.call(town_center(t) + Vector2(0, 50), Vector2(130, 18)))  # its health bar
+	r.append(box.call(town_center(t) + Vector2(70, -60), Vector2(30, 30)))  # era badge
+	for job in ["food", "wood"]:
+		r.append(box.call(drop_off(t, job) + Vector2(0, -12), Vector2(84, 52)))
+		r.append(box.call(drop_off(t, job) + Vector2(24, -40), Vector2(30, 30)))
+		r.append(box.call(unassign_icon(job), Vector2(48, 48)))
+	for id in ["barracks", "archery_range", "stables"]:
+		r.append(box.call(military_pos(t, id) + Vector2(0, -18), Vector2(76, 64)))
+	for res in ["gold", "stone"]:
+		r.append(box.call(mine_pos(t, res) + Vector2(4, -14), Vector2(64, 56)))
+	for lane in Battlefield.LANES:
+		r.append(box.call(building_pos(t, "tower", lane) + Vector2(0, -20), Vector2(56, 80)))
+		var path := road(t, lane)
+		for k in path.size() - 1:
+			r.append(Rect2(path[k], Vector2.ZERO).expand(path[k + 1]).grow(size.x * LANE_W / 2 + 5))
+	return r
 
 
 func _slots() -> Array[Vector2]:
-	if _hut_slots.is_empty():
-		var center := Vector2(0.5 * 720.0, CAMPFIRE_DEPTH)
-		var raw := []
-		for row in 6:
-			for col in 10:
-				var x := 0.328 * 720.0 + 12 + col * 24.5 + (12 if row % 2 == 1 else 0)
-				var d := 10.0 + row * 21
-				var h := (row * 9 + col) * 2654435761 % 1000
-				x += float(h % 7) - 3.0
-				d += float((h / 7) % 7) - 3.0
-				var spot := Vector2(x, d)
-				if spot.distance_to(center) < 40.0:
-					continue  # keep the campfire clear
-				if d > 100.0 and absf(x - 360.0) < 90.0:
-					continue  # keep clear of the town center
-				raw.append(spot)
-		raw.sort_custom(func(a, b): return a.distance_to(center) < b.distance_to(center))
-		for spot in raw:
-			_hut_slots.append(Vector2(spot.x / 720.0, spot.y))
+	if _slots_for != size:
+		_slots_for = size
+		_hut_slots.clear()
+		var blockers := _village_blockers()
+		var fire := campfire_pos()
+		var raw := _hut_grid(blockers, fire, Vector2.ZERO)
+		raw.sort_custom(func(a, b): return a[0] < b[0])
+		if raw.size() < MIN_HUT_SLOTS:
+			# Short screen: squeeze extra huts into the gaps of the first grid.
+			var taken := raw.map(func(item: Array) -> Vector2: return item[1])
+			for item in _hut_grid(blockers, fire, Vector2(15, 12)):
+				if taken.all(func(t: Vector2) -> bool: return t.distance_to(item[1]) > 22.0):
+					raw.append(item)
+		for item in raw:
+			var spot: Vector2 = item[1]
+			_hut_slots.append(Vector2(spot.x / size.x, size.y - spot.y))
 	return _hut_slots
+
+
+## Free hut spots ([sort key, point]) on a staggered, jittered grid shifted by `offset`.
+func _hut_grid(blockers: Array[Rect2], fire: Vector2, offset: Vector2) -> Array:
+	var raw := []
+	var row := 0
+	var depth := 12.0 + offset.y
+	while depth < TOWER_DEPTH - 20:
+		var col := 0
+		var x := 18.0 + offset.x + (15.0 if row % 2 == 1 else 0.0)
+		while x < size.x - 20:
+			var h := (row * 31 + col * 7 + 3) * 2654435761 % 100000
+			var spot := _cp(Battlefield.PLAYER, 0, depth) + Vector2(x + float(h % 13) - 6.0, float((h / 13) % 9) - 4.0)
+			var hut := Rect2(spot + Vector2(-15, -19), Vector2(30, 27))
+			if Rect2(Vector2.ZERO, size).encloses(hut) and blockers.all(func(b: Rect2) -> bool: return not b.intersects(hut)):
+				# Nearest the campfire first, with some noise so it grows unevenly.
+				raw.append([spot.distance_to(fire) + float((h / 117) % 60), spot])
+			x += 30.0
+			col += 1
+		depth += 24.0
+		row += 1
+	return raw
 
 
 func hut_pos(team: int, i: int) -> Vector2:
@@ -579,7 +627,7 @@ func _draw_city(team: int, now: float) -> void:
 	var order := range(e.huts)
 	order.sort_custom(func(a, b): return hut_pos(team, a).y < hut_pos(team, b).y)
 	for i in order:
-		_draw_hut(hut_pos(team, i), e.hut_eras[i] if i < e.hut_eras.size() else e.era_index, style)
+		_draw_hut(hut_pos(team, i), e.era_index, style)
 	_draw_campfire(campfire_pos(team), now)
 	var idle: int = e.villagers.get("idle", 0)
 	for i in idle:

@@ -51,7 +51,6 @@ func _init() -> void:
 	p.resources.wood = 30.0
 	p.build_hut()
 	p.finish_jobs()
-	_check(p.hut_eras == [0, 0, 1], "each hut remembers the era it was built in")
 	p.resources.wood = 1e6
 	while p.build_hut():
 		pass

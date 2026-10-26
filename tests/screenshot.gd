@@ -1,6 +1,6 @@
 extends SceneTree
 ## Renders game screens to PNGs (needs a display, e.g. xvfb-run).
-## Args: <out.png> <era1|era2|era2up|era3|window|mill|mine|jobs> [player_civ] [enemy_civ]
+## Args: <out.png> <era1|era2|era2up|era3|window|mill|mine|jobs> [player_civ] [enemy_civ] [huts]
 ## era2up buys the mill and lumber upgrades, era3 every upgrade (both sides);
 ## window / mill open that building's ring menu.
 
@@ -17,7 +17,7 @@ func _init() -> void:
 	var era: int = {"era1": 0, "era2": 1, "era2up": 1, "era3": 2, "window": 1, "mill": 1, "mine": 2, "jobs": 1}[mode]
 	for e in [main.economy, main.ai.economy]:
 		e.era_index = era
-		e.huts = 10
+		e.huts = int(args[4]) if args.size() > 4 else 10
 		e.military = {"barracks": true} if era == 0 else {"barracks": true, "archery_range": true, "stables": true}
 		if mode == "era2up":
 			e.upgrades = {"mill": true, "lumber_camp": true}
@@ -75,6 +75,7 @@ func _init() -> void:
 		main._open_menu("gold_mine", main._view.mine_pos(Battlefield.PLAYER, "gold"))
 	for i in 5:
 		await process_frame
+	print("hut slots: ", main._view._slots().size())
 	await RenderingServer.frame_post_draw
 	root.get_texture().get_image().save_png(args[0])
 	quit()
