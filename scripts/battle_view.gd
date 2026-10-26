@@ -911,8 +911,10 @@ func _target_pos(u: Dictionary, positions: Array[Vector2]) -> Vector2:
 
 
 const FIGURE := Vector2(32, 40)
-## Soldiers are drawn a bit larger than their art so they read on a phone.
-const UNIT_SCALE := 1.2
+## Size soldiers are drawn at, relative to their 32x40 art.
+const UNIT_SCALE := 0.9
+const LEG := Color("#4a2f1a")
+const OUTLINE := Color("#2b1d10")
 ## Civilian tunic color for villagers (soldiers wear their civ color).
 const VILLAGER_TUNIC := Color("#d9c8a0")
 
@@ -923,10 +925,24 @@ func _figure_origin(p: Vector2, scale: float) -> Vector2:
 
 
 ## A little character: legs and hands, a tunic in `color`, a head, then any
-## gear layers (helmets, hood, chainmail) in order.
-func _draw_figure(p: Vector2, color: Color, gear: Array, scale := 1.0) -> void:
+## gear layers (helmets, hood, chainmail) in order. `walk` is the step phase
+## in radians while walking (legs alternate, body bobs), or -1 standing.
+func _draw_figure(p: Vector2, color: Color, gear: Array, scale := 1.0, walk := -1.0) -> void:
+	if walk >= 0.0:
+		p.y -= absf(sin(walk)) * 1.6 * scale
 	var o := _figure_origin(p, scale)
 	var box := Rect2(o, FIGURE * scale)
+	# Legs: each lifts and swings in turn while walking.
+	for side in [-1, 1]:
+		var lift := 0.0
+		var swing := 0.0
+		if walk >= 0.0:
+			var s: float = sin(walk) * side
+			lift = maxf(s, 0.0) * 1.8
+			swing = s * 1.2
+		var leg := Rect2(o + Vector2(16 + side * 3.5 - 2 + swing, 31 - lift) * scale, Vector2(4, 6) * scale)
+		draw_rect(leg, LEG)
+		draw_rect(leg, OUTLINE, false, 1.0)
 	for name in ["unit", "unit_tint", "head"] + gear:
 		var t := _tex(name)
 		if t:
@@ -942,6 +958,13 @@ func _draw_weapon(name: String, tex_size: Vector2, pivot: Vector2, at: Vector2, 
 	draw_set_transform(at, angle + PI / 2, Vector2(scale, scale))
 	draw_texture_rect(t, Rect2(-pivot, tex_size), false)
 	draw_set_transform(Vector2.ZERO)
+
+
+## Step phase for a unit on the move, or -1 when it stands or fights.
+func _walk_phase(u: Dictionary, now: float, rate := 11.0) -> float:
+	if u.target != "" or u.speed <= 0.0:
+		return -1.0
+	return fmod(now * rate + u.side * 5.0, TAU)
 
 
 func _draw_shield(at: Vector2, color: Color, scale := 1.0) -> void:
@@ -962,7 +985,7 @@ func _draw_archer(u: Dictionary, p: Vector2, color: Color, now: float, target: V
 	if tier >= 1:
 		draw_texture_rect(_tex("quiver"), Rect2(o, FIGURE * k), false)
 	var gear := ["hood"] if tier == 1 else (["helmet_1"] if tier >= 2 else [])
-	_draw_figure(p, color, gear, k)
+	_draw_figure(p, color, gear, k, _walk_phase(u, now))
 	var hand := o + Vector2(26, 27) * k
 	if tier >= 2:
 		_draw_weapon("crossbow", Vector2(18, 30), Vector2(9, 22), hand, facing, k)
@@ -975,16 +998,24 @@ func _draw_archer(u: Dictionary, p: Vector2, color: Color, now: float, target: V
 		var dir := (target - hand).normalized()
 		draw_line(ap - dir * 12, ap, Color("#1b120a"), 2)
 		draw_circle(ap, 2, Color("#d0d0d0"))
-	_draw_hp(p + Vector2(0, -36), u.hp, u.max_hp, 28)
+	_draw_hp(p + Vector2(0, -30), u.hp, u.max_hp, 26)
 
 
 ## Rider on a horse with a lance; armored horse at level 2, a knight (helm,
 ## shield, pennant) at level 3.
 func _draw_cavalry(u: Dictionary, p: Vector2, color: Color, now: float) -> void:
 	var tier: int = u.get("tier", 0)
-	var bob := absf(sin(now * 12.0 + u.side * 5.0)) * -2.0 if u.target == "" else 0.0
+	var gallop := _walk_phase(u, now, 13.0)
+	var bob := -absf(sin(gallop)) * 2.0 if gallop >= 0.0 else 0.0
 	var k := UNIT_SCALE
 	var horse_box := Rect2(p + Vector2(-26, -22 + bob) * k, Vector2(52, 40) * k)
+	# Four legs from the body, front and back pairs swinging opposite ways.
+	for leg in [[13, 0.0], [17, PI], [35, PI], [39, 0.0]]:
+		var a: float = sin(gallop + leg[1]) * 0.45 if gallop >= 0.0 else 0.0
+		var top: Vector2 = horse_box.position + Vector2(leg[0], 25) * k
+		var foot := top + Vector2.from_angle(PI / 2 + a) * 11 * k
+		draw_line(top, foot, OUTLINE, 5.0 * k)
+		draw_line(top, foot, Color("#7a4a26"), 3.0 * k)
 	draw_texture_rect(_tex("horse"), horse_box, false)
 	if tier >= 1:
 		draw_texture_rect(_tex("barding"), horse_box, false)
@@ -1003,7 +1034,7 @@ func _draw_cavalry(u: Dictionary, p: Vector2, color: Color, now: float) -> void:
 		draw_set_transform(hand, lance_angle + PI / 2, Vector2(k, k))
 		draw_texture_rect(t, Rect2(-Vector2(4, 44), Vector2(8, 56)), false, color)
 		draw_set_transform(Vector2.ZERO)
-	_draw_hp(p + Vector2(0, -48), u.hp, u.max_hp, 32)
+	_draw_hp(p + Vector2(0, -40), u.hp, u.max_hp, 30)
 
 
 ## Fighter: a figure with a club (helmet and shield at level 2; great helm,
@@ -1016,12 +1047,15 @@ func _draw_fighter(u: Dictionary, p: Vector2, color: Color, now: float) -> void:
 	var tier: int = u.get("tier", 0)
 	var gear := ["helmet_1"] if tier == 1 else (["chainmail", "helmet_2"] if tier >= 2 else [])
 	var k := UNIT_SCALE
-	_draw_figure(p, color, gear, k)
+	var walk := _walk_phase(u, now)
+	_draw_figure(p, color, gear, k, walk)
+	if walk >= 0.0:
+		p.y -= absf(sin(walk)) * 1.6 * k  # keep shield and weapon with the bobbing body
 	var o := _figure_origin(p, k)
 	if tier >= 1:
 		_draw_shield(o + Vector2(6, 26) * k, color, k)
 	_draw_weapon("sword" if tier >= 2 else "club", Vector2(10, 30), Vector2(5, 27), o + Vector2(26, 27) * k, angle, k)
-	_draw_hp(p + Vector2(0, -36), u.hp, u.max_hp, 28)
+	_draw_hp(p + Vector2(0, -30), u.hp, u.max_hp, 26)
 
 
 ## Villager: a small figure in a plain tunic. Farmers bob with a hoe,
@@ -1030,7 +1064,8 @@ func _draw_worker(p: Vector2, w: Dictionary, now: float, olives := false) -> voi
 	var phase: float = w.spot * 1.7
 	if w.phase == "gather" and w.job == "food":
 		p.y += sin(now * 6.0 + phase) * 2.0
-	_draw_figure(p, VILLAGER_TUNIC, [], 0.6)
+	var walking: bool = w.phase == "to_drop" or w.phase == "to_work"
+	_draw_figure(p, VILLAGER_TUNIC, [], 0.6, fmod(now * 12.0 + phase, TAU) if walking else -1.0)
 	var hand := _figure_origin(p, 0.6) + Vector2(26, 27) * 0.6
 	if w.phase == "gather":
 		if w.job == "food":
