@@ -15,7 +15,12 @@
       "gold": 0.8,
       "stone": 0.8
     },
-    "carry_capacity": 5,
+    "carry_capacity": {
+      "food": 10,
+      "wood": 10,
+      "gold": 5,
+      "stone": 5
+    },
     "walk_time_sec": 1.5
   },
   "villager_cost": {

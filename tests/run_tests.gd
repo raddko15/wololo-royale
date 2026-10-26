@@ -26,13 +26,13 @@ func _init() -> void:
 	e.resources.wood = 100.0
 	_check(e.reassign("idle", "food") and e.reassign("idle", "food") and e.villagers.food == 2, "assign idle to food")
 	var food_before: float = e.resources.food
-	# Walk out 1.5s, gather 5 at 1/s, walk back 1.5s: nothing lands before the trip ends.
+	# Walk out 1.5s, gather 10 at 1/s, walk back 1.5s: nothing lands before the trip ends.
 	for i in 70:
 		e.tick(0.1)
 	_check(e.resources.food == food_before and e.workers[0].carry > 4.0, "food is carried, not yet in the pile")
-	for i in 20:
+	for i in 65:
 		e.tick(0.1)
-	_check(is_equal_approx(e.resources.food, food_before + 10), "two farmers drop off 5 food each")
+	_check(is_equal_approx(e.resources.food, food_before + 20), "two farmers drop off 10 food each")
 	_check(e.workers[0].spot != e.workers[1].spot, "farmers work different plots")
 	_check(e.reassign("food", "idle") and e.villagers.idle == 4, "send worker back to idle")
 	e.villagers.wood = 0

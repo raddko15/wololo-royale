@@ -68,8 +68,9 @@ func tick(delta: float) -> void:
 	for w in workers:
 		match w.phase:
 			"gather":
-				w.carry = minf(w.carry + rate_per_villager(w.job) * delta, g.carry_capacity)
-				if w.carry >= g.carry_capacity:
+				var cap: float = g.carry_capacity[w.job]
+				w.carry = minf(w.carry + rate_per_villager(w.job) * delta, cap)
+				if w.carry >= cap:
 					w.phase = "to_drop"
 					w.t = 0.0
 			"to_drop":
