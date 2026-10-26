@@ -77,6 +77,11 @@ func _start_game(civ_id: String, menu: Control) -> void:
 	_view.battle = battle
 	_view.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_view.building_tapped.connect(_open_menu)
+	_view.upgrade_badge_tapped.connect(func(id: String):
+		if id == "era":
+			economy.advance()
+		else:
+			economy.buy_upgrade(id))
 	box.add_child(_view)
 
 	box.add_child(_lane_selector())

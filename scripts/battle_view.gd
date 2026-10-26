@@ -4,6 +4,8 @@ extends Control
 ## Both cities share one layout: the player's at the bottom, the enemy's
 ## mirrored at the top, with 3 lanes between the tower lines.
 
+## A gold upgrade badge was tapped: buy that upgrade ("era": next era).
+signal upgrade_badge_tapped(id: String)
 ## A building of the player's was tapped: "town_center", "mill", "lumber_camp",
 ## "towers", "gold_mine", "stone_mine", "barracks", "archery_range" or "stables".
 signal building_tapped(kind: String, at: Vector2)
@@ -283,6 +285,11 @@ func _gui_input(event: InputEvent) -> void:
 	if not (event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT):
 		return
 	var pos: Vector2 = event.position
+	# Badges sit on top of buildings, so they win the tap (generous finger radius).
+	for b in upgrade_badges(economy):
+		if pos.distance_to(b[0]) < 24:
+			upgrade_badge_tapped.emit(b[1])
+			return
 	for job in ["food", "wood"]:
 		if pos.distance_to(unassign_icon(job)) < 34:
 			economy.reassign(job, "idle")
@@ -441,28 +448,35 @@ func _draw_city(team: int, now: float) -> void:
 		_draw_upgrade_badges(e, now)
 
 
-## A bobbing gold arrow over every building with an upgrade the player can
-## buy right now (the town center: the next era).
-func _draw_upgrade_badges(e: Economy, now: float) -> void:
+## Gold arrow badges: one over every building with an upgrade the player can
+## buy right now, as [position, upgrade id] ("era" for the town center).
+func upgrade_badges(e: Economy) -> Array:
 	var spots := []
 	if e.can_advance():
-		spots.append(town_center() + Vector2(70, -60))
+		spots.append([town_center() + Vector2(70, -60), "era"])
 	var food_next := "mill2" if e.upgrades.has("mill") else "mill"
 	if e.can_upgrade(food_next):
-		spots.append(drop_off(Battlefield.PLAYER, "food") + Vector2(24, -40))
+		spots.append([drop_off(Battlefield.PLAYER, "food") + Vector2(24, -40), food_next])
 	var wood_next := "lumber_camp2" if e.upgrades.has("lumber_camp") else "lumber_camp"
 	if e.can_upgrade(wood_next):
-		spots.append(drop_off(Battlefield.PLAYER, "wood") + Vector2(24, -40))
+		spots.append([drop_off(Battlefield.PLAYER, "wood") + Vector2(24, -40), wood_next])
 	for res in e.mines:
 		if e.can_upgrade(res + "_mine2"):
-			spots.append(mine_pos(Battlefield.PLAYER, res) + Vector2(22, -34))
+			spots.append([mine_pos(Battlefield.PLAYER, res) + Vector2(22, -34), res + "_mine2"])
 	if e.can_upgrade("stone_towers"):
-		spots.append(building_pos(Battlefield.PLAYER, "tower", 1) + Vector2(30, -70))
+		spots.append([building_pos(Battlefield.PLAYER, "tower", 1) + Vector2(30, -70), "stone_towers"])
 	for id in e.military:
 		var next: String = id + ("2" if e.upgrades.has(id + "1") else "1")
 		if e.can_upgrade(next):
-			# The barracks stands right of the screen edge's tower bar, so its badge goes left.
-			spots.append(military_pos(Battlefield.PLAYER, id) + Vector2(-26 if id == "barracks" else 30, -36))
+			# The barracks stands next to the left tower's health bar, so its badge goes left.
+			spots.append([military_pos(Battlefield.PLAYER, id) + Vector2(-26 if id == "barracks" else 30, -36), next])
+	return spots
+
+
+func _draw_upgrade_badges(e: Economy, now: float) -> void:
+	var spots := []
+	for b in upgrade_badges(e):
+		spots.append(b[0])
 	var bob := sin(now * 4.0) * 3.0
 	for p in spots:
 		var c: Vector2 = p + Vector2(0, bob)
