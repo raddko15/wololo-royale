@@ -4,6 +4,8 @@ extends Control
 ## Both cities share one layout: the player's at the bottom, the enemy's
 ## mirrored at the top, with 3 lanes between the tower lines.
 
+## A hut was tapped: build another one.
+signal hut_tapped
 ## A gold upgrade badge was tapped: buy that upgrade ("era": next era).
 signal upgrade_badge_tapped(id: String)
 ## A building of the player's was tapped: "town_center", "mill", "lumber_camp",
@@ -156,8 +158,9 @@ func idle_area(team := Battlefield.PLAYER) -> Rect2:
 
 ## Huts fill rows behind the town center, from the fort outward.
 func hut_pos(team: int, i: int) -> Vector2:
-	var area := _crect(team, 0.35, 0.30, 70, 3)
-	var step := 21.0
+	# 13 columns x 3 rows: room for every hut up to the 200 population cap.
+	var area := _crect(team, 0.33, 0.345, 70, 3)
+	var step := 19.0
 	var cols := int(area.size.x / step)
 	var row := i / cols
 	if team == Battlefield.ENEMY:
@@ -314,6 +317,10 @@ func _gui_input(event: InputEvent) -> void:
 	if pos.distance_to(town_center()) < size.x * 0.12:
 		building_tapped.emit("town_center", town_center())
 		return
+	for i in economy.huts:
+		if pos.distance_to(hut_pos(Battlefield.PLAYER, i) + Vector2(0, -3)) < 14:
+			hut_tapped.emit()
+			return
 	for res in ["food", "wood"]:
 		if pos.distance_to(drop_off(Battlefield.PLAYER, res)) < 40:
 			building_tapped.emit("mill" if res == "food" else "lumber_camp", drop_off(Battlefield.PLAYER, res))

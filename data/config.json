@@ -171,8 +171,9 @@
     "gold_miners": 3
   },
   "population": {
-    "starting_cap": 10,
-    "max_cap": 200
+    "starting_cap": 5,
+    "max_cap": 200,
+    "starting_huts": 1
   },
   "testing": {
     "player_starting_resources": {

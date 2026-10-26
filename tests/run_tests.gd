@@ -42,7 +42,7 @@ func _init() -> void:
 	_check(not e.recruit(), "cannot recruit when broke")
 
 	var p := Economy.new("romans")
-	_check(p.population() == 5 and p.max_population() == 10, "starts at 5/10 population")
+	_check(p.population() == 5 and p.max_population() == 10 and p.huts == 1, "starts at 5/10 population with one hut")
 	p.resources = {"food": 1e6, "wood": 30.0}
 	_check(p.build_hut() and p.max_population() == 10 and p.resources.wood == 0, "hut costs 30 wood, still being built")
 	p.finish_jobs()

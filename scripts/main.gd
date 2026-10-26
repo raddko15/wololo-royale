@@ -77,6 +77,9 @@ func _start_game(civ_id: String, menu: Control) -> void:
 	_view.battle = battle
 	_view.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_view.building_tapped.connect(_open_menu)
+	_view.hut_tapped.connect(func():
+		if not economy.build_hut():
+			_flash_hint("Need %d wood for a hut" % GameConfig.data().buildings.hut.cost.wood if economy.max_population() < GameConfig.data().population.max_cap else "Population is at the maximum"))
 	_view.upgrade_badge_tapped.connect(func(id: String):
 		if id == "era":
 			economy.advance()

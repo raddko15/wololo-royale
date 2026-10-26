@@ -46,6 +46,7 @@ func _init(civ: String, cfg: Dictionary = GameConfig.data()) -> void:
 	_cfg = cfg
 	civ_id = civ
 	resources = _cfg.starting_resources.duplicate()
+	huts = _cfg.population.get("starting_huts", 0)
 	villagers = {"idle": 0, "food": 0, "wood": 0, "gold": 0, "stone": 0}
 	for job in _cfg.starting_villagers:
 		for i in _cfg.starting_villagers[job]:
