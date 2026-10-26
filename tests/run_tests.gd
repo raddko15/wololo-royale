@@ -18,6 +18,12 @@ func _init() -> void:
 	_check(f.rate_per_villager("stone") > f.rate_per_villager("gold") and f.style() == "medieval", "franks: medieval style, mine stone faster")
 	_check(g.style() == "classical" and g.upgrade_name("mill") == "Olive Press" and e.upgrade_name("mill") == "Olive Press" and f.upgrade_name("mill") == "Windmill", "romans and greeks press olives; franks build a windmill")
 
+	_check(not e.reassign("idle", "food") and not e.reassign("idle", "wood"), "no gathering before the farm and lumberjack stand")
+	e.resources.wood = 90.0
+	_check(e.build_camp("farm") and e.build_camp("lumberjack") and e.resources.wood == 0, "farm costs 50 wood, lumberjack 40")
+	_check(not e.can_upgrade("mill"), "no mill upgrade without a farm")
+	e.finish_jobs()
+	e.resources.wood = 100.0
 	_check(e.reassign("idle", "food") and e.reassign("idle", "food") and e.villagers.food == 2, "assign idle to food")
 	var food_before: float = e.resources.food
 	# Walk out 1.5s, gather 5 at 1/s, walk back 1.5s: nothing lands before the trip ends.
@@ -42,6 +48,7 @@ func _init() -> void:
 	_check(not e.recruit(), "cannot recruit when broke")
 
 	var p := Economy.new("romans")
+	p.camps = {"farm": true, "lumberjack": true}
 	_check(p.population() == 5 and p.max_population() == 10 and p.huts == 1, "starts at 5/10 population with one hut")
 	p.resources = {"food": 1e6, "wood": 30.0}
 	_check(p.build_hut() and p.max_population() == 10 and p.resources.wood == 0, "hut costs 30 wood, still being built")
@@ -81,6 +88,7 @@ func _init() -> void:
 	_check(e.next_era_cost().is_empty() and not e.advance(), "no era beyond the last")
 
 	var m := Economy.new("franks")
+	m.camps = {"farm": true, "lumberjack": true}
 	m.resources = {"food": 1000.0, "wood": 1000.0, "gold": 1000.0, "stone": 0.0}
 	_check(not m.can_train("fighter"), "no fighters without a barracks")
 	_check(m.build_military("barracks") and not m.can_train("fighter"), "barracks under construction")
@@ -122,6 +130,7 @@ func _init() -> void:
 	_check(archer.target == "unit" and dummy.hp < 60 and archer.y == 0.5, "archer shoots from range without walking up")
 
 	var u2 := Economy.new("greeks")
+	u2.camps = {"farm": true, "lumberjack": true}
 	u2.resources = {"food": 0.0, "wood": 1000.0, "gold": 0.0, "stone": 1000.0}
 	_check(not u2.buy_upgrade("mill"), "windmill needs Era II")
 	u2.era_index = 1

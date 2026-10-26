@@ -456,7 +456,7 @@ func _gui_input(event: InputEvent) -> void:
 			hut_tapped.emit()
 			return
 	for res in ["food", "wood"]:
-		if pos.distance_to(drop_off(Battlefield.PLAYER, res)) < 40:
+		if economy.camps.has(Economy.CAMP_FOR[res]) and pos.distance_to(drop_off(Battlefield.PLAYER, res)) < 40:
 			building_tapped.emit("mill" if res == "food" else "lumber_camp", drop_off(Battlefield.PLAYER, res))
 			return
 	if battle.towers_built[Battlefield.PLAYER]:
@@ -585,6 +585,8 @@ func _draw() -> void:
 	if drag_card == "villager":
 		var hover := job_at(drag_pos)
 		for job in ["food", "wood"]:
+			if not economy.can_work(job):
+				continue
 			var area := farm_rect() if job == "food" else forest_rect()
 			draw_rect(area.grow(4), Color("#f9ca24") if hover == job else Color(1, 1, 1, 0.5), false, 4)
 		for res in economy.mines:
@@ -717,6 +719,17 @@ func _bone(a: Vector2, b: Vector2, w: float, bone: Color, line: Color) -> void:
 	draw_line(a, b, bone, w)
 
 
+func _draw_dashed_rect(r: Rect2, color: Color) -> void:
+	draw_rect(r, Color(0, 0, 0, 0.12))
+	var corners := [r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y), r.position]
+	for k in 4:
+		var a: Vector2 = corners[k]
+		var b: Vector2 = corners[k + 1]
+		var n := int(a.distance_to(b) / 12.0)
+		for d in range(0, n, 2):
+			draw_line(a.lerp(b, float(d) / n), a.lerp(b, float(d + 1) / n), color, 2)
+
+
 func _draw_ellipse(c: Vector2, radii: Vector2, color: Color) -> void:
 	var pts := PackedVector2Array()
 	for k in 24:
@@ -732,16 +745,19 @@ func _draw_city(team: int, now: float) -> void:
 	var style := e.style()
 	# Romans and Greeks grow olives from the start; the press comes with the upgrade.
 	var olives := style == "classical"
-	if olives:
+	var farm := e.camps.has("farm")
+	if farm and olives:
 		_draw_olive_grove(farm_rect(team))
-	else:
+	elif farm:
 		_draw_farm(farm_rect(team))
 	for i in TREE_COLS * TREE_ROWS:
 		_draw_tree(work_spot(team, "wood", i))
-	# A granary hut and a lean-to until the player buys the windmill / lumber camp upgrades.
-	# Food and wood buildings: Era I hut, then the Era II and Era III upgrades.
+	# Food and wood buildings, once built: Era I farm hut and lean-to, then
+	# the Era II and Era III upgrades.
 	var food_at := drop_off(team, "food")
-	if e.upgrades.has("mill2"):
+	if not farm:
+		pass
+	elif e.upgrades.has("mill2"):
 		if olives: _draw_oil_workshop(food_at)
 		else: _draw_grand_mill(food_at, now)
 	elif e.upgrades.has("mill"):
@@ -750,7 +766,9 @@ func _draw_city(team: int, now: float) -> void:
 	else:
 		_draw_granary(food_at)
 	var wood_at := drop_off(team, "wood")
-	if e.upgrades.has("lumber_camp2"):
+	if not e.camps.has("lumberjack"):
+		pass
+	elif e.upgrades.has("lumber_camp2"):
 		if style == "classical": _draw_carpentry(wood_at)
 		else: _draw_sawmill(wood_at, now)
 	elif e.upgrades.has("lumber_camp"):
@@ -798,6 +816,9 @@ func _draw_city(team: int, now: float) -> void:
 func build_sites(e: Economy) -> Array:
 	var p := Battlefield.PLAYER
 	var sites := []
+	for res in Economy.CAMP_FOR:
+		if e.site_open("camp", Economy.CAMP_FOR[res]):
+			sites.append([Economy.CAMP_FOR[res], drop_off(p, res), "camp"])
 	for id in GameConfig.data().military:
 		if e.site_open("military", id):
 			sites.append([id, military_pos(p, id), "military"])
@@ -824,6 +845,13 @@ func _draw_build_site(site: Array, e: Economy, now: float) -> void:
 		"mine":
 			art = [id + "_mine", Vector2(0, -8), Vector2(62, 49), Vector2(0, 10), Vector2(30, 12)]
 			affordable = e.can_build_mine(id)
+		"camp":
+			if id == "farm":
+				art = ["granary", Vector2(0, -6), Vector2(84, 67), Vector2(0, 14), Vector2(32, 12)]
+				_draw_dashed_rect(farm_rect(), Color(1, 1, 1, 0.45))  # where the fields will go
+			else:
+				art = ["lean_to", Vector2(0, -8), Vector2(62, 46), Vector2(0, 10), Vector2(28, 11)]
+			affordable = e.can_build_camp(id)
 		_:
 			art = ["tower_wood", Vector2(0, -10), Vector2(56, 84), Vector2(0, 26), Vector2(22, 9)]
 			affordable = e.can_build_towers()
@@ -908,6 +936,9 @@ func _draw_jobs(team: int, e: Economy, now: float) -> void:
 			"mine":
 				var ms := _site("mine", mine_pos(team, job.id))
 				_draw_scaffold(ms[0], ms[1], frac, now, true)
+			"camp":
+				var cs := _site("work", drop_off(team, GameConfig.data().buildings[job.id].resource))
+				_draw_scaffold(cs[0], cs[1], frac, now, true)
 			"military":
 				var bs := _site("military", military_pos(team, job.id))
 				_draw_scaffold(bs[0], bs[1], frac, now, true)

@@ -156,6 +156,22 @@
       "min_era": 1,
       "time": 25
     },
+    "farm": {
+      "name": "Farm",
+      "resource": "food",
+      "cost": {
+        "wood": 50
+      },
+      "time": 10
+    },
+    "lumberjack": {
+      "name": "Lumberjack",
+      "resource": "wood",
+      "cost": {
+        "wood": 40
+      },
+      "time": 8
+    },
     "mine": {
       "cost": {
         "wood": 150
@@ -182,13 +198,8 @@
     "starting_huts": 1
   },
   "testing": {
-    "player_starting_resources": {
-      "food": 10000,
-      "wood": 10000,
-      "gold": 10000,
-      "stone": 10000
-    },
     "job_speed": 10,
+    "fast_at_start": false,
     "bonus_resources": 10000
   },
   "upgrades": {

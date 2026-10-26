@@ -55,11 +55,11 @@ func _show_civ_select() -> void:
 func _start_game(civ_id: String, menu: Control) -> void:
 	menu.queue_free()
 	economy = Economy.new(civ_id)
-	# Testing override: give the player a head start (remove from config.json to disable).
+	# Testing: "fast_at_start" starts with the Fast ×10 button on.
 	var testing: Dictionary = GameConfig.data().get("testing", {})
 	if testing.has("player_starting_resources"):
 		economy.resources = testing.player_starting_resources.duplicate()
-	economy.job_speed = testing.get("job_speed", 1.0)
+	economy.job_speed = testing.get("job_speed", 1.0) if testing.get("fast_at_start", false) else 1.0
 	battle = Battlefield.new()
 	var others: Array = GameConfig.data().civs.keys().filter(func(id): return id != civ_id)
 	var enemy_civ: String = others.pick_random()
@@ -336,6 +336,9 @@ func _on_menu_choice(id: String) -> void:
 		"gold", "stone":
 			if economy.build_mine(id):
 				_close_menu()
+		"farm", "lumberjack":
+			if economy.build_camp(id):
+				_close_menu()
 		"barracks", "archery_range", "stables":
 			if economy.build_military(id):
 				_close_menu()
@@ -355,6 +358,9 @@ func _on_site_tapped(id: String) -> void:
 	if cfg.military.has(id):
 		cost = cfg.military[id].cost
 		name = cfg.military[id].name
+	elif id in Economy.CAMP_FOR.values():
+		cost = cfg.buildings[id].cost
+		name = cfg.buildings[id].name
 	elif id in Economy.MINED:
 		cost = economy.mine_cost()
 		name = "%s mine" % id.capitalize()
@@ -423,6 +429,10 @@ func _icon_art(id: String) -> Dictionary:
 			if next == 1:
 				return art.call(["timber_hall" if classical else "fort_wood"], Vector2(174, 137))
 			return art.call(["marble_palace" if classical else "castle_stone"], Vector2(174, 137))
+		"farm":
+			return art.call(["granary"], Vector2(84, 67))
+		"lumberjack":
+			return art.call(["lean_to"], Vector2(62, 46))
 		"hut":
 			var look := "era0" if economy.era_index == 0 else economy.style()
 			return art.call(["hut_" + look], Vector2(30, 27))
@@ -472,6 +482,12 @@ func _menu_options(kind: String) -> Array:
 			else:
 				var enote := "in progress" if economy.is_pending("era", "next") else _cost_text(ecost)
 				opts.append(_option("era", "era", era_name.call(economy.era_index + 1), enote, economy.can_advance()))
+			# Farm and lumberjack until they are built.
+			for id in ["lumberjack", "farm"]:
+				if not economy.camps.has(id):
+					var c: Dictionary = cfg.buildings[id]
+					var cnote := "in progress" if economy.is_pending("camp", id) else _cost_text(c.cost)
+					opts.append(_option(id, "hut", c.name, cnote, economy.can_build_camp(id)))
 			var hut: Dictionary = cfg.buildings.hut
 			var full: bool = economy.max_population() >= cfg.population.max_cap
 			opts.append(_option("hut", "hut", "Hut +%d" % hut.population, "max pop" if full else _cost_text(hut.cost), economy.can_build_hut()))

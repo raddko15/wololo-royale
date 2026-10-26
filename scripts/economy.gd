@@ -21,6 +21,10 @@ var army_size := 0
 var huts := 0
 ## Mines built so far, e.g. {"gold": true}. Workers can only mine where one exists.
 var mines := {}
+## Farm and lumberjack built so far, e.g. {"farm": true}. Food and wood need them.
+var camps := {}
+## Which camp each gathered resource needs.
+const CAMP_FOR := {"food": "farm", "wood": "lumberjack"}
 ## Military buildings built so far, e.g. {"barracks": true}; each unlocks a unit.
 var military := {}
 ## Building upgrades the player chose, e.g. {"mill": true}. Only the town
@@ -132,6 +136,8 @@ func _complete(j: Dictionary) -> void:
 			huts += 1
 		"mine":
 			mines[j.id] = true
+		"camp":
+			camps[j.id] = true
 		"military":
 			military[j.id] = true
 		"upgrade":
@@ -254,7 +260,9 @@ func recruit() -> bool:
 
 ## Food and wood are always available; gold and stone need their mine.
 func can_work(job: String) -> bool:
-	return job == "idle" or job == "food" or job == "wood" or mines.has(job)
+	if CAMP_FOR.has(job):
+		return camps.has(CAMP_FOR[job])
+	return job == "idle" or mines.has(job)
 
 
 func reassign(from: String, to: String) -> bool:
@@ -301,6 +309,8 @@ func site_open(kind: String, id: String) -> bool:
 			return not military.has(id) and era_index >= _cfg.military[id].min_era
 		"mine":
 			return not mines.has(id) and era_index >= _cfg.buildings.mine.min_era
+		"camp":
+			return not camps.has(id)
 	return not has_towers and era_index >= _cfg.buildings.towers.min_era
 
 
@@ -365,10 +375,26 @@ func build_mine(res: String) -> bool:
 	return true
 
 
+## Farm (food) or lumberjack (wood): villagers can only gather there once it stands.
+func can_build_camp(id: String) -> bool:
+	return site_open("camp", id) and can_afford(_cfg.buildings[id].cost)
+
+
+func build_camp(id: String) -> bool:
+	if not can_build_camp(id):
+		return false
+	_pay(_cfg.buildings[id].cost)
+	_enqueue("build:camp:" + id, "camp", id, _cfg.buildings[id].time)
+	return true
+
+
 ## Whatever an upgrade builds on (an earlier upgrade or a mine) is in place.
 func upgrade_unlocked(id: String) -> bool:
 	var req: Dictionary = _cfg.upgrades[id].get("requires", {})
 	if req.has("upgrade") and not upgrades.has(req.upgrade):
+		return false
+	var site := upgrade_site(id)
+	if site == "mill" and not camps.has("farm") or site == "lumber_camp" and not camps.has("lumberjack"):
 		return false
 	if req.has("mine") and not mines.has(req.mine):
 		return false

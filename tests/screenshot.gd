@@ -1,6 +1,6 @@
 extends SceneTree
 ## Renders game screens to PNGs (needs a display, e.g. xvfb-run).
-## Args: <out.png> <era1|era2|era2up|era3|window|mill|mine|jobs|sites|sites0|corpses> [player_civ] [enemy_civ] [huts]
+## Args: <out.png> <era1|era2|era2up|era3|window|mill|mine|jobs|sites|sites0|corpses|start> [player_civ] [enemy_civ] [huts]
 ## era2up buys the mill and lumber upgrades, era3 every upgrade (both sides);
 ## window / mill open that building's ring menu.
 
@@ -14,8 +14,20 @@ func _init() -> void:
 	if args.size() > 3:
 		main.ai.economy = Economy.new(args[3])
 		main._view.enemy_economy = main.ai.economy
-	var era: int = {"era1": 0, "era2": 1, "era2up": 1, "era3": 2, "window": 1, "mill": 1, "mine": 2, "jobs": 1, "sites": 1, "sites0": 0, "corpses": 1}[mode]
+	var era: int = {"era1": 0, "era2": 1, "era2up": 1, "era3": 2, "window": 1, "mill": 1, "mine": 2, "jobs": 1, "sites": 1, "sites0": 0, "corpses": 1, "start": 0}[mode]
+	if mode == "start":
+		# A real opening: the AI plays its first 30 seconds, the player nothing.
+		for i in 600:
+			main.ai.tick(0.05)
+		await process_frame
+		for i in 5:
+			await process_frame
+		await RenderingServer.frame_post_draw
+		root.get_texture().get_image().save_png(args[0])
+		quit()
+		return
 	for e in [main.economy, main.ai.economy]:
+		e.camps = {"farm": true, "lumberjack": true}
 		e.era_index = era
 		e.huts = int(args[4]) if args.size() > 4 else 10
 		e.military = {"barracks": true} if era == 0 else {"barracks": true, "archery_range": true, "stables": true}

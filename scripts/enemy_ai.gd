@@ -1,6 +1,6 @@
 class_name EnemyAI
 extends RefCounted
-## A deliberately simple opponent: keeps villagers busy, builds huts near the
+## A deliberately simple opponent: builds its lumberjack and farm, keeps villagers busy, builds huts near the
 ## population cap, recruits a few villagers, keeps a small army while saving
 ## up for Era II, builds its towers, and otherwise sends a unit down a random
 ## lane whenever it can afford one. It builds a barracks first; after its
@@ -41,9 +41,17 @@ func tick(delta: float) -> void:
 	# Keep a few miners on gold (for cavalry) once there is a mine.
 	while economy.villagers.get("idle", 0) > 0:
 		var job := "food" if economy.villagers.get("food", 0) <= economy.villagers.get("wood", 0) else "wood"
+		if not economy.can_work(job):
+			job = "wood" if job == "food" else "food"
 		if economy.mines.has("gold") and economy.villagers.gold < _cfg.ai.gold_miners:
 			job = "gold"
-		economy.reassign("idle", job)
+		if not economy.reassign("idle", job):
+			break  # nowhere to work yet
+	# First the lumberjack, then the farm.
+	for id in ["lumberjack", "farm"]:
+		if not economy.camps.has(id) and not economy.is_pending("camp", id):
+			economy.build_camp(id)
+			return
 	if economy.mines.has("gold") and economy.villagers.gold < _cfg.ai.gold_miners:
 		economy.reassign("wood", "gold")
 	# Keep a little headroom so it never gets stuck at the population cap.
