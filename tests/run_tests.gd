@@ -253,6 +253,23 @@ func _init() -> void:
 	_check(cq.cancel("villager", "villager") and cq.pending_count("villager") == 1 and cq.resources.food == 50, "cancel a queued villager for a refund")
 	_check(cq.cancel("villager", "villager") and not cq.cancel("villager", "villager") and cq.resources.food == 100, "cancel the one in training too; nothing left to cancel")
 
+	# Up to 3 of each military building, each training on its own.
+	var mb := Economy.new("romans")
+	mb.camps = {"farm": true, "lumberjack": true}
+	mb.resources = {"food": 9000.0, "wood": 9000.0, "gold": 0.0, "stone": 0.0}
+	mb.huts = 10
+	for i in 3:
+		mb.build_military("barracks")
+		mb.finish_jobs()
+	_check(mb.military.barracks == 3 and not mb.can_build_military("barracks"), "three barracks at most")
+	for i in 3:
+		mb.train("fighter", 1)
+	mb.tick(6.1)
+	_check(mb.army_size == 3, "three barracks train three fighters at once")
+	_check(is_equal_approx(mb.villager_time(), 6.0), "villagers take 6 s in Era I")
+	mb.era_index = 2
+	_check(mb.villager_time() < 4.5, "the town center trains villagers faster in later eras")
+
 	var kv := Economy.new("romans")
 	kv.camps = {"farm": true, "lumberjack": true}
 	kv.reassign("idle", "food")

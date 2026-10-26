@@ -76,6 +76,7 @@
     },
     {
       "name": "Era II",
+      "villager_speed": 1.25,
       "advance_cost": {
         "food": 300,
         "wood": 300
@@ -84,6 +85,7 @@
     },
     {
       "name": "Era III",
+      "villager_speed": 1.5,
       "advance_cost": {
         "food": 1000,
         "wood": 1000,
@@ -436,6 +438,7 @@
       "time": 30
     }
   },
+  "max_of_each_military": 3,
   "military": {
     "barracks": {
       "name": "Barracks",

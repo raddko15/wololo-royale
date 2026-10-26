@@ -800,7 +800,7 @@ func _draw_city(team: int, now: float) -> void:
 	for res in e.mines:
 		_draw_mine(mine_pos(team, res), res, e.upgrades.has(res + "_mine2"))
 	for id in e.military:
-		_draw_military(id, military_pos(team, id), color, e.era_index, style, int(e.upgrades.has(id + "1")) + int(e.upgrades.has(id + "2")))
+		_draw_military(id, military_pos(team, id), color, e.era_index, style, int(e.upgrades.has(id + "1")) + int(e.upgrades.has(id + "2")), e.military[id])
 		if team == Battlefield.PLAYER and not e.has_room():
 			_draw_pop_full(military_pos(team, id) + Vector2(0, -52), now)
 	var tc := town_center(team)
@@ -841,7 +841,8 @@ func build_sites(e: Economy) -> Array:
 		if e.site_open("camp", Economy.CAMP_FOR[res]):
 			sites.append([Economy.CAMP_FOR[res], drop_off(p, res), "camp"])
 	for id in GameConfig.data().military:
-		if e.site_open("military", id):
+		# Only an empty plot; 2nd and 3rd ones are built from the menus.
+		if e.site_open("military", id) and not e.military.has(id):
 			sites.append([id, military_pos(p, id), "military"])
 	for res in Economy.MINED:
 		if e.site_open("mine", res):
@@ -961,7 +962,7 @@ func _draw_jobs(team: int, e: Economy, now: float) -> void:
 				var cs := _site("work", drop_off(team, GameConfig.data().buildings[job.id].resource))
 				_draw_scaffold(cs[0], cs[1], frac, now, true)
 			"military":
-				var bs := _site("military", military_pos(team, job.id))
+				var bs := _military_site(team, e, job.id)
 				_draw_scaffold(bs[0], bs[1], frac, now, true)
 			"towers":
 				# One job for all three: only the middle site shows the bar.
@@ -973,8 +974,20 @@ func _draw_jobs(team: int, e: Economy, now: float) -> void:
 				for k in sites.size():
 					_draw_scaffold(sites[k][0], sites[k][1], frac, now, false, k == sites.size() / 2)
 			"unit":
-				var at := military_pos(team, GameConfig.data().units[job.id].requires) + Vector2(0, -44)
+				# One bar per building of the type, stacked upward.
+				var k := int(String(job.queue).get_slice("#", 1))
+				var at := military_pos(team, GameConfig.data().units[job.id].requires) + Vector2(0, -44 - k * 14)
 				_draw_progress(at, 60, frac, Color("#e67e22"), _queue_label(e, job))
+
+
+## Scaffold for the next barracks / range / stables: the main spot, or a
+## smaller one behind it for the 2nd and 3rd (where _draw_military puts them).
+func _military_site(team: int, e: Economy, id: String) -> Array:
+	var k: int = e.military.get(id, 0)
+	var site := _site("military", military_pos(team, id))
+	if k == 0:
+		return site
+	return [site[0] + [Vector2(20, -16), Vector2(-20, -16)][mini(k, 2) - 1], site[1] * 0.78]
 
 
 ## Scaffold sites ([center, size]) of a construction job under way.
@@ -989,7 +1002,7 @@ func _job_sites(team: int, e: Economy, job: Dictionary) -> Array:
 		"camp":
 			return [_site("work", drop_off(team, GameConfig.data().buildings[job.id].resource))]
 		"military":
-			return [_site("military", military_pos(team, job.id))]
+			return [_military_site(team, e, job.id)]
 		"towers":
 			var t := []
 			for lane in Battlefield.LANES:
@@ -1525,15 +1538,27 @@ func _draw_carpentry(c: Vector2) -> void:
 ## upgrades do: rough wood and straw when built, the civ's style (medieval
 ## timber frame / classical plaster and columns) with shields after the first
 ## upgrade, plus a stone base and pennants after the second.
-func _draw_military(id: String, c: Vector2, civ_color: Color, _era: int, style: String, tier := 0) -> void:
+## A second and third one stand behind it, smaller, with a "×n" tag.
+func _draw_military(id: String, c: Vector2, civ_color: Color, _era: int, style: String, tier := 0, count := 1) -> void:
 	var look := "era0" if tier == 0 else ("classical" if style == "classical" else "medieval")
-	var at := c + Vector2(0, -12)
-	var sz := Vector2(80, 65)
-	_draw_art("%s_%s" % [id, look], at, sz, civ_color)
-	if tier >= 2:
-		_draw_art("mil_tier2", at, sz, civ_color)
-	if tier >= 1:
-		_draw_art("mil_tier1", at, sz, civ_color)
+	var behind := [Vector2(20, -16), Vector2(-20, -16)]
+	for k in range(mini(count, 3) - 1, -1, -1):
+		var scale := 1.0 if k == 0 else 0.78
+		var at: Vector2 = c + Vector2(0, -12) + (Vector2.ZERO if k == 0 else behind[k - 1])
+		var sz := Vector2(80, 65) * scale
+		_draw_art("%s_%s" % [id, look], at, sz, civ_color)
+		if tier >= 2:
+			_draw_art("mil_tier2", at, sz, civ_color)
+		if tier >= 1:
+			_draw_art("mil_tier1", at, sz, civ_color)
+	if count > 1:
+		var tag := c + Vector2(30, 10)
+		draw_circle(tag, 13, OUTLINE)
+		draw_circle(tag, 11, Color("#f5f1e6"))
+		var font := get_theme_default_font()
+		var text := "×%d" % count
+		var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x
+		draw_string(font, tag + Vector2(-w / 2, 5), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, OUTLINE)
 
 
 ## Windmill: stone base from the art, four sails turning slowly.

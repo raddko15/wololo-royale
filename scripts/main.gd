@@ -553,12 +553,7 @@ func _menu_options(kind: String) -> Array:
 				opts.append(_option(res, res, "%s mine" % res.capitalize(), mnote, economy.can_build_mine(res)))
 			# Middle ring: military buildings.
 			for id in cfg.military:
-				var b: Dictionary = cfg.military[id]
-				var bnote := _status_note(economy.military.has(id), "military", id, b.min_era, b.cost)
-				var camp: String = b.get("requires_camp", "")
-				if camp != "" and not economy.camps.has(camp) and not economy.military.has(id):
-					bnote = "needs " + cfg.buildings[camp].name
-				opts.append(_option(id, id, b.name, bnote, economy.can_build_military(id), 1))
+				opts.append(_military_option(id, 1))
 			# Outer ring: the next upgrade of every building, so it can all be done from here.
 			for id in _next_upgrades():
 				var up := _upgrade_option(id)
@@ -575,8 +570,68 @@ func _menu_options(kind: String) -> Array:
 		"towers":
 			opts.append(_upgrade_option("stone_towers"))
 		"barracks", "archery_range", "stables":
+			opts.append(_military_option(kind, 0))
 			opts.append(_upgrade_option(kind + ("2" if economy.upgrades.has(kind + "1") else "1")))
+	for o in opts:
+		o.desc = _describe(o.id)
 	return opts
+
+
+## Barracks / range / stables: the first one, or another (up to 3) that
+## trains alongside the others.
+func _military_option(id: String, ring: int) -> Dictionary:
+	var cfg := GameConfig.data()
+	var b: Dictionary = cfg.military[id]
+	var have: int = economy.military.get(id, 0)
+	var most: int = cfg.max_of_each_military
+	var title: String = b.name if have == 0 else "%s %d/%d" % [b.name, have, most]
+	var note := _status_note(have >= most, "military", id, b.min_era, b.cost)
+	if have >= most:
+		note = "max built"
+	var camp: String = b.get("requires_camp", "")
+	if camp != "" and not economy.camps.has(camp):
+		note = "needs " + cfg.buildings[camp].name
+	return _option(id, id, title, note, economy.can_build_military(id), ring)
+
+
+## One short line on what an option does (shown under its title).
+func _describe(id: String) -> String:
+	var cfg := GameConfig.data()
+	if cfg.upgrades.has(id):
+		var up: Dictionary = cfg.upgrades[id]
+		var parts := []
+		for res in up.get("gather_bonus", {}):
+			parts.append("+%d%% %s" % [roundi(up.gather_bonus[res] * 100), res])
+		for stat in up.get("unit_bonus", {}):
+			parts.append("+%d%% %s" % [roundi(up.unit_bonus[stat] * 100), {"hp": "HP", "damage": "dmg", "range": "range"}[stat]])
+		if up.has("tower_hp_bonus"):
+			parts.append("+%d%% tower HP" % roundi(up.tower_hp_bonus * 100))
+		return ", ".join(parts)
+	if cfg.military.has(id):
+		var unit := ""
+		for u in cfg.units:
+			if cfg.units[u].requires == id:
+				unit = cfg.units[u].name
+		return ("trains %ss" % unit) if not economy.military.has(id) else "+1 %s at a time" % unit
+	match id:
+		"era":
+			var next := economy.era_index + 1
+			if next >= cfg.eras.size():
+				return ""
+			return "new buildings, faster villagers"
+		"hut":
+			return "+%d population" % cfg.buildings.hut.population
+		"towers":
+			return "a tower on each lane"
+		"gold", "stone":
+			return "lets villagers mine %s" % id
+		"farm":
+			return "lets villagers gather food"
+		"lumberjack":
+			return "lets villagers gather wood"
+		"worker_gold", "worker_stone":
+			return "send an idle villager"
+	return ""
 
 
 ## Next not-yet-bought upgrade for each building that exists; finished chains drop out.

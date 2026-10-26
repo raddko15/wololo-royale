@@ -30,7 +30,7 @@ func _process(_delta: float) -> void:
 ## Each ring's buttons fan across arcs above the building. An arc holds only
 ## as many buttons as fit side by side on screen; the rest wrap onto the next,
 ## wider arc, so labels never overlap on a narrow phone.
-const ARC_GAP := 150.0  # between arcs: a button plus its two label lines
+const ARC_GAP := 168.0  # between arcs: a button plus its label lines
 const MIN_SPACING := 148.0  # between buttons on one arc: fits a label
 
 
@@ -102,7 +102,7 @@ func _draw() -> void:
 			_draw_glyph(o.icon, p, 1.0 if on else 0.5)
 		else:
 			_draw_icon_art(o.art, p, on)
-		if o.note in ["built", "done"]:
+		if o.note in ["built", "done", "max built"]:
 			# Already owned: a green check on the rim.
 			var b := p + Vector2(BUTTON_R - 10, -BUTTON_R + 10)
 			draw_circle(b, 12, OUTLINE)
@@ -110,9 +110,15 @@ func _draw() -> void:
 			draw_polyline(PackedVector2Array([b + Vector2(-5, 0), b + Vector2(-1, 4), b + Vector2(5, -4)]), Color.WHITE, 3)
 		var label_color := Color.WHITE if on else Color(1, 1, 1, 0.55)
 		_centered_text(font, o.title, p + Vector2(0, BUTTON_R + 20), 18, label_color)
+		# What it does, then its cost or status.
+		var desc: String = o.get("desc", "")
+		var y := BUTTON_R + 38
+		if desc != "":
+			_centered_text(font, desc, p + Vector2(0, y), 14, Color(0.85, 0.95, 1.0, 1.0 if on else 0.6))
+			y += 17
 		var lines: PackedStringArray = o.note.split("\n")
 		for k in lines.size():
-			_centered_text(font, lines[k], p + Vector2(0, BUTTON_R + 38 + k * 17), 15, Color("#f9ca24") if on else Color(1, 1, 1, 0.45))
+			_centered_text(font, lines[k], p + Vector2(0, y + k * 17), 15, Color("#f9ca24") if on else Color(1, 1, 1, 0.45))
 
 
 func _centered_text(font: Font, text: String, at: Vector2, font_size: int, color: Color) -> void:

@@ -84,9 +84,11 @@ func _next_goal() -> Dictionary:
 		["camp", "lumberjack"], ["camp", "farm"], ["military", "barracks"], ["era", "1"],
 		["towers", ""], ["upgrade", "lumber_camp"], ["upgrade", "mill"], ["military", "archery_range"],
 		["mine", "gold"], ["military", "stables"], ["upgrade", "barracks1"], ["upgrade", "archery_range1"],
-		["upgrade", "stables1"], ["mine", "stone"], ["era", "2"], ["upgrade", "stone_towers"],
+		["upgrade", "stables1"], ["military", "barracks:2"], ["mine", "stone"], ["era", "2"],
+		["upgrade", "stone_towers"], ["military", "archery_range:2"], ["military", "stables:2"],
 		["upgrade", "mill2"], ["upgrade", "lumber_camp2"], ["upgrade", "barracks2"], ["upgrade", "archery_range2"],
-		["upgrade", "stables2"], ["upgrade", "gold_mine2"], ["upgrade", "stone_mine2"],
+		["upgrade", "stables2"], ["military", "barracks:3"], ["military", "stables:3"], ["upgrade", "gold_mine2"],
+		["upgrade", "stone_mine2"],
 	]
 	for step in steps:
 		var kind: String = step[0]
@@ -96,8 +98,11 @@ func _next_goal() -> Dictionary:
 				if e.site_open("camp", id):
 					return {"cost": _cfg.buildings[id].cost, "act": e.build_camp.bind(id)}
 			"military":
+				# "barracks:2" = a second barracks.
+				var nth := int(id.get_slice(":", 1)) if id.contains(":") else 1
+				id = id.get_slice(":", 0)
 				var enough: bool = id != "barracks" or e.total_villagers() >= _d.barracks_at_villagers
-				if e.site_open("military", id) and enough:
+				if e.site_open("military", id) and enough and e.military.get(id, 0) < nth:
 					return {"cost": _cfg.military[id].cost, "act": e.build_military.bind(id)}
 			"era":
 				var era_cost := e.next_era_cost()
@@ -177,7 +182,7 @@ func _assign_workers(goal: Dictionary) -> void:
 func _army(goal: Dictionary) -> void:
 	var e := economy
 	var threat := _threatened_lane() if _d.tactics else -1
-	if threat == -1 and e.pending_count("unit") >= 2 * maxi(e.military.size(), 1):
+	if threat == -1 and e.pending_count("unit") >= 2 * maxi(e.military_count(), 1):
 		return  # enough queued
 	var army := e.army_size + e.pending_count("unit")
 	var guard: int = _d.min_army[mini(e.era_index, _d.min_army.size() - 1)]

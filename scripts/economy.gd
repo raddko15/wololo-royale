@@ -162,7 +162,7 @@ func _complete(j: Dictionary) -> void:
 		"camp":
 			camps[j.id] = true
 		"military":
-			military[j.id] = true
+			military[j.id] = military.get(j.id, 0) + 1
 		"upgrade":
 			upgrades[j.id] = true
 		"towers":
@@ -298,7 +298,7 @@ func recruit() -> bool:
 	if not can_recruit():
 		return false
 	_pay(villager_cost())
-	_enqueue("town_center", "villager", "villager", _cfg.villager_time)
+	_enqueue("town_center", "villager", "villager", villager_time())
 	return true
 
 
@@ -358,14 +358,15 @@ func advance() -> bool:
 
 
 ## Whether a building could go up now, cost aside: its era is reached and it is
-## neither built nor under way. `kind` is "military", "mine" or "towers".
+## neither built (up to 3 of each military building) nor under way. `kind`
+## is "military", "mine", "camp" or "towers".
 func site_open(kind: String, id: String) -> bool:
 	if is_pending(kind, id):
 		return false
 	match kind:
 		"military":
 			var camp: String = _cfg.military[id].get("requires_camp", "")
-			return not military.has(id) and era_index >= _cfg.military[id].min_era \
+			return military.get(id, 0) < _cfg.max_of_each_military and era_index >= _cfg.military[id].min_era \
 				and (camp == "" or camps.has(camp))
 		"mine":
 			return not mines.has(id) and era_index >= _cfg.buildings.mine.min_era
@@ -415,8 +416,27 @@ func train(unit_id: String, lane := 0) -> bool:
 		return false
 	var unit: Dictionary = _cfg.units[unit_id]
 	_pay(unit.cost)
-	_enqueue(unit.requires, "unit", unit_id, unit.time, lane)
+	# Every building of the type trains on its own: join the shortest queue.
+	var best := ""
+	for k in military.get(unit.requires, 0):
+		var q := "%s#%d" % [unit.requires, k]
+		if best == "" or queue_length(q) < queue_length(best):
+			best = q
+	_enqueue(best, "unit", unit_id, unit.time, lane)
 	return true
+
+
+## Seconds to train a villager: the town center works faster each era.
+func villager_time() -> float:
+	return _cfg.villager_time / era().get("villager_speed", 1.0)
+
+
+## Military buildings of every kind together.
+func military_count() -> int:
+	var n := 0
+	for id in military:
+		n += military[id]
+	return n
 
 
 func mine_cost() -> Dictionary:

@@ -35,9 +35,9 @@ func _init() -> void:
 		e.camps = {"farm": true, "lumberjack": true}
 		e.era_index = era
 		e.huts = int(args[4]) if args.size() > 4 else 10
-		e.military = {"barracks": true} if era == 0 else {"barracks": true, "archery_range": true, "stables": true}
+		e.military = {"barracks": 1} if era == 0 else {"barracks": 1, "archery_range": 1, "stables": 1}
 		if mode.begins_with("sites"):
-			e.military = {} if mode == "sites0" else {"barracks": true}
+			e.military = {} if mode == "sites0" else {"barracks": 1}
 		if mode == "era2up":
 			e.upgrades = {"mill": true, "lumber_camp": true}
 		elif mode == "era3":
@@ -45,6 +45,7 @@ func _init() -> void:
 				"lumber_camp2": true, "gold_mine2": true, "stone_mine2": true, "barracks1": true,
 				"barracks2": true, "archery_range1": true, "stables1": true}
 			e.mines = {"gold": true, "stone": true}
+			e.military = {"barracks": 3, "archery_range": 1, "stables": 2}
 	if era >= 1 and mode != "sites":
 		main.battle.build_towers(Battlefield.PLAYER)
 		main.battle.build_towers(Battlefield.ENEMY)
@@ -67,7 +68,7 @@ func _init() -> void:
 		# Something of every kind under way on the player's side.
 		var e = main.economy
 		e.resources = {"food": 9000.0, "wood": 9000.0, "gold": 9000.0, "stone": 9000.0}
-		e.military = {"barracks": true}
+		e.military = {"barracks": 1}
 		e.mines = {"gold": true}
 		main.battle.towers_built[Battlefield.PLAYER] = false
 		main.battle.buildings[Battlefield.PLAYER].towers = [0.0, 0.0, 0.0]
