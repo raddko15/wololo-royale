@@ -38,8 +38,8 @@ var battle: Battlefield
 ## Card being dragged ("" when none) and where the finger is, in local coordinates.
 var drag_card := ""
 var drag_pos := Vector2.ZERO
-## Lanes auto-trained units are sent to; each is marked with moving chevrons.
-var active_lanes := [false, true, false]
+## Lanes some AUTO unit is being sent down; each is marked with moving chevrons.
+var active_lanes := [false, false, false]
 
 
 func _process(_delta: float) -> void:

@@ -16,9 +16,10 @@ var _cards := {}
 var _press := {}
 var _ghost: Card
 var _menu: RadialMenu
-## Lanes auto-trained units go to (they take turns), and units on repeat.
-var _lanes_on := [false, true, false]
-var _next_lane := 0
+## Per unit type: lanes its auto-trained units go to (they take turns), the
+## next lane in that rotation, and which types are on repeat.
+var _lanes_on := {}
+var _next_lane := {}
 var _auto := {}
 
 
@@ -87,9 +88,6 @@ func _start_game(civ_id: String, menu: Control) -> void:
 			economy.buy_upgrade(id))
 	box.add_child(_view)
 
-	box.add_child(_lane_selector())
-	_view.active_lanes = _lanes_on
-
 	var bar := HBoxContainer.new()
 	bar.add_theme_constant_override("separation", 10)
 	box.add_child(bar)
@@ -97,33 +95,57 @@ func _start_game(civ_id: String, menu: Control) -> void:
 		var title: String = "Villager" if id == "villager" else GameConfig.data().units[id].name
 		var card := Card.new(title)
 		card.pressed.connect(_on_card_pressed.bind(id))
-		bar.add_child(card)
 		_cards[id] = card
+		# Unit cards get their own L / M / R lane switches underneath.
+		var col := VBoxContainer.new()
+		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		col.add_theme_constant_override("separation", 4)
+		col.add_child(card)
+		if id == "villager":
+			var spacer := Control.new()
+			spacer.custom_minimum_size.y = 40
+			col.add_child(spacer)
+		else:
+			_lanes_on[id] = [false, true, false]
+			_next_lane[id] = 0
+			col.add_child(_lane_switches(id))
+		bar.add_child(col)
+	_update_lane_marks()
 
 	economy.changed.connect(_refresh)
 	economy.job_done.connect(_on_job_done)
 	_refresh()
 
 
-## Left / Middle / Right play-pause switches: where auto-trained units walk.
-func _lane_selector() -> Control:
+## Left / Middle / Right play-pause switches for one unit type: where its
+## auto-trained units walk.
+func _lane_switches(unit_id: String) -> Control:
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
+	row.add_theme_constant_override("separation", 3)
 	for lane in Battlefield.LANES:
-		var t := LaneToggle.new(["Left", "Middle", "Right"][lane], _lanes_on[lane])
+		var t := LaneToggle.new(["L", "M", "R"][lane], _lanes_on[unit_id][lane], true)
 		t.toggled.connect(func(on: bool):
-			_lanes_on[lane] = on
-			_view.active_lanes = _lanes_on)
+			_lanes_on[unit_id][lane] = on
+			_update_lane_marks())
 		row.add_child(t)
 	return row
 
 
-## Next active lane in turn, or -1 when every lane is paused.
-func _take_lane() -> int:
+## Chevrons on the map: lanes that some AUTO unit is currently sent down.
+func _update_lane_marks() -> void:
+	var marks := [false, false, false]
+	for id in _auto:
+		for lane in Battlefield.LANES:
+			marks[lane] = marks[lane] or _lanes_on[id][lane]
+	_view.active_lanes = marks
+
+
+## Next active lane in turn for a unit type, or -1 when all its lanes are paused.
+func _take_lane(unit_id: String) -> int:
 	for k in Battlefield.LANES:
-		var lane := (_next_lane + k) % Battlefield.LANES
-		if _lanes_on[lane]:
-			_next_lane = lane + 1
+		var lane: int = (_next_lane[unit_id] + k) % Battlefield.LANES
+		if _lanes_on[unit_id][lane]:
+			_next_lane[unit_id] = lane + 1
 			return lane
 	return -1
 
@@ -240,7 +262,7 @@ func _tap(id: String) -> void:
 		"villager":
 			economy.recruit()
 		_:
-			# Tap toggles training on repeat into the selected lane.
+			# Tap toggles training on repeat into this unit's active lanes.
 			if _auto.has(id):
 				_auto.erase(id)
 			elif economy.unit_unlocked(id):
@@ -248,6 +270,7 @@ func _tap(id: String) -> void:
 				_run_auto()
 			else:
 				_flash_hint("Build the %s first" % GameConfig.data().military[GameConfig.data().units[id].requires].name)
+			_update_lane_marks()
 
 
 func _drop(id: String, local: Vector2) -> void:
@@ -263,14 +286,14 @@ func _drop(id: String, local: Vector2) -> void:
 
 
 ## Keep one of each auto unit in training; the next starts as soon as it is
-## affordable, sent to the active lanes in turn. All lanes paused: wait.
+## affordable, sent to that unit's active lanes in turn. All paused: wait.
 func _run_auto() -> void:
-	if not _lanes_on.has(true):
-		return
 	for id in _auto:
+		if not _lanes_on[id].has(true):
+			continue
 		var waiting := economy.jobs.any(func(j): return j.kind == "unit" and j.id == id)
 		if not waiting and economy.can_train(id):
-			economy.train(id, _take_lane())
+			economy.train(id, _take_lane(id))
 
 
 func _flash_hint(text: String) -> void:
@@ -481,7 +504,7 @@ func _refresh() -> void:
 	var full := not economy.has_room()
 	_ui.pop.add_theme_color_override("font_color", Color("#e55039") if full else Color.WHITE)
 	if Time.get_ticks_msec() > _ui.get("hint_until", 0):
-		_ui.hint.text = "Tap a unit card for AUTO · drag it for one unit · lanes on play get them"
+		_ui.hint.text = "Tap a unit card for AUTO · its L/M/R switches pick lanes · drag for one unit"
 
 	var dragging: String = _press.get("card", "") if _ghost else ""
 	var vcost := economy.villager_cost()
