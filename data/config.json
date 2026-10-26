@@ -138,6 +138,9 @@
     "knight": {
       "name": "Knight",
       "civ": "franks",
+      "bonus_vs": {
+        "fighter": 2.0
+      },
       "min_era": 2,
       "cost": {
         "food": 120,

@@ -334,7 +334,9 @@ func _lane_pos_at(lane: int, y: float, side: float) -> Vector2:
 	var sy := lerpf(tower_line(Battlefield.PLAYER), tower_line(Battlefield.ENEMY), y)
 	# Sideways spread fades out near both tower lines, where the roads (which
 	# have no spread) join, so units don't snap sideways there.
-	var fade := smoothstep(0.0, 0.08, minf(y, 1.0 - y))
+	# Spread out gently over a long stretch, so it reads as finding a place in
+	# the column rather than dodging something on the road.
+	var fade := smoothstep(0.0, 0.25, minf(y, 1.0 - y))
 	return Vector2(LANE_X[lane] * size.x + side * size.x * 0.025 * fade, sy)
 
 
@@ -346,7 +348,9 @@ func _heading(u: Dictionary, target: Vector2) -> float:
 		want = (target - _unit_lane_pos(u)).angle()
 	else:
 		var ahead := 0.02 if u.team == Battlefield.PLAYER else -0.02
-		want = (_lane_pos_at(u.lane, u.y + ahead, u.side) - _lane_pos_at(u.lane, u.y, u.side)).angle()
+		# Along the road itself (no sideways spread): drifting to its spot in
+		# the lane slides the unit over instead of swerving it.
+		want = (_lane_pos_at(u.lane, u.y + ahead, 0.0) - _lane_pos_at(u.lane, u.y, 0.0)).angle()
 	var h: float = lerp_angle(u.get("view_heading", want), want, 0.2)
 	u["view_heading"] = h
 	return h
@@ -1447,8 +1451,9 @@ func _draw_knight(u: Dictionary, p: Vector2, color: Color, now: float, target: V
 	var k := UNIT_SCALE * 1.3
 	draw_set_transform(p + Vector2(0, -8), _heading(u, target) + PI / 2, Vector2(k, k))
 	var o := -Vector2(15, 31)
-	for hoof in [[8.0, 24.0, 0.0], [22.0, 24.0, PI], [8.0, 45.0, PI], [22.0, 45.0, 0.0]]:
-		var step: float = sin(gallop + hoof[2]) * 2.5 if gallop >= 0.0 else 0.0
+	# Hooves step just outside the caparison's edge so they read as legs.
+	for hoof in [[6.0, 21.0, 0.0], [24.0, 21.0, PI], [6.0, 47.0, PI], [24.0, 47.0, 0.0]]:
+		var step: float = sin(gallop + hoof[2]) * 1.8 if gallop >= 0.0 else 0.0
 		draw_circle(o + Vector2(hoof[0], hoof[1] + step), 2.4, OUTLINE)
 	var box := Rect2(o, Vector2(30, 56))
 	draw_texture_rect(_tex("cav_horse"), box, false)

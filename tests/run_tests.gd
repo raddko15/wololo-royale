@@ -295,6 +295,14 @@ func _init() -> void:
 	var knight_hp: float = horse.hp
 	duel.tick(1.0)
 	_check(is_equal_approx(knight_hp - horse.hp, 24.0), "hoplites deal triple damage to horsemen")
+	var joust := Battlefield.new()
+	var kn := joust.spawn(Battlefield.PLAYER, "knight", 1)
+	var ft := joust.spawn(Battlefield.ENEMY, "fighter", 1)
+	kn.y = 0.5
+	ft.y = 0.53
+	var ft_hp: float = ft.hp
+	joust.tick(1.0)
+	_check(is_equal_approx(ft_hp - ft.hp, 32.0), "knights deal double damage to fighters")
 	_check(Economy.new("franks").available_units().has("knight") and Economy.new("romans").available_units().has("chariot"), "franks get knights, romans chariots")
 
 	var kv := Economy.new("romans")
