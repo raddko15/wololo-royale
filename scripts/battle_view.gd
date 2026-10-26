@@ -465,7 +465,7 @@ func _draw_city(team: int, now: float) -> void:
 	for w in e.workers:
 		_draw_worker(worker_pos(team, w), w, now, olives)
 	for p in villager_spots(e.villagers.get("idle", 0), idle_area(team)):
-		_draw_ball(p, VILLAGER_R, COLORS.villager)
+		_draw_figure(p + Vector2(0, 6), VILLAGER_TUNIC, [], 0.6)
 	# Towers last so their health bars stay visible over the fields.
 	if battle.towers_built[team]:
 		for lane in Battlefield.LANES:
@@ -615,7 +615,7 @@ func _draw_scaffold(c: Vector2, sz: Vector2, frac: float, now: float, new_site: 
 	var head := b + Vector2(-2, -6) + Vector2.from_angle(-PI / 2 - 0.6 + swing) * 12
 	draw_line(b + Vector2(-2, -6), head, COLORS.stick, 2)
 	draw_rect(Rect2(head - Vector2(3, 2), Vector2(6, 4)), COLORS.stone)
-	_draw_ball(b, VILLAGER_R - 2, COLORS.villager)
+	_draw_figure(b + Vector2(0, 4), VILLAGER_TUNIC, [], 0.55)
 	if show_bar:
 		_draw_progress(Vector2(c.x, r.end.y + 12), sz.x, frac, Color("#f9ca24"), label)
 
@@ -910,109 +910,142 @@ func _target_pos(u: Dictionary, positions: Array[Vector2]) -> Vector2:
 	return Vector2.INF
 
 
-## A ball with a bow; while attacking, an arrow flies to the target every second.
+const FIGURE := Vector2(32, 40)
+## Soldiers are drawn a bit larger than their art so they read on a phone.
+const UNIT_SCALE := 1.2
+## Civilian tunic color for villagers (soldiers wear their civ color).
+const VILLAGER_TUNIC := Color("#d9c8a0")
+
+
+## Top-left of a figure's 32x40 art box when it stands at `p`.
+func _figure_origin(p: Vector2, scale: float) -> Vector2:
+	return p - Vector2(16, 26) * scale
+
+
+## A little character: legs and hands, a tunic in `color`, a head, then any
+## gear layers (helmets, hood, chainmail) in order.
+func _draw_figure(p: Vector2, color: Color, gear: Array, scale := 1.0) -> void:
+	var o := _figure_origin(p, scale)
+	var box := Rect2(o, FIGURE * scale)
+	for name in ["unit", "unit_tint", "head"] + gear:
+		var t := _tex(name)
+		if t:
+			draw_texture_rect(t, box, false, color if name == "unit_tint" else Color.WHITE)
+
+
+## A weapon texture drawn pointing along `angle`, pivoting at `pivot` (in the
+## texture's own pixels, at 1x) placed on `at`. Textures point up by default.
+func _draw_weapon(name: String, tex_size: Vector2, pivot: Vector2, at: Vector2, angle: float, scale := 1.0) -> void:
+	var t := _tex(name)
+	if t == null:
+		return
+	draw_set_transform(at, angle + PI / 2, Vector2(scale, scale))
+	draw_texture_rect(t, Rect2(-pivot, tex_size), false)
+	draw_set_transform(Vector2.ZERO)
+
+
+func _draw_shield(at: Vector2, color: Color, scale := 1.0) -> void:
+	var r := Rect2(at - Vector2(8, 8) * scale, Vector2(16, 16) * scale)
+	draw_texture_rect(_tex("shield"), r, false)
+	draw_texture_rect(_tex("shield_tint"), r, false, color)
+
+
+## Archer: a figure with a bow (hood and quiver at level 2, steel cap and a
+## crossbow at level 3); while attacking, an arrow flies to the target.
 func _draw_archer(u: Dictionary, p: Vector2, color: Color, now: float, target: Vector2) -> void:
 	var facing := -PI / 2 if u.team == Battlefield.PLAYER else PI / 2
 	if target != Vector2.INF:
 		facing = (target - p).angle()
 	var tier: int = u.get("tier", 0)
-	if tier >= 1:  # quiver on the back
-		var back := p - Vector2.from_angle(facing) * 8
-		draw_line(back + Vector2(-3, -6), back + Vector2(3, 6), Color("#7a4a26"), 5)
-	if tier >= 2:  # crossbow: stock forward and a short bow across it
-		var stock := p + Vector2.from_angle(facing) * 18
-		draw_line(p, stock, COLORS.stick, 3)
-		var across := Vector2.from_angle(facing + PI / 2) * 9
-		draw_line(stock - across, stock + across, Color("#7f8c8d"), 3)
+	var k := UNIT_SCALE
+	var o := _figure_origin(p, k)
+	if tier >= 1:
+		draw_texture_rect(_tex("quiver"), Rect2(o, FIGURE * k), false)
+	var gear := ["hood"] if tier == 1 else (["helmet_1"] if tier >= 2 else [])
+	_draw_figure(p, color, gear, k)
+	var hand := o + Vector2(26, 27) * k
+	if tier >= 2:
+		_draw_weapon("crossbow", Vector2(18, 30), Vector2(9, 22), hand, facing, k)
 	else:
-		var bow_c := p + Vector2.from_angle(facing) * 9
-		draw_arc(bow_c, 11, facing - 1.2, facing + 1.2, 10, COLORS.stick, 3)
-		var tip_a := bow_c + Vector2.from_angle(facing - 1.2) * 11
-		var tip_b := bow_c + Vector2.from_angle(facing + 1.2) * 11
-		draw_line(tip_a, tip_b, Color("#e8e8e8"), 1)
-	_draw_ball(p, FIGHTER_R - 1, color)
-	if tier == 1:  # green hood
-		draw_arc(p, FIGHTER_R - 1, PI + 0.2, TAU - 0.2, 12, Color("#27ae60"), 4)
-	elif tier >= 2:  # steel cap
-		draw_arc(p, FIGHTER_R - 1, PI + 0.2, TAU - 0.2, 12, Color("#95a5a6"), 4)
+		# The bow's image faces right; turn it so it faces the target.
+		_draw_weapon("bow", Vector2(16, 30), Vector2(5, 15), hand, facing - PI / 2, k)
 	if target != Vector2.INF:
 		var t := fmod(now * 1.2 + u.side, 1.0)
-		var ap := p.lerp(target, t) + Vector2(0, -sin(PI * t) * 18)
-		var dir := (target - p).normalized()
+		var ap := hand.lerp(target, t) + Vector2(0, -sin(PI * t) * 18)
+		var dir := (target - hand).normalized()
 		draw_line(ap - dir * 12, ap, Color("#1b120a"), 2)
 		draw_circle(ap, 2, Color("#d0d0d0"))
-	_draw_hp(p + Vector2(0, -20), u.hp, u.max_hp, 28)
+	_draw_hp(p + Vector2(0, -36), u.hp, u.max_hp, 28)
 
 
-## Rider (civ-colored ball) on a brown horse, lance pointing forward.
+## Rider on a horse with a lance; armored horse at level 2, a knight (helm,
+## shield, pennant) at level 3.
 func _draw_cavalry(u: Dictionary, p: Vector2, color: Color, now: float) -> void:
-	var dir := -1.0 if u.team == Battlefield.PLAYER else 1.0
-	var gait := sin(now * 14.0 + u.side * 5.0) * 2.0 if u.target == "" else 0.0
-	var horse := Color("#7a4a26")
 	var tier: int = u.get("tier", 0)
-	draw_rect(Rect2(p + Vector2(-14, 2), Vector2(28, 11)), horse)  # body
-	if tier >= 1:  # barding: armor blanket in steel with a civ-color trim
-		draw_rect(Rect2(p + Vector2(-14, 2), Vector2(28, 8)), Color("#95a5a6"))
-		draw_rect(Rect2(p + Vector2(-14, 9), Vector2(28, 2)), color)
-	draw_rect(Rect2(p + Vector2(10, -6), Vector2(7, 12)), horse)  # neck/head
-	for x in [-11, -5, 5, 10]:  # legs
-		draw_line(p + Vector2(x, 13), p + Vector2(x + gait * (1 if x > 0 else -1), 22), horse.darkened(0.3), 3)
-	_draw_ball(p + Vector2(-2, -4), FIGHTER_R - 2, color)
-	var lance_from := p + Vector2(4, -6)
-	var swing := sin(now * 10.0 + u.side * 7.0) * 0.3 if u.target != "" else 0.0
-	var lance_dir := Vector2.from_angle(PI / 2 * dir + PI + 0.6 * dir + swing) * -1
-	draw_line(lance_from, lance_from + lance_dir * (32 if tier >= 2 else 26), COLORS.stick, 3)
-	if tier >= 2:  # knight: helmet, plume, shield and a pennant on the lance
-		draw_arc(p + Vector2(-2, -4), FIGHTER_R - 2, PI + 0.3, TAU - 0.3, 12, Color("#bdc3c7"), 4)
-		draw_line(p + Vector2(-2, -13), p + Vector2(-7, -21), Color("#e74c3c"), 3)
-		draw_circle(p + Vector2(-10, -2), 5, color.darkened(0.35))
-		var pen := lance_from + lance_dir * 30
-		draw_colored_polygon(PackedVector2Array([pen, pen + Vector2(8, 3), pen + lance_dir * -6]), color)
-	_draw_hp(p + Vector2(0, -24), u.hp, u.max_hp, 32)
+	var bob := absf(sin(now * 12.0 + u.side * 5.0)) * -2.0 if u.target == "" else 0.0
+	var k := UNIT_SCALE
+	var horse_box := Rect2(p + Vector2(-26, -22 + bob) * k, Vector2(52, 40) * k)
+	draw_texture_rect(_tex("horse"), horse_box, false)
+	if tier >= 1:
+		draw_texture_rect(_tex("barding"), horse_box, false)
+		draw_texture_rect(_tex("barding_tint"), horse_box, false, color)
+	var rider := p + Vector2(-1, -12 + bob) * k
+	_draw_figure(rider, color, ["helmet_2"] if tier >= 2 else [], 0.8 * k)
+	if tier >= 2:
+		_draw_shield(rider + Vector2(-10, 1) * k, color, 0.8 * k)
+	var dir := -1.0 if u.team == Battlefield.PLAYER else 1.0
+	var swing := sin(now * 10.0 + u.side * 7.0) * 0.25 if u.target != "" else 0.0
+	var lance_angle := (-PI / 2 if dir < 0 else PI / 2) + 0.45 * -dir + swing
+	var hand := rider + Vector2(8, 1) * k
+	_draw_weapon("lance", Vector2(8, 56), Vector2(4, 44), hand, lance_angle, k)
+	if tier >= 2:
+		var t := _tex("pennant_tint")
+		draw_set_transform(hand, lance_angle + PI / 2, Vector2(k, k))
+		draw_texture_rect(t, Rect2(-Vector2(4, 44), Vector2(8, 56)), false, color)
+		draw_set_transform(Vector2.ZERO)
+	_draw_hp(p + Vector2(0, -48), u.hp, u.max_hp, 32)
 
 
-## A ball holding a stick; the stick swings while attacking.
+## Fighter: a figure with a club (helmet and shield at level 2; great helm,
+## chainmail and a sword at level 3). The weapon swings while attacking.
 func _draw_fighter(u: Dictionary, p: Vector2, color: Color, now: float) -> void:
 	var facing := -PI / 2 if u.team == Battlefield.PLAYER else PI / 2
-	var hand := p + Vector2.from_angle(facing + PI / 2) * FIGHTER_R * 0.8
-	var angle := facing + 0.5  # stick held forward-right at rest
+	var angle := facing + 0.5  # held forward-right at rest
 	if u.target != "":
 		angle = facing + 0.2 + sin(now * 12.0 + u.side * 7.0) * 0.9
 	var tier: int = u.get("tier", 0)
-	if tier >= 2:  # steel sword with a crossguard
-		var tip := hand + Vector2.from_angle(angle) * 24
-		draw_line(hand, tip, Color("#dfe6e9"), 4)
-		draw_line(hand + Vector2.from_angle(angle + PI / 2) * 5, hand - Vector2.from_angle(angle + PI / 2) * 5, Color("#7f6a3a"), 3)
-	else:
-		draw_line(hand, hand + Vector2.from_angle(angle) * 20, COLORS.stick, 4)
-	_draw_art("unit_body", p, Vector2(30, 30), color)
-	if tier >= 1:  # a round shield on the off hand
-		var off := p + Vector2.from_angle(facing - PI / 2) * FIGHTER_R
-		draw_circle(off, 6, color.darkened(0.35))
-		draw_arc(off, 6, 0, TAU, 12, Color("#dfe6e9"), 1.5)
-	if tier >= 1:  # helmet (with a plume at the elite level)
-		_draw_art("helmet_%d" % mini(tier, 2), p, Vector2(30, 30))
-	_draw_hp(p + Vector2(0, -22), u.hp, u.max_hp, 28)
+	var gear := ["helmet_1"] if tier == 1 else (["chainmail", "helmet_2"] if tier >= 2 else [])
+	var k := UNIT_SCALE
+	_draw_figure(p, color, gear, k)
+	var o := _figure_origin(p, k)
+	if tier >= 1:
+		_draw_shield(o + Vector2(6, 26) * k, color, k)
+	_draw_weapon("sword" if tier >= 2 else "club", Vector2(10, 30), Vector2(5, 27), o + Vector2(26, 27) * k, angle, k)
+	_draw_hp(p + Vector2(0, -36), u.hp, u.max_hp, 28)
 
 
-## Villager ball: farmers bob, lumberjacks swing an axe, walkers carry their load.
+## Villager: a small figure in a plain tunic. Farmers bob with a hoe,
+## lumberjacks and miners swing a tool, walkers carry their load.
 func _draw_worker(p: Vector2, w: Dictionary, now: float, olives := false) -> void:
 	var phase: float = w.spot * 1.7
+	if w.phase == "gather" and w.job == "food":
+		p.y += sin(now * 6.0 + phase) * 2.0
+	_draw_figure(p, VILLAGER_TUNIC, [], 0.6)
+	var hand := _figure_origin(p, 0.6) + Vector2(26, 27) * 0.6
 	if w.phase == "gather":
 		if w.job == "food":
-			p.y += sin(now * 6.0 + phase) * 2.5
 			var hoe := sin(now * 6.0 + phase) * 0.6
-			draw_line(p + Vector2(6, 0), p + Vector2(6, 0) + Vector2.from_angle(PI / 2 - hoe) * 14, COLORS.stick, 3)
+			draw_line(hand, hand + Vector2.from_angle(PI / 2 - hoe) * 11, COLORS.stick, 2)
 		else:  # lumberjacks and miners swing a tool
 			var swing := sin(now * 9.0 + phase)
-			var axe_end := p + Vector2(7, -2) + Vector2.from_angle(-0.9 + swing * 0.9) * 15
-			draw_line(p + Vector2(7, -2), axe_end, COLORS.stick, 3)
-			draw_rect(Rect2(axe_end - Vector2(3, 3), Vector2(6, 6)), COLORS.stone)
-	_draw_ball(p, VILLAGER_R, COLORS.villager)
+			var head := hand + Vector2.from_angle(-0.9 + swing * 0.9) * 11
+			draw_line(hand, head, COLORS.stick, 2)
+			draw_rect(Rect2(head - Vector2(2.5, 2.5), Vector2(5, 5)), COLORS.stone)
 	if w.phase == "to_drop":
 		var load_color: Color = {"food": COLORS.olive if olives else COLORS.crop, "wood": COLORS.wood, "gold": Color("#f1c40f"), "stone": Color("#d5d8dc")}[w.job]
-		draw_rect(Rect2(p + Vector2(-6, -VILLAGER_R - 10), Vector2(12, 9)), load_color)
-		draw_rect(Rect2(p + Vector2(-6, -VILLAGER_R - 10), Vector2(12, 9)), Color.BLACK, false, 1.5)
+		var top := p + Vector2(-5, -24)
+		draw_rect(Rect2(top, Vector2(10, 7)), load_color)
+		draw_rect(Rect2(top, Vector2(10, 7)), Color.BLACK, false, 1.2)
 
 
 func _draw_farm(area: Rect2) -> void:
