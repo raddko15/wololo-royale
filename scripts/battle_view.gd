@@ -606,6 +606,12 @@ func _draw() -> void:
 				_draw_archer(u, positions[i], color, now, _target_pos(u, positions))
 			"cavalry":
 				_draw_cavalry(u, positions[i], color, now, _target_pos(u, positions))
+			"knight":
+				_draw_knight(u, positions[i], color, now, _target_pos(u, positions))
+			"chariot":
+				_draw_chariot(u, positions[i], color, now, _target_pos(u, positions))
+			"phalanx":
+				_draw_hoplite(u, positions[i], color, now, _target_pos(u, positions))
 			_:
 				_draw_fighter(u, positions[i], color, now)
 	for a in battle.arrows:
@@ -619,6 +625,8 @@ func _draw() -> void:
 # then a skeleton that fades away. Each stage crossfades into the next.
 
 var corpses: Array[Dictionary] = []
+## Unit types that leave a horse behind when they fall.
+const MOUNTED := ["cavalry", "knight", "chariot"]
 const BONE := Color("#ece4cf")
 const ROT := Color(0.55, 0.62, 0.4)
 
@@ -672,9 +680,9 @@ func _draw_corpses(now: float) -> void:
 func _draw_body(c: Dictionary, m: Color, rotten: bool, now: float) -> void:
 	var p: Vector2 = c.pos
 	var stain := Color("#4a2a1a", 0.35 * m.a) if rotten else Color("#7a1010", 0.4 * m.a)
-	_draw_ellipse(p + Vector2(0, 4), Vector2(16, 7) if c.type != "cavalry" else Vector2(28, 12), stain)
+	_draw_ellipse(p + Vector2(0, 4), Vector2(28, 12) if c.type in MOUNTED else Vector2(16, 7), stain)
 	_mod = m
-	if c.type == "cavalry":
+	if c.type in MOUNTED:
 		var k := UNIT_SCALE * 1.15
 		draw_set_transform(p + Vector2(0, -2), c.angle * 0.9, Vector2(k, k))
 		var box := Rect2(-Vector2(15, 31), Vector2(30, 56))
@@ -688,7 +696,9 @@ func _draw_body(c: Dictionary, m: Color, rotten: bool, now: float) -> void:
 	_draw_figure(Vector2(0, 10), c.color, [], UNIT_SCALE)
 	draw_set_transform(Vector2.ZERO)
 	if c.type != "villager":  # villagers carry no weapon
-		var weapon: Array = {"archer": ["bow", Vector2(16, 30), Vector2(8, 15)], "cavalry": ["lance", Vector2(8, 56), Vector2(4, 28)]}.get(c.type, ["sword" if c.tier >= 2 else "club", Vector2(10, 30), Vector2(5, 15)])
+		var weapon: Array = {"archer": ["bow", Vector2(16, 30), Vector2(8, 15)], "chariot": ["bow", Vector2(16, 30), Vector2(8, 15)],
+			"cavalry": ["lance", Vector2(8, 56), Vector2(4, 28)], "knight": ["lance", Vector2(8, 56), Vector2(4, 28)],
+			"phalanx": ["spear", Vector2(6, 70), Vector2(3, 35)]}.get(c.type, ["sword" if c.tier >= 2 else "club", Vector2(10, 30), Vector2(5, 15)])
 		_draw_weapon(weapon[0], weapon[1], weapon[2], p + Vector2(10, 6), c.weapon_angle, UNIT_SCALE * 0.8)
 		draw_set_transform(Vector2.ZERO)
 	_mod = Color.WHITE
@@ -704,7 +714,7 @@ func _draw_skeleton(c: Dictionary, alpha: float) -> void:
 	var bone := Color(BONE, alpha)
 	var line := Color(OUTLINE, alpha * 0.7)
 	var p: Vector2 = c.pos
-	if c.type == "cavalry":
+	if c.type in MOUNTED:
 		draw_set_transform(p + Vector2(0, -2), c.angle * 0.9, Vector2.ONE)
 		_bone(Vector2(0, -22), Vector2(0, 20), 3.0, bone, line)  # spine
 		for k in 5:
@@ -1427,6 +1437,101 @@ func _draw_cavalry(u: Dictionary, p: Vector2, color: Color, now: float, target: 
 		draw_texture_rect(_tex("pennant_tint"), Rect2(grip - Vector2(4, 44) * 0.85, Vector2(8, 56) * 0.85), false, color)
 	draw_set_transform(Vector2.ZERO)
 	_draw_hp(p + Vector2(0, -42), u.hp, u.max_hp, 30)
+
+
+## Frankish knight, seen from above like cavalry: a horse in a civ-colored
+## caparison with a gold cross and a steel head plate, a rider in plate with
+## a great helm, heater shield and pennoned lance.
+func _draw_knight(u: Dictionary, p: Vector2, color: Color, now: float, target: Vector2) -> void:
+	var gallop := _walk_phase(u, now, 12.0)
+	var k := UNIT_SCALE * 1.3
+	draw_set_transform(p + Vector2(0, -8), _heading(u, target) + PI / 2, Vector2(k, k))
+	var o := -Vector2(15, 31)
+	for hoof in [[8.0, 24.0, 0.0], [22.0, 24.0, PI], [8.0, 45.0, PI], [22.0, 45.0, 0.0]]:
+		var step: float = sin(gallop + hoof[2]) * 2.5 if gallop >= 0.0 else 0.0
+		draw_circle(o + Vector2(hoof[0], hoof[1] + step), 2.4, OUTLINE)
+	var box := Rect2(o, Vector2(30, 56))
+	draw_texture_rect(_tex("cav_horse"), box, false)
+	draw_texture_rect(_tex("knight_barding_tint"), box, false, color)
+	draw_texture_rect(_tex("knight_barding"), box, false)
+	var sh := Rect2(o + Vector2(0, 27), Vector2(11, 11))
+	draw_texture_rect(_tex("shield"), sh, false)
+	draw_texture_rect(_tex("shield_tint"), sh, false, color)
+	draw_texture_rect(_tex("knight_rider_tint"), box, false, color)
+	draw_texture_rect(_tex("knight_rider"), box, false)
+	draw_texture_rect(_tex("knight_helm"), box, false)
+	var jab := maxf(sin(now * 9.0 + u.side * 7.0), 0.0) * 5.0 if u.target != "" else 0.0
+	var grip := o + Vector2(21, 29 - jab)
+	var lance := Rect2(grip - Vector2(4, 46) * 0.9, Vector2(8, 56) * 0.9)
+	draw_texture_rect(_tex("lance"), lance, false)
+	draw_texture_rect(_tex("pennant_tint"), lance, false, color)
+	draw_set_transform(Vector2.ZERO)
+	_draw_hp(p + Vector2(0, -46), u.hp, u.max_hp, 32)
+
+
+## Roman chariot from above: two horses side by side pull a car with two
+## armored archers (crested helmets), the whole thing turning along its road.
+## While fighting, both archers loose arrows at the target.
+func _draw_chariot(u: Dictionary, p: Vector2, color: Color, now: float, target: Vector2) -> void:
+	var gallop := _walk_phase(u, now, 12.0)
+	var k := UNIT_SCALE * 1.1
+	var heading := _heading(u, target)
+	draw_set_transform(p + Vector2(0, -6), heading + PI / 2, Vector2(k, k))
+	# Car centered at the origin; horses ahead of it (up in local space).
+	for side in [-1.0, 1.0]:
+		var ho := Vector2(side * 7.5 - 12, -50) * 1.0
+		for hoof in [[8.0, 24.0, 0.0], [22.0, 24.0, PI], [8.0, 43.0, PI], [22.0, 43.0, 0.0]]:
+			var step: float = sin(gallop + hoof[2] + side) * 2.2 if gallop >= 0.0 else 0.0
+			draw_circle(ho + Vector2(hoof[0], hoof[1] + step) * 0.8, 1.8, OUTLINE)
+		var hb := Rect2(ho, Vector2(30, 56) * 0.8)
+		draw_texture_rect(_tex("cav_horse"), hb, false)
+		if u.get("tier", 0) >= 1:
+			draw_texture_rect(_tex("cav_barding"), hb, false)
+			draw_texture_rect(_tex("cav_barding_tint"), hb, false, color)
+	var car := Rect2(Vector2(-20, -14), Vector2(40, 28))
+	draw_texture_rect(_tex("chariot_car"), car, false)
+	draw_texture_rect(_tex("chariot_car_tint"), car, false, color)
+	draw_texture_rect(_tex("chariot_crew_tint"), car, false, color)
+	draw_texture_rect(_tex("chariot_crew"), car, false)
+	draw_set_transform(Vector2.ZERO)
+	if target != Vector2.INF:
+		for n in 2:
+			var from := p + Vector2(-6 + n * 12, -8)
+			var t := fmod(now * 1.4 + u.side + n * 0.5, 1.0)
+			var ap := from.lerp(target, t) + Vector2(0, -sin(PI * t) * 18)
+			var dir := (target - from).normalized()
+			draw_line(ap - dir * 12, ap, Color("#1b120a"), 2)
+			draw_circle(ap, 2, Color("#d0d0d0"))
+	_draw_hp(p + Vector2(0, -46), u.hp, u.max_hp, 34)
+
+
+## Greek hoplite (a phalanx is three side by side): bronze crested helmet and
+## cuirass, a big round shield in the civ's color and a long spear held toward
+## the enemy that thrusts while fighting.
+func _draw_hoplite(u: Dictionary, p: Vector2, color: Color, now: float, target: Vector2) -> void:
+	var facing := -PI / 2 if u.team == Battlefield.PLAYER else PI / 2
+	if target != Vector2.INF:
+		facing = (target - p).angle()
+	var k := UNIT_SCALE
+	var walk := _walk_phase(u, now)
+	var back: bool = u.team == Battlefield.PLAYER
+	var bob := absf(sin(walk)) * 1.6 * k if walk >= 0.0 else 0.0
+	var o := _figure_origin(p - Vector2(0, bob), k)
+	# The shield is held out front: over the body when we see the hoplite's
+	# face, hidden behind it when we see its back.
+	var shield := Rect2(o + Vector2(-1, 17) * k, Vector2(22, 22) * k)
+	if back:
+		draw_texture_rect(_tex("aspis"), shield, false)
+		draw_texture_rect(_tex("aspis_tint"), shield, false, color)
+	_draw_figure(p, color, ["cuirass", "hoplite_helm"], k, walk, back)
+	var thrust := maxf(sin(now * 8.0 + u.side * 5.0), 0.0) * 7.0 if u.target != "" else 0.0
+	var hand := o + Vector2(26, 25) * k + Vector2.from_angle(facing) * thrust
+	# Spear: the art points up, so turn it to face the enemy; held near its middle.
+	_draw_weapon("spear", Vector2(6, 70), Vector2(3, 38), hand, facing, k)
+	if not back:
+		draw_texture_rect(_tex("aspis"), shield, false)
+		draw_texture_rect(_tex("aspis_tint"), shield, false, color)
+	_draw_hp(p + Vector2(0, -30), u.hp, u.max_hp, 26)
 
 
 ## Fighter: a figure with a club (helmet and shield at level 2; great helm,

@@ -19,7 +19,7 @@ var _deletable := false
 
 
 func _init(title: String) -> void:
-	custom_minimum_size = Vector2(150, 130)
+	custom_minimum_size = Vector2(110, 130)
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_style.set_corner_radius_all(12)
 	_style.set_border_width_all(4)
@@ -45,6 +45,8 @@ func _init(title: String) -> void:
 
 func set_state(cost_text: String, enabled: bool, selected: bool, auto := false) -> void:
 	_cost.text = ("AUTO · " if auto else "") + cost_text
+	# Three-resource costs use a smaller font so they still fit on two lines.
+	_cost.add_theme_font_size_override("font_size", 22 if _cost.text.length() <= 22 else 17)
 	# An auto card stays bright even while it waits for resources.
 	modulate.a = 1.0 if enabled or auto else 0.45
 	_style.bg_color = Color("#5d4a2f") if enabled or auto else Color("#2d2d2d")

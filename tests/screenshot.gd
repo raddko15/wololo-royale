@@ -1,6 +1,6 @@
 extends SceneTree
 ## Renders game screens to PNGs (needs a display, e.g. xvfb-run).
-## Args: <out.png> <era1|era2|era2up|era3|window|mill|mine|jobs|sites|sites0|corpses|start|menu|victory> [player_civ] [enemy_civ] [huts]
+## Args: <out.png> <era1|era2|era2up|era3|window|mill|mine|jobs|sites|sites0|corpses|start|menu|victory|unique> [player_civ] [enemy_civ] [huts]
 ## era2up buys the mill and lumber upgrades, era3 every upgrade (both sides);
 ## window / mill open that building's ring menu.
 
@@ -19,7 +19,7 @@ func _init() -> void:
 	if args.size() > 3:
 		main.ai.economy = Economy.new(args[3])
 		main._view.enemy_economy = main.ai.economy
-	var era: int = {"era1": 0, "era2": 1, "era2up": 1, "era3": 2, "window": 1, "mill": 1, "mine": 2, "jobs": 1, "sites": 1, "sites0": 0, "corpses": 1, "start": 0, "victory": 0}[mode]
+	var era: int = {"era1": 0, "era2": 1, "era2up": 1, "era3": 2, "window": 1, "mill": 1, "mine": 2, "jobs": 1, "sites": 1, "sites0": 0, "corpses": 1, "start": 0, "victory": 0, "unique": 2}[mode]
 	if mode == "start":
 		# A real opening: the AI plays its first 30 seconds, the player nothing.
 		for i in 600:
@@ -57,9 +57,16 @@ func _init() -> void:
 		main.ai.economy.villagers.idle += 1
 		main.ai.economy.reassign("idle", job)
 	var mix := ["fighter", "archer", "cavalry", "fighter"] if era >= 1 else ["fighter", "fighter", "fighter", "fighter"]
-	for i in 4:
-		main.battle.spawn(Battlefield.PLAYER, mix[i], [0, 1, 2, 1][i])
-		main.battle.spawn(Battlefield.ENEMY, mix[(i + 1) % 4], [0, 1, 2, 1][i])
+	if mode == "unique":
+		# Each civ's unique unit on both sides, one lane each.
+		for team in [Battlefield.PLAYER, Battlefield.ENEMY]:
+			main.battle.spawn_squad(team, "knight", 0, 1, {}, 0)
+			main.battle.spawn_squad(team, "chariot", 1, 1, {}, 1)
+			main.battle.spawn_squad(team, "phalanx", 2, 3, {}, 0)
+	else:
+		for i in 4:
+			main.battle.spawn(Battlefield.PLAYER, mix[i], [0, 1, 2, 1][i])
+			main.battle.spawn(Battlefield.ENEMY, mix[(i + 1) % 4], [0, 1, 2, 1][i])
 	for i in 300:
 		main.battle.tick(0.05)
 		main.economy.tick(0.05)

@@ -39,7 +39,7 @@ func _init(civ_id: String, field: Battlefield, level := "normal", side := Battle
 func _on_job_done(job: Dictionary) -> void:
 	match job.kind:
 		"unit":
-			battle.spawn(team, job.id, job.lane, economy.unit_bonus(job.id), economy.unit_tier(job.id))
+			battle.spawn_squad(team, job.id, job.lane, economy.squad(job.id), economy.unit_bonus(job.id), economy.unit_tier(job.id))
 		"towers":
 			battle.build_towers(team)
 		"era":
@@ -257,7 +257,8 @@ func _attack_lane() -> int:
 
 
 ## A unit it can train now without touching `reserve`: archers are favoured
-## against fighters, cavalry against archers, fighters against cavalry.
+## against fighters, cavalry against archers, fighters against cavalry, and
+## its civ's unique unit (Era III) most of all.
 func _pick_unit(reserve: Dictionary) -> String:
 	var e := economy
 	var weight := {"fighter": 1.0, "archer": 1.0, "cavalry": 1.0}
@@ -274,8 +275,10 @@ func _pick_unit(reserve: Dictionary) -> String:
 	var options := []
 	var total := 0.0
 	for id in _cfg.units:
-		if not e.can_train(id) or not weight.has(id):
+		if not e.can_train(id):
 			continue
+		if not weight.has(id):
+			weight[id] = 2.5  # its civ's unique unit: a favourite once unlocked
 		if _affordable_beyond(_cfg.units[id].cost, reserve):
 			options.append(id)
 			total += weight[id]

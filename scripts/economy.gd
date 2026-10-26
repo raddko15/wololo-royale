@@ -152,7 +152,7 @@ func _complete(j: Dictionary) -> void:
 		"villager":
 			villagers.idle = villagers.get("idle", 0) + 1
 		"unit":
-			army_size += 1
+			army_size += squad(j.id)
 		"era":
 			era_index += 1
 		"hut":
@@ -254,7 +254,11 @@ func total_villagers() -> int:
 
 ## Living units plus villagers and units already queued (they reserve space).
 func population() -> int:
-	return total_villagers() + army_size + pending_count("villager") + pending_count("unit")
+	var training := 0
+	for j in jobs:
+		if j.kind == "unit":
+			training += squad(j.id)
+	return total_villagers() + army_size + pending_count("villager") + training
 
 
 ## Starting cap plus what huts add, never above the hard maximum.
@@ -402,11 +406,24 @@ func build_towers() -> bool:
 
 ## The building that trains `unit_id` exists (fighters need a barracks, etc.).
 func unit_unlocked(unit_id: String) -> bool:
-	return military.has(_cfg.units[unit_id].requires)
+	var unit: Dictionary = _cfg.units[unit_id]
+	return military.has(unit.requires) and era_index >= unit.get("min_era", 0) \
+		and unit.get("civ", civ_id) == civ_id
+
+
+## Unit types this civ can ever train: the shared ones plus its own unique unit.
+func available_units() -> Array:
+	return _cfg.units.keys().filter(func(id): return _cfg.units[id].get("civ", civ_id) == civ_id)
+
+
+## Soldiers one training produces (a phalanx is three hoplites).
+func squad(unit_id: String) -> int:
+	return _cfg.units[unit_id].get("squad", 1)
 
 
 func can_train(unit_id: String) -> bool:
-	return unit_unlocked(unit_id) and has_room() and can_afford(_cfg.units[unit_id].cost)
+	return unit_unlocked(unit_id) and population() + squad(unit_id) <= max_population() \
+		and can_afford(_cfg.units[unit_id].cost)
 
 
 ## Queues a unit at its building, bound for `lane`; job_done reports when it
@@ -485,15 +502,18 @@ func upgrade_unlocked(id: String) -> bool:
 
 ## How many military upgrades a unit type has (0-2): drives its look.
 func unit_tier(unit_id: String) -> int:
-	return upgrades.keys().filter(func(id): return _cfg.upgrades[id].get("unit", "") == unit_id).size()
+	var as_unit: String = _cfg.units[unit_id].get("upgrades_as", unit_id)
+	return upgrades.keys().filter(func(id): return _cfg.upgrades[id].get("unit", "") == as_unit).size()
 
 
 ## Summed stat bonuses from upgrades for a unit type, e.g. {"hp": 0.8, "damage": 0.6}.
 func unit_bonus(unit_id: String) -> Dictionary:
 	var total := {}
+	# Unique units share the upgrades of the unit they replace (knight: cavalry).
+	var as_unit: String = _cfg.units[unit_id].get("upgrades_as", unit_id)
 	for id in upgrades:
 		var up: Dictionary = _cfg.upgrades[id]
-		if up.get("unit", "") == unit_id:
+		if up.get("unit", "") == as_unit:
 			for stat in up.unit_bonus:
 				total[stat] = total.get(stat, 0.0) + up.unit_bonus[stat]
 	return total

@@ -70,6 +70,14 @@ func fort_y(team: int, lane: int) -> float:
 
 ## `bonus` comes from the owner's upgrades ({"hp", "damage", "range"} as
 ## fractions); `tier` is how many upgrades it has, for its look.
+## Spawns `count` side by side (a phalanx's three hoplites keep in line).
+func spawn_squad(team: int, unit_id: String, lane: int, count: int, bonus := {}, tier := 0) -> void:
+	for k in count:
+		var u := spawn(team, unit_id, lane, bonus, tier)
+		if count > 1:
+			u.side = lerpf(-0.7, 0.7, float(k) / (count - 1))
+
+
 func spawn(team: int, unit_id: String, lane: int, bonus := {}, tier := 0) -> Dictionary:
 	var stats: Dictionary = _cfg.units[unit_id]
 	var hp: float = stats.hp * (1.0 + bonus.get("hp", 0.0))

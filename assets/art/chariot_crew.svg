@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="80" height="56" viewBox="0 0 40 28">
+<g stroke="#2b1d10" stroke-width="1.2" stroke-linejoin="round" stroke-linecap="round">
+<g fill="#c9d0d4"><path d="M10 17.6 L18 17.6 L17.4 19 L10.6 19 Z"/><path d="M22 17.6 L30 17.6 L29.4 19 L22.6 19 Z"/></g>
+<circle cx="14" cy="15.4" r="3" fill="#c9d0d4"/><circle cx="26" cy="15.4" r="3" fill="#c9d0d4"/>
+<path d="M14 12.4 A3 3 0 0 0 14 18.4 A1.8 3 0 0 1 14 12.4 Z M26 12.4 A3 3 0 0 0 26 18.4 A1.8 3 0 0 1 26 12.4 Z" fill="#eef2f4" stroke="none"/>
+<circle cx="14" cy="15.4" r="3" fill="none"/><circle cx="26" cy="15.4" r="3" fill="none"/>
+<path d="M10.6 15.4 L17.4 15.4" stroke="#c0392b" stroke-width="1.8"/><path d="M22.6 15.4 L29.4 15.4" stroke="#c0392b" stroke-width="1.8"/>
+<path d="M9 12.5 Q14 8.5 19 12.5" fill="none" stroke="#6b4426" stroke-width="1.2"/><path d="M21 12.5 Q26 8.5 31 12.5" fill="none" stroke="#6b4426" stroke-width="1.2"/>
+<line x1="9" y1="12.5" x2="19" y2="12.5" stroke="#e8e8e8" stroke-width="0.5"/><line x1="21" y1="12.5" x2="31" y2="12.5" stroke="#e8e8e8" stroke-width="0.5"/>
+</g>
+</svg>

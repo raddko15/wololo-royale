@@ -121,7 +121,7 @@ func _start_game(civ_id: String, menu: Control) -> void:
 	var bar := HBoxContainer.new()
 	bar.add_theme_constant_override("separation", 10)
 	box.add_child(bar)
-	for id in ["villager"] + GameConfig.data().units.keys():
+	for id in ["villager"] + economy.available_units():
 		var title: String = "Villager" if id == "villager" else GameConfig.data().units[id].name
 		var card := Card.new(title)
 		card.pressed.connect(_on_card_pressed.bind(id))
@@ -310,7 +310,7 @@ func _tap(id: String) -> void:
 				_auto[id] = true
 				_run_auto()
 			else:
-				_flash_hint("Build the %s first" % GameConfig.data().military[GameConfig.data().units[id].requires].name)
+				_flash_hint(_unit_lock(id))
 			_update_lane_marks()
 
 
@@ -424,11 +424,20 @@ func _on_card_cancel(id: String) -> void:
 	_refresh()
 
 
+## Why a unit card is locked: "needs Stables" or "needs Era III".
+func _unit_lock(id: String) -> String:
+	var cfg := GameConfig.data()
+	var unit: Dictionary = cfg.units[id]
+	if not economy.military.has(unit.requires):
+		return "needs %s" % cfg.military[unit.requires].name
+	return "needs %s" % cfg.eras[unit.get("min_era", 0)].name
+
+
 ## Finished jobs that touch the battlefield: units walk out, towers go up.
 func _on_job_done(job: Dictionary) -> void:
 	match job.kind:
 		"unit":
-			battle.spawn(Battlefield.PLAYER, job.id, job.lane, economy.unit_bonus(job.id), economy.unit_tier(job.id))
+			battle.spawn_squad(Battlefield.PLAYER, job.id, job.lane, economy.squad(job.id), economy.unit_bonus(job.id), economy.unit_tier(job.id))
 		"towers":
 			battle.build_towers(Battlefield.PLAYER)
 		"era":
@@ -610,7 +619,7 @@ func _describe(id: String) -> String:
 	if cfg.military.has(id):
 		var unit := ""
 		for u in cfg.units:
-			if cfg.units[u].requires == id:
+			if cfg.units[u].requires == id and not cfg.units[u].has("civ"):
 				unit = cfg.units[u].name
 		return ("trains %ss" % unit) if not economy.military.has(id) else "+1 %s at a time" % unit
 	match id:
@@ -718,10 +727,9 @@ func _refresh() -> void:
 	_cards.villager.set_queued(vq)
 	_cards.villager.set_deletable(economy.total_villagers() > 0)
 	var cfg := GameConfig.data()
-	for id in cfg.units:
+	for id in economy.available_units():
 		var unit: Dictionary = cfg.units[id]
-		var note: String = _cost_text(unit.cost).replace("\n", " ") if economy.unit_unlocked(id) \
-			else "needs %s" % cfg.military[unit.requires].name
+		var note: String = _cost_text(unit.cost).replace("\n", " ") if economy.unit_unlocked(id) else _unit_lock(id)
 		var queued := economy.jobs.filter(func(j): return j.kind == "unit" and j.id == id).size()
 		if queued:
 			note += " · %d queued" % queued

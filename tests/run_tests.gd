@@ -270,6 +270,25 @@ func _init() -> void:
 	mb.era_index = 2
 	_check(mb.villager_time() < 4.5, "the town center trains villagers faster in later eras")
 
+	# Unique units: one per civ, Era III, sharing their building's upgrades.
+	var gr := Economy.new("greeks")
+	gr.military = {"barracks": 1, "stables": 1}
+	gr.huts = 10
+	gr.resources = {"food": 9000.0, "wood": 9000.0, "gold": 9000.0, "stone": 0.0}
+	_check(gr.available_units().has("phalanx") and not gr.available_units().has("knight") and not gr.available_units().has("chariot"), "greeks get the phalanx, not the others' units")
+	_check(not gr.can_train("phalanx"), "phalanx needs Era III")
+	gr.era_index = 2
+	gr.upgrades = {"barracks1": true}
+	var army_before := gr.population()
+	_check(gr.train("phalanx", 1) and gr.population() == army_before + 3, "a phalanx is three hoplites (3 population)")
+	_check(gr.unit_tier("phalanx") == 1 and gr.unit_bonus("phalanx").has("hp"), "the phalanx gets the fighter upgrades")
+	gr.finish_jobs()
+	_check(gr.army_size == 3, "three hoplites join the army")
+	var bf := Battlefield.new()
+	bf.spawn_squad(Battlefield.PLAYER, "phalanx", 1, 3)
+	_check(bf.units.size() == 3 and bf.units[0].side < bf.units[2].side, "the three hoplites stand side by side")
+	_check(Economy.new("franks").available_units().has("knight") and Economy.new("romans").available_units().has("chariot"), "franks get knights, romans chariots")
+
 	var kv := Economy.new("romans")
 	kv.camps = {"farm": true, "lumberjack": true}
 	kv.reassign("idle", "food")
