@@ -391,6 +391,8 @@ func _on_menu_choice(id: String) -> void:
 				_close_menu()
 		"worker_gold", "worker_stone":
 			economy.reassign("idle", id.trim_prefix("worker_"))
+		"unworker_gold", "unworker_stone":
+			economy.reassign(id.trim_prefix("unworker_"), "idle")
 	_refresh()
 
 
@@ -579,6 +581,8 @@ func _menu_options(kind: String) -> Array:
 			var res := kind.trim_suffix("_mine")
 			var idle: int = economy.villagers.get("idle", 0)
 			opts.append(_option("worker_" + res, "worker", "+ Worker", "%d idle" % idle, idle > 0))
+			var mining: int = economy.villagers.get(res, 0)
+			opts.append(_option("unworker_" + res, "unworker", "− Worker", "%d mining" % mining, mining > 0))
 			opts.append(_upgrade_option(kind + "2"))
 		"towers":
 			opts.append(_upgrade_option("stone_towers"))
@@ -644,6 +648,8 @@ func _describe(id: String) -> String:
 			return "lets villagers gather wood"
 		"worker_gold", "worker_stone":
 			return "send an idle villager"
+		"unworker_gold", "unworker_stone":
+			return "back to idle"
 	return ""
 
 

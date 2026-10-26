@@ -196,6 +196,10 @@ func _draw_glyph(kind: String, c: Vector2, alpha: float) -> void:
 			draw_arc(c, 12, 0, TAU, 16, Color(0, 0, 0, alpha), 2)
 			draw_line(c + Vector2(14, -12), c + Vector2(14, 0), gold, 3)
 			draw_line(c + Vector2(8, -6), c + Vector2(20, -6), gold, 3)
+		"unworker":  # villager with a minus
+			draw_circle(c, 12, Color("#f5f6fa", alpha))
+			draw_arc(c, 12, 0, TAU, 16, Color(0, 0, 0, alpha), 2)
+			draw_line(c + Vector2(8, -6), c + Vector2(20, -6), gold, 3)
 		"barracks":  # crossed sticks
 			draw_line(c + Vector2(-12, 12), c + Vector2(12, -12), Color("#8b5a2b", alpha), 4)
 			draw_line(c + Vector2(12, 12), c + Vector2(-12, -12), Color("#8b5a2b", alpha), 4)

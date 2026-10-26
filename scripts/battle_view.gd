@@ -813,6 +813,8 @@ func _draw_city(team: int, now: float) -> void:
 			_draw_build_site(site, e, now)
 	for res in e.mines:
 		_draw_mine(mine_pos(team, res), res, e.upgrades.has(res + "_mine2"))
+		if team == Battlefield.PLAYER and e.villagers.get(res, 0) > 0:
+			_draw_count_tag(mine_pos(team, res) + Vector2(-30, 6), e.villagers[res])
 	for id in e.military:
 		_draw_military(id, military_pos(team, id), color, e.era_index, style, int(e.upgrades.has(id + "1")) + int(e.upgrades.has(id + "2")), e.military[id])
 		if team == Battlefield.PLAYER and not e.has_room():
@@ -867,6 +869,15 @@ func build_sites(e: Economy) -> Array:
 		for lane in Battlefield.LANES:
 			sites.append(["towers", building_pos(p, "tower", lane), "tower"])
 	return sites
+
+
+## Small round tag with a number (workers at a mine).
+func _draw_count_tag(c: Vector2, n: int) -> void:
+	draw_circle(c, 11, OUTLINE)
+	draw_circle(c, 9, Color("#f9ca24"))
+	var font := get_theme_default_font()
+	var w := font.get_string_size(str(n), HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
+	draw_string(font, c + Vector2(-w / 2, 5), str(n), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, OUTLINE)
 
 
 ## A free plot: grey ground shadow under a faint outline of the building, with
