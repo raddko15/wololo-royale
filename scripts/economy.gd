@@ -183,7 +183,7 @@ func rate_per_villager(res: String) -> float:
 	var bonus := 0.0
 	for id in upgrades:
 		bonus += _cfg.upgrades[id].get("gather_bonus", {}).get(res, 0.0)
-	return base * civ().gather_multiplier.get(res, 1.0) * (1.0 + bonus + gather_bonus)
+	return base * civ().get("gather_multiplier", {}).get(res, 1.0) * (1.0 + bonus + gather_bonus)
 
 
 ## New workers walk out from the drop-off to the first free plot/tree.
@@ -516,6 +516,10 @@ func unit_bonus(unit_id: String) -> Dictionary:
 		if up.get("unit", "") == as_unit:
 			for stat in up.unit_bonus:
 				total[stat] = total.get(stat, 0.0) + up.unit_bonus[stat]
+	# The civ's own bonus (e.g. Frankish horsemen +20% HP).
+	var civ_bonus: Dictionary = civ().get("unit_bonus", {}).get(unit_id, {})
+	for stat in civ_bonus:
+		total[stat] = total.get(stat, 0.0) + civ_bonus[stat]
 	return total
 
 

@@ -34,10 +34,18 @@
       "name": "Romans",
       "color": "#c0392b",
       "gather_multiplier": {
-        "wood": 1.1
+        "wood": 1.05
+      },
+      "unit_bonus": {
+        "fighter": {
+          "speed": 0.1
+        },
+        "archer": {
+          "speed": 0.1
+        }
       },
       "style": "classical",
-      "bonus": "+10% wood",
+      "bonus": "+5% wood gathering, foot soldiers +10% speed",
       "upgrade_names": {
         "mill": "Olive Press",
         "mill2": "Oil Workshop",
@@ -52,7 +60,7 @@
         "food": 1.1
       },
       "style": "classical",
-      "bonus": "+10% food",
+      "bonus": "+10% food gathering",
       "upgrade_names": {
         "mill": "Olive Press",
         "mill2": "Oil Workshop",
@@ -64,9 +72,14 @@
       "name": "Franks",
       "color": "#7d3c98",
       "style": "medieval",
-      "bonus": "+10% stone",
-      "gather_multiplier": {
-        "stone": 1.1
+      "bonus": "mounted units +20% HP",
+      "unit_bonus": {
+        "cavalry": {
+          "hp": 0.2
+        },
+        "knight": {
+          "hp": 0.2
+        }
       }
     }
   },

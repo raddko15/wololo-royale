@@ -15,7 +15,10 @@ func _init() -> void:
 	var g := Economy.new("greeks")
 	_check(g.rate_per_villager("food") > g.rate_per_villager("wood"), "greeks gather food faster")
 	var f := Economy.new("franks")
-	_check(f.rate_per_villager("stone") > f.rate_per_villager("gold") and f.style() == "medieval", "franks: medieval style, mine stone faster")
+	_check(f.style() == "medieval" and is_equal_approx(f.unit_bonus("cavalry").get("hp", 0.0), 0.2) and is_equal_approx(f.unit_bonus("knight").get("hp", 0.0), 0.2), "franks: medieval style, horsemen +20% HP")
+	_check(is_equal_approx(e.rate_per_villager("wood"), 1.3 * 1.05) and is_equal_approx(e.unit_bonus("fighter").get("speed", 0.0), 0.1) and e.unit_bonus("cavalry").is_empty(), "romans: +5% wood, foot soldiers +10% speed")
+	var fast := Battlefield.new().spawn(Battlefield.PLAYER, "fighter", 1, e.unit_bonus("fighter"))
+	_check(is_equal_approx(fast.speed, 0.06 * 1.1), "a Roman fighter walks 10% faster")
 	_check(g.style() == "classical" and g.upgrade_name("mill") == "Olive Press" and e.upgrade_name("mill") == "Olive Press" and f.upgrade_name("mill") == "Windmill", "romans and greeks press olives; franks build a windmill")
 
 	_check(not e.reassign("idle", "food") and not e.reassign("idle", "wood"), "no gathering before the farm and lumberjack stand")

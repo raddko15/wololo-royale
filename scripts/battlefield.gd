@@ -84,7 +84,7 @@ func spawn(team: int, unit_id: String, lane: int, bonus := {}, tier := 0) -> Dic
 	var behind := -1.0 if team == PLAYER else 1.0
 	var unit := {
 		"team": team, "type": unit_id, "lane": lane, "y": TOWER_Y[team] + behind * MAIN_DIST[lane], "hp": hp,
-		"max_hp": hp, "speed": stats.speed, "dps": stats.damage_per_sec * (1.0 + bonus.get("damage", 0.0)),
+		"max_hp": hp, "speed": stats.speed * (1.0 + bonus.get("speed", 0.0)), "dps": stats.damage_per_sec * (1.0 + bonus.get("damage", 0.0)),
 		"range": stats.range * (1.0 + bonus.get("range", 0.0)), "tier": tier,
 		# Damage multipliers against unit types, e.g. spears vs horses.
 		"bonus_vs": stats.get("bonus_vs", {}),
