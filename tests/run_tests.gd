@@ -55,10 +55,10 @@ func _init() -> void:
 	while p.build_hut():
 		pass
 	p.finish_jobs()
-	_check(p.max_population() == 200, "population cap tops out at 200")
-	p.villagers.idle = 199 - p.total_villagers() + p.villagers.idle
+	_check(p.max_population() == 100, "population cap tops out at 100")
+	p.villagers.idle = 99 - p.total_villagers() + p.villagers.idle
 	p.army_size = 1
-	_check(p.population() == 200 and not p.recruit(), "cannot recruit at 200 incl. army")
+	_check(p.population() == 100 and not p.recruit(), "cannot recruit at 100 incl. army")
 
 	e.resources = {"food": 0.0, "wood": 0.0}
 	_check(not e.can_advance(), "cannot advance without 500/500")

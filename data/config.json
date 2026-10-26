@@ -172,7 +172,7 @@
   },
   "population": {
     "starting_cap": 5,
-    "max_cap": 200,
+    "max_cap": 100,
     "starting_huts": 1
   },
   "testing": {
