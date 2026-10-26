@@ -173,9 +173,9 @@ func idle_spot(team: int, i: int, count: int) -> Vector2:
 	return campfire_pos(team) + Vector2(cos(a) * (24 + ring * 13), sin(a) * (16 + ring * 9))
 
 
-## Hut slots as (x fraction, depth from the back edge): every free patch of
-## grass behind the towers (between fields, workshops, military buildings and
-## roads), loosely nearest the campfire first so the village grows outward.
+## Hut slots as (x fraction, depth from the back edge): one per hut the
+## population cap allows, spread evenly over the free grass behind the towers
+## (between fields, workshops, military buildings and roads).
 var _hut_slots: Array[Vector2] = []
 var _slots_for := Vector2.ZERO
 
@@ -212,15 +212,27 @@ func _slots() -> Array[Vector2]:
 		var blockers := _village_blockers()
 		var fire := campfire_pos()
 		var raw := _hut_candidates(blockers, fire)
+		# Spread the huts evenly: start next to the campfire, then keep taking the
+		# spot farthest from every hut chosen so far.
+		var cfg := GameConfig.data()
+		var count := ceili(float(cfg.population.max_cap - cfg.population.starting_cap) / cfg.buildings.hut.population)
 		raw.sort_custom(func(a, b): return a[0] < b[0])
-		# Take spots in that order, skipping any that would overlap a hut already placed.
-		var placed: Array[Rect2] = []
+		var chosen := [raw[0]]
+		var gap: Array[float] = []
 		for item in raw:
+			gap.append(item[1].distance_to(raw[0][1]))
+		while chosen.size() < mini(count, raw.size()):
+			var best := 0
+			for i in raw.size():
+				if gap[i] > gap[best]:
+					best = i
+			chosen.append(raw[best])
+			for i in raw.size():
+				gap[i] = minf(gap[i], raw[i][1].distance_to(raw[best][1]))
+		# Build order: nearest the campfire first, so the village grows outward.
+		chosen.sort_custom(func(a, b): return a[0] < b[0])
+		for item in chosen:
 			var spot: Vector2 = item[1]
-			var foot := Rect2(spot + Vector2(-14, -17), Vector2(28, 22))
-			if placed.any(func(p: Rect2) -> bool: return p.intersects(foot)):
-				continue
-			placed.append(foot)
 			_hut_slots.append(Vector2(spot.x / size.x, size.y - spot.y))
 	return _hut_slots
 
