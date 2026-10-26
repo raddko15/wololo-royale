@@ -1526,8 +1526,9 @@ func _draw_hoplite(u: Dictionary, p: Vector2, color: Color, now: float, target: 
 	_draw_figure(p, color, ["cuirass", "hoplite_helm"], k, walk, back)
 	var thrust := maxf(sin(now * 8.0 + u.side * 5.0), 0.0) * 7.0 if u.target != "" else 0.0
 	var hand := o + Vector2(26, 25) * k + Vector2.from_angle(facing) * thrust
-	# Spear: the art points up, so turn it to face the enemy; held near its middle.
-	_draw_weapon("spear", Vector2(6, 70), Vector2(3, 38), hand, facing, k)
+	# Spear: the art points up, so turn it to face the enemy; gripped near the
+	# back end so almost all of it reaches forward.
+	_draw_weapon("spear", Vector2(6, 70), Vector2(3, 58), hand, facing, k)
 	if not back:
 		draw_texture_rect(_tex("aspis"), shield, false)
 		draw_texture_rect(_tex("aspis_tint"), shield, false, color)
