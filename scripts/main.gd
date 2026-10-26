@@ -126,6 +126,12 @@ func _start_game(civ_id: String, menu: Control) -> void:
 		var card := Card.new(title)
 		card.pressed.connect(_on_card_pressed.bind(id))
 		card.cancel_pressed.connect(_on_card_cancel.bind(id))
+		if id == "villager":
+			card.delete_pressed.connect(func():
+				var gone := economy.kill_villager()
+				if not gone.is_empty():
+					_view.villager_died(gone)
+				_refresh())
 		_cards[id] = card
 		# Unit cards get their own L / M / R lane switches underneath.
 		var col := VBoxContainer.new()
@@ -193,8 +199,12 @@ func _header() -> Control:
 	# Title row with a restart button (testing aid) on the right.
 	var top := HBoxContainer.new()
 	col.add_child(top)
-	_ui.title = _label("", 26)
+	_ui.title = _label("", 22)
 	_ui.title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# Never wider than the space left by the buttons: a long title would push
+	# the whole screen wider than the phone.
+	_ui.title.clip_text = true
+	_ui.title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	top.add_child(_ui.title)
 	var restart := Button.new()
 	restart.text = "Restart"
@@ -619,11 +629,14 @@ func _on_game_over(winner: int) -> void:
 	var won := winner == Battlefield.PLAYER
 	var text := _label("Victory!" if won else "Defeat", 72)
 	text.add_theme_color_override("font_color", Color("#f9ca24") if won else Color("#e55039"))
-	text.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	# Full-width labels with centered text, so they stay centered whatever their size.
+	text.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	overlay.add_child(text)
 	var again := _label("Tap to play again", 30)
-	again.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
-	again.position.y -= 200
+	again.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	again.offset_top = -260
+	again.offset_bottom = -200
 	overlay.add_child(again)
 	overlay.gui_input.connect(func(e):
 		if e is InputEventMouseButton and e.pressed:
@@ -632,7 +645,7 @@ func _on_game_over(winner: int) -> void:
 
 func _refresh() -> void:
 	var r := economy.resources
-	_ui.title.text = "%s · %s   vs   %s (%s AI) · %s" % [economy.civ().name, economy.era().name, ai.economy.civ().name, ai.difficulty.capitalize(), ai.economy.era().name]
+	_ui.title.text = "%s · %s  vs  %s (%s) · %s" % [economy.civ().name, economy.era().name, ai.economy.civ().name, ai.difficulty.capitalize(), ai.economy.era().name]
 	for res in Economy.RESOURCES:
 		_ui[res].text = "%d" % r[res]
 	_ui.villagers.text = "%d (%d idle)" % [economy.total_villagers(), economy.villagers.get("idle", 0)]
@@ -648,6 +661,7 @@ func _refresh() -> void:
 	var vnote := "pop full: build huts" if full else "%d food%s" % [vcost.food, " · %d queued" % vq if vq else ""]
 	_cards.villager.set_state(vnote, economy.can_recruit(), dragging == "villager")
 	_cards.villager.set_queued(vq)
+	_cards.villager.set_deletable(economy.total_villagers() > 0)
 	var cfg := GameConfig.data()
 	for id in cfg.units:
 		var unit: Dictionary = cfg.units[id]

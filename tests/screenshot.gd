@@ -1,6 +1,6 @@
 extends SceneTree
 ## Renders game screens to PNGs (needs a display, e.g. xvfb-run).
-## Args: <out.png> <era1|era2|era2up|era3|window|mill|mine|jobs|sites|sites0|corpses|start|menu> [player_civ] [enemy_civ] [huts]
+## Args: <out.png> <era1|era2|era2up|era3|window|mill|mine|jobs|sites|sites0|corpses|start|menu|victory> [player_civ] [enemy_civ] [huts]
 ## era2up buys the mill and lumber upgrades, era3 every upgrade (both sides);
 ## window / mill open that building's ring menu.
 
@@ -19,7 +19,7 @@ func _init() -> void:
 	if args.size() > 3:
 		main.ai.economy = Economy.new(args[3])
 		main._view.enemy_economy = main.ai.economy
-	var era: int = {"era1": 0, "era2": 1, "era2up": 1, "era3": 2, "window": 1, "mill": 1, "mine": 2, "jobs": 1, "sites": 1, "sites0": 0, "corpses": 1, "start": 0}[mode]
+	var era: int = {"era1": 0, "era2": 1, "era2up": 1, "era3": 2, "window": 1, "mill": 1, "mine": 2, "jobs": 1, "sites": 1, "sites0": 0, "corpses": 1, "start": 0, "victory": 0}[mode]
 	if mode == "start":
 		# A real opening: the AI plays its first 30 seconds, the player nothing.
 		for i in 600:
@@ -100,6 +100,8 @@ func _init() -> void:
 		main._open_menu("town_center", main._view.town_center())
 	elif mode == "mill":
 		main._open_menu("mill", main._view.drop_off(Battlefield.PLAYER, "food"))
+	elif mode == "victory":
+		main._on_game_over(Battlefield.PLAYER)
 	elif mode == "mine":
 		main._open_menu("gold_mine", main._view.mine_pos(Battlefield.PLAYER, "gold"))
 	for i in (150 if mode == "jobs" else 5):  # jobs: let helpers walk to the sites

@@ -199,11 +199,32 @@ func _add_worker(job: String) -> void:
 
 
 ## Removes the newest worker on `job`; whatever it carried is lost.
-func _remove_worker(job: String) -> void:
+func _remove_worker(job: String) -> Dictionary:
 	for i in range(workers.size() - 1, -1, -1):
 		if workers[i].job == job:
+			var w: Dictionary = workers[i]
 			workers.remove_at(i)
-			return
+			return w
+	return {}
+
+
+## Deletes a villager to free population: an idle one if any, else one from
+## the busiest job. Returns {"job"} plus "worker" (its state, for where it
+## stood) when it was working; {} when there are none.
+func kill_villager() -> Dictionary:
+	var job := "idle"
+	if villagers.get("idle", 0) <= 0:
+		for res in villagers:
+			if res != "idle" and villagers[res] > villagers.get(job, 0):
+				job = res
+	if villagers.get(job, 0) <= 0:
+		return {}
+	villagers[job] -= 1
+	var result := {"job": job}
+	if job != "idle":
+		result.worker = _remove_worker(job)
+	changed.emit()
+	return result
 
 
 func civ() -> Dictionary:

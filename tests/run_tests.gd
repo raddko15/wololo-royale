@@ -253,6 +253,14 @@ func _init() -> void:
 	_check(cq.cancel("villager", "villager") and cq.pending_count("villager") == 1 and cq.resources.food == 50, "cancel a queued villager for a refund")
 	_check(cq.cancel("villager", "villager") and not cq.cancel("villager", "villager") and cq.resources.food == 100, "cancel the one in training too; nothing left to cancel")
 
+	var kv := Economy.new("romans")
+	kv.camps = {"farm": true, "lumberjack": true}
+	kv.reassign("idle", "food")
+	kv.villagers.idle = 1
+	_check(kv.kill_villager().job == "idle" and kv.total_villagers() == 1, "delete takes an idle villager first")
+	var gone := kv.kill_villager()
+	_check(gone.job == "food" and not gone.worker.is_empty() and kv.workers.is_empty() and kv.kill_villager().is_empty(), "then a worker; none left to delete")
+
 	# Idle villagers help build: +30% speed each.
 	var hb := Economy.new("romans")
 	hb.resources.wood = 60.0

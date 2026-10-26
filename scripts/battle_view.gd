@@ -623,6 +623,21 @@ const BONE := Color("#ece4cf")
 const ROT := Color(0.55, 0.62, 0.4)
 
 
+## The player deleted a villager: it drops where it stood (Economy.kill_villager's result).
+func villager_died(gone: Dictionary) -> void:
+	var p := Battlefield.PLAYER
+	var pos: Vector2
+	if gone.has("worker") and not gone.worker.is_empty():
+		pos = worker_pos(p, gone.worker)
+	else:
+		var idle: int = economy.villagers.get("idle", 0)
+		pos = idle_spot(p, idle, idle + 1) + Vector2(0, 6)
+	var h := randi()
+	corpses.append({"pos": pos, "type": "villager", "tier": 0, "color": VILLAGER_TUNIC,
+		"born": Time.get_ticks_msec() / 1000.0, "angle": PI / 2 if h % 2 == 0 else -PI / 2,
+		"weapon_angle": 0.0})
+
+
 func _draw_corpses(now: float) -> void:
 	var cfg: Dictionary = GameConfig.data().corpse
 	for u in battle.fallen:
@@ -672,9 +687,10 @@ func _draw_body(c: Dictionary, m: Color, rotten: bool, now: float) -> void:
 	draw_set_transform(p, c.angle, Vector2.ONE)
 	_draw_figure(Vector2(0, 10), c.color, [], UNIT_SCALE)
 	draw_set_transform(Vector2.ZERO)
-	var weapon: Array = {"archer": ["bow", Vector2(16, 30), Vector2(8, 15)], "cavalry": ["lance", Vector2(8, 56), Vector2(4, 28)]}.get(c.type, ["sword" if c.tier >= 2 else "club", Vector2(10, 30), Vector2(5, 15)])
-	_draw_weapon(weapon[0], weapon[1], weapon[2], p + Vector2(10, 6), c.weapon_angle, UNIT_SCALE * 0.8)
-	draw_set_transform(Vector2.ZERO)
+	if c.type != "villager":  # villagers carry no weapon
+		var weapon: Array = {"archer": ["bow", Vector2(16, 30), Vector2(8, 15)], "cavalry": ["lance", Vector2(8, 56), Vector2(4, 28)]}.get(c.type, ["sword" if c.tier >= 2 else "club", Vector2(10, 30), Vector2(5, 15)])
+		_draw_weapon(weapon[0], weapon[1], weapon[2], p + Vector2(10, 6), c.weapon_angle, UNIT_SCALE * 0.8)
+		draw_set_transform(Vector2.ZERO)
 	_mod = Color.WHITE
 	if rotten:
 		for f in 3:

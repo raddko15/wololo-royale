@@ -6,6 +6,8 @@ extends PanelContainer
 signal pressed
 ## The red ✕ in the corner was tapped: cancel the newest queued one.
 signal cancel_pressed
+## The skull in the bottom corner was tapped (villager card: delete one).
+signal delete_pressed
 
 const CANCEL_R := 17.0
 
@@ -13,6 +15,7 @@ var _title := Label.new()
 var _cost := Label.new()
 var _style := StyleBoxFlat.new()
 var _queued := 0
+var _deletable := false
 
 
 func _init(title: String) -> void:
@@ -58,11 +61,32 @@ func set_queued(count: int) -> void:
 		queue_redraw()
 
 
+## Shows the delete skull in the bottom-left corner.
+func set_deletable(on: bool) -> void:
+	if on != _deletable:
+		_deletable = on
+		queue_redraw()
+
+
 func _cancel_center() -> Vector2:
 	return Vector2(size.x - CANCEL_R - 4, CANCEL_R + 4)
 
 
+func _delete_center() -> Vector2:
+	return Vector2(CANCEL_R + 4, size.y - CANCEL_R - 4)
+
+
 func _draw() -> void:
+	if _deletable:
+		# Skull: round cranium, jaw, dark eyes.
+		var d := _delete_center()
+		draw_circle(d, CANCEL_R, Color("#1e1e1e"))
+		draw_circle(d + Vector2(0, -2), 9, Color("#ece4cf"))
+		draw_rect(Rect2(d + Vector2(-5, 4), Vector2(10, 6)), Color("#ece4cf"))
+		draw_circle(d + Vector2(-3.5, -2), 2.6, Color("#1e1e1e"))
+		draw_circle(d + Vector2(3.5, -2), 2.6, Color("#1e1e1e"))
+		for x in [-2.5, 0.0, 2.5]:
+			draw_line(d + Vector2(x, 6), d + Vector2(x, 10), Color("#1e1e1e"), 1)
 	if _queued <= 0:
 		return
 	var c := _cancel_center()
@@ -77,6 +101,10 @@ func _gui_input(event: InputEvent) -> void:
 		# A generous finger-sized area around the ✕.
 		if _queued > 0 and event.position.distance_to(_cancel_center()) < CANCEL_R + 12:
 			cancel_pressed.emit()
+			accept_event()
+			return
+		if _deletable and event.position.distance_to(_delete_center()) < CANCEL_R + 12:
+			delete_pressed.emit()
 			accept_event()
 			return
 		pressed.emit()
