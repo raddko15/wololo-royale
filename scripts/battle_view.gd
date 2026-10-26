@@ -612,7 +612,8 @@ func _draw_jobs(team: int, e: Economy, now: float) -> void:
 	for job in e.jobs:
 		if job.kind == "hut":
 			if e.active_jobs().has(job):
-				_draw_scaffold(hut_pos(team, e.huts + huts_seen), Vector2(18, 16), job.t / job.total, now, true)
+				var hs := _site("hut", hut_pos(team, e.huts + huts_seen))
+				_draw_scaffold(hs[0], hs[1], job.t / job.total, now, true)
 			huts_seen += 1
 	for job in e.active_jobs():
 		var frac: float = job.t / job.total
@@ -622,36 +623,61 @@ func _draw_jobs(team: int, e: Economy, now: float) -> void:
 				_draw_progress(tc + Vector2(0, bar_y), 110, frac, Color("#f9ca24"), _queue_label(e, job))
 			"era":
 				# The scaffolding carries the only bar; villagers queued behind show as "×n".
-				_draw_scaffold(tc, Vector2(150, 96), frac, now, false, true, _queue_label(e, job))
+				var ts := _site("town_center", tc)
+				_draw_scaffold(ts[0], ts[1], frac, now, false, true, _queue_label(e, job))
 			"mine":
-				_draw_scaffold(mine_pos(team, job.id), Vector2(44, 32), frac, now, true)
+				var ms := _site("mine", mine_pos(team, job.id))
+				_draw_scaffold(ms[0], ms[1], frac, now, true)
 			"military":
-				_draw_scaffold(military_pos(team, job.id), Vector2(56, 40), frac, now, true)
+				var bs := _site("military", military_pos(team, job.id))
+				_draw_scaffold(bs[0], bs[1], frac, now, true)
 			"towers":
 				# One job for all three: only the middle site shows the bar.
 				for lane in Battlefield.LANES:
-					_draw_scaffold(building_pos(team, "tower", lane), Vector2(44, 56), frac, now, true, lane == 1)
+					var tw := _site("tower", building_pos(team, "tower", lane))
+					_draw_scaffold(tw[0], tw[1], frac, now, true, lane == 1)
 			"upgrade":
 				var sites := _upgrade_sites(team, job.id)
 				for k in sites.size():
-					_draw_scaffold(sites[k], Vector2(56, 48), frac, now, false, k == sites.size() / 2)
+					_draw_scaffold(sites[k][0], sites[k][1], frac, now, false, k == sites.size() / 2)
 			"unit":
 				var at := military_pos(team, GameConfig.data().units[job.id].requires) + Vector2(0, -44)
 				_draw_progress(at, 60, frac, Color("#e67e22"), _queue_label(e, job))
 
 
-func _upgrade_sites(team: int, id: String) -> Array[Vector2]:
-	match Economy.upgrade_site(id):
+## Scaffold frames sit over the building art: [offset from the anchor, size].
+const SCAFFOLD := {
+	"hut": [Vector2(0, -3), Vector2(18, 16)],
+	"military": [Vector2(0, -16), Vector2(62, 44)],
+	"mine": [Vector2(0, -10), Vector2(48, 34)],
+	"tower": [Vector2(0, -16), Vector2(40, 62)],
+	"work": [Vector2(0, -12), Vector2(56, 42)],  # mill / lumber buildings
+	"town_center": [Vector2(0, -24), Vector2(150, 100)],
+}
+
+
+## Where a building's scaffold goes: anchor point plus its SCAFFOLD entry.
+func _site(kind: String, anchor: Vector2) -> Array:
+	var spec: Array = SCAFFOLD[kind]
+	return [anchor + spec[0], spec[1]]
+
+
+## Scaffold sites ([center, size]) for an upgrade in progress.
+func _upgrade_sites(team: int, id: String) -> Array:
+	var site := Economy.upgrade_site(id)
+	match site:
 		"mill":
-			return [drop_off(team, "food")]
+			return [_site("work", drop_off(team, "food"))]
 		"lumber_camp":
-			return [drop_off(team, "wood")]
+			return [_site("work", drop_off(team, "wood"))]
 		"towers":
-			var t: Array[Vector2] = []
+			var t := []
 			for lane in Battlefield.LANES:
-				t.append(building_pos(team, "tower", lane))
+				t.append(_site("tower", building_pos(team, "tower", lane)))
 			return t
-	return [mine_pos(team, Economy.upgrade_site(id))]
+		"barracks", "archery_range", "stables":
+			return [_site("military", military_pos(team, site))]
+	return [_site("mine", mine_pos(team, site))]
 
 
 ## "×3" when more of the same are waiting in that queue.
