@@ -174,11 +174,11 @@ func _assign_workers(goal: Dictionary) -> void:
 
 func _army(goal: Dictionary) -> void:
 	var e := economy
-	if e.pending_count("unit") >= 2 * maxi(e.military.size(), 1):
+	var threat := _threatened_lane() if _d.tactics else -1
+	if threat == -1 and e.pending_count("unit") >= 2 * maxi(e.military.size(), 1):
 		return  # enough queued
 	var army := e.army_size + e.pending_count("unit")
 	var guard: int = _d.min_army[mini(e.era_index, _d.min_army.size() - 1)]
-	var threat := _threatened_lane() if _d.tactics else -1
 	# Defend first; keep a minimum guard; otherwise only spend what the next goal does not need.
 	var reserve: Dictionary = {}
 	if threat == -1 and army >= guard:

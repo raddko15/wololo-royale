@@ -234,8 +234,10 @@ func _init() -> void:
 	for i in 4800:
 		smart.tick(0.1)
 	_check(smart.economy.era_index >= 1 and smart.economy.military.has("barracks"), "normal AI reaches Era II within 8 minutes")
-	for i in 3:
+	b6.units.clear()  # its own army (the field was not ticked, so it never left the fort)
+	for i in 6:
 		b6.spawn(Battlefield.PLAYER, "fighter", 2).y = 0.8
+	smart.economy.huts += 10  # room to train
 	smart.economy.resources = {"food": 500.0, "wood": 500.0, "gold": 0.0, "stone": 0.0}
 	smart._think()
 	_check(smart.economy.jobs.any(func(j): return j.kind == "unit" and j.lane == 2), "AI sends defenders to the lane being pushed")
