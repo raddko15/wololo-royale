@@ -281,6 +281,20 @@ func recruit() -> bool:
 	return true
 
 
+## Cancel the newest queued villager ("villager") or unit of type `id`
+## ("unit"), with a full refund. False when none is queued.
+func cancel(kind: String, id: String) -> bool:
+	for i in range(jobs.size() - 1, -1, -1):
+		if jobs[i].kind == kind and jobs[i].id == id:
+			jobs.remove_at(i)
+			var cost: Dictionary = villager_cost() if kind == "villager" else _cfg.units[id].cost
+			for res in cost:
+				resources[res] = resources.get(res, 0.0) + cost[res]
+			changed.emit()
+			return true
+	return false
+
+
 ## Food and wood are always available; gold and stone need their mine.
 func can_work(job: String) -> bool:
 	if CAMP_FOR.has(job):

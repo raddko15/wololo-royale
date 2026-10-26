@@ -73,8 +73,8 @@ func _init() -> void:
 	_check(p.population() == 100 and not p.recruit(), "cannot recruit at 100 incl. army")
 
 	e.resources = {"food": 0.0, "wood": 0.0}
-	_check(not e.can_advance(), "cannot advance without 500/500")
-	e.resources = {"food": 500.0, "wood": 500.0, "gold": 0.0, "stone": 0.0}
+	_check(not e.can_advance(), "cannot advance without 300/300")
+	e.resources = {"food": 300.0, "wood": 300.0, "gold": 0.0, "stone": 0.0}
 	_check(not e.can_build_mine("gold"), "no mines in Era I")
 	_check(e.advance() and e.era_index == 0 and e.resources.food == 0 and not e.can_advance(), "advancing to Era II takes time; paid up front")
 	e.finish_jobs()
@@ -241,6 +241,13 @@ func _init() -> void:
 	smart.economy.resources = {"food": 500.0, "wood": 500.0, "gold": 0.0, "stone": 0.0}
 	smart._think()
 	_check(smart.economy.jobs.any(func(j): return j.kind == "unit" and j.lane == 2), "AI sends defenders to the lane being pushed")
+
+	var cq := Economy.new("romans")
+	cq.resources.food = 100.0
+	cq.recruit()
+	cq.recruit()
+	_check(cq.cancel("villager", "villager") and cq.pending_count("villager") == 1 and cq.resources.food == 50, "cancel a queued villager for a refund")
+	_check(cq.cancel("villager", "villager") and not cq.cancel("villager", "villager") and cq.resources.food == 100, "cancel the one in training too; nothing left to cancel")
 
 	# Idle villagers help build: +30% speed each.
 	var hb := Economy.new("romans")

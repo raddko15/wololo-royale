@@ -125,6 +125,7 @@ func _start_game(civ_id: String, menu: Control) -> void:
 		var title: String = "Villager" if id == "villager" else GameConfig.data().units[id].name
 		var card := Card.new(title)
 		card.pressed.connect(_on_card_pressed.bind(id))
+		card.cancel_pressed.connect(_on_card_cancel.bind(id))
 		_cards[id] = card
 		# Unit cards get their own L / M / R lane switches underneath.
 		var col := VBoxContainer.new()
@@ -402,6 +403,17 @@ func _on_site_tapped(id: String) -> void:
 		_flash_hint("%s needs %s" % [name, _cost_text(cost).replace("\n", " ")])
 
 
+## The ✕ on a card: take back the newest queued one (refunded). Cancelling a
+## unit also stops its AUTO, or AUTO would queue it straight back.
+func _on_card_cancel(id: String) -> void:
+	if id == "villager":
+		economy.cancel("villager", "villager")
+	else:
+		_auto.erase(id)
+		economy.cancel("unit", id)
+	_refresh()
+
+
 ## Finished jobs that touch the battlefield: units walk out, towers go up.
 func _on_job_done(job: Dictionary) -> void:
 	match job.kind:
@@ -633,6 +645,7 @@ func _refresh() -> void:
 	var vq := economy.pending_count("villager")
 	var vnote := "pop full: build huts" if full else "%d food%s" % [vcost.food, " · %d queued" % vq if vq else ""]
 	_cards.villager.set_state(vnote, economy.can_recruit(), dragging == "villager")
+	_cards.villager.set_queued(vq)
 	var cfg := GameConfig.data()
 	for id in cfg.units:
 		var unit: Dictionary = cfg.units[id]
@@ -644,6 +657,7 @@ func _refresh() -> void:
 		if full and economy.unit_unlocked(id):
 			note = "pop full: build huts"
 		_cards[id].set_state(note, economy.can_train(id), dragging == id, _auto.has(id))
+		_cards[id].set_queued(queued)
 		var tier := economy.unit_tier(id)
 		_cards[id]._title.text = unit.name + (" Lv%d" % (tier + 1) if tier else "")
 

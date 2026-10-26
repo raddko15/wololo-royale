@@ -4,10 +4,15 @@ extends PanelContainer
 ## affordable; a green border and "AUTO" tag when it is training on repeat.
 
 signal pressed
+## The red ✕ in the corner was tapped: cancel the newest queued one.
+signal cancel_pressed
+
+const CANCEL_R := 17.0
 
 var _title := Label.new()
 var _cost := Label.new()
 var _style := StyleBoxFlat.new()
+var _queued := 0
 
 
 func _init(title: String) -> void:
@@ -46,6 +51,32 @@ func set_state(cost_text: String, enabled: bool, selected: bool, auto := false) 
 		_style.border_color = Color("#f9ca24") if selected else Color("#1e1e1e")
 
 
+## Shows the cancel ✕ while anything of this card is queued.
+func set_queued(count: int) -> void:
+	if count != _queued:
+		_queued = count
+		queue_redraw()
+
+
+func _cancel_center() -> Vector2:
+	return Vector2(size.x - CANCEL_R - 4, CANCEL_R + 4)
+
+
+func _draw() -> void:
+	if _queued <= 0:
+		return
+	var c := _cancel_center()
+	draw_circle(c, CANCEL_R, Color("#1e1e1e"))
+	draw_circle(c, CANCEL_R - 2, Color("#c0392b"))
+	for d in [Vector2(6, 6), Vector2(6, -6)]:
+		draw_line(c - d, c + d, Color.WHITE, 3)
+
+
 func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		# A generous finger-sized area around the ✕.
+		if _queued > 0 and event.position.distance_to(_cancel_center()) < CANCEL_R + 12:
+			cancel_pressed.emit()
+			accept_event()
+			return
 		pressed.emit()

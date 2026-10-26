@@ -77,8 +77,8 @@
     {
       "name": "Era II",
       "advance_cost": {
-        "food": 500,
-        "wood": 500
+        "food": 300,
+        "wood": 300
       },
       "time": 30
     },
