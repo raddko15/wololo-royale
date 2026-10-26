@@ -1,6 +1,6 @@
 extends SceneTree
 ## Renders game screens to PNGs (needs a display, e.g. xvfb-run).
-## Args: <out.png> <era1|era2|era2up|era3|window|mill> [player_civ] [enemy_civ]
+## Args: <out.png> <era1|era2|era2up|era3|window|mill|mine|jobs> [player_civ] [enemy_civ]
 ## era2up buys the mill and lumber upgrades, era3 every upgrade (both sides);
 ## window / mill open that building's ring menu.
 
@@ -14,7 +14,7 @@ func _init() -> void:
 	if args.size() > 3:
 		main.ai.economy = Economy.new(args[3])
 		main._view.enemy_economy = main.ai.economy
-	var era: int = {"era1": 0, "era2": 1, "era2up": 1, "era3": 2, "window": 1, "mill": 1, "mine": 2}[mode]
+	var era: int = {"era1": 0, "era2": 1, "era2up": 1, "era3": 2, "window": 1, "mill": 1, "mine": 2, "jobs": 1}[mode]
 	for e in [main.economy, main.ai.economy]:
 		e.era_index = era
 		e.huts = 10
@@ -43,6 +43,28 @@ func _init() -> void:
 		main.battle.tick(0.05)
 		main.economy.tick(0.05)
 		main.ai.economy.tick(0.05)
+	if mode == "jobs":
+		# Something of every kind under way on the player's side.
+		var e = main.economy
+		e.resources = {"food": 9000.0, "wood": 9000.0, "gold": 9000.0, "stone": 9000.0}
+		e.military = {"barracks": true}
+		e.mines = {"gold": true}
+		main.battle.towers_built[Battlefield.PLAYER] = false
+		main.battle.buildings[Battlefield.PLAYER].towers = [0.0, 0.0, 0.0]
+		e.advance()
+		e.recruit()
+		e.recruit()
+		e.build_hut()
+		e.build_hut()
+		e.build_military("archery_range")
+		e.build_mine("stone")
+		e.build_towers()
+		e.buy_upgrade("mill")
+		e.train("fighter", 0)
+		e.train("fighter", 1)
+		e.train("fighter", 2)
+		for i in 40:
+			e.tick(0.1)
 	await process_frame
 	if mode == "window":
 		main._open_menu("town_center", main._view.town_center())

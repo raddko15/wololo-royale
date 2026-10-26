@@ -81,6 +81,7 @@ func _start_game(civ_id: String, menu: Control) -> void:
 		_cards[id] = card
 
 	economy.changed.connect(_refresh)
+	economy.job_done.connect(_on_job_done)
 	_refresh()
 
 
@@ -185,8 +186,8 @@ func _drop(id: String, local: Vector2) -> void:
 				economy.reassign("idle", job)
 		_:
 			var lane := _view.lane_at(local)
-			if lane != -1 and economy.train(id):
-				battle.spawn(Battlefield.PLAYER, id, lane)
+			if lane != -1:
+				economy.train(id, lane)  # walks out when its building finishes it
 
 
 func _flash_hint(text: String) -> void:
@@ -223,8 +224,7 @@ func _on_menu_choice(id: String) -> void:
 		"hut":
 			economy.build_hut()
 		"towers":
-			if _can_build_towers() and economy.spend(cfg.buildings.towers.cost):
-				battle.build_towers(Battlefield.PLAYER)
+			if economy.build_towers():
 				_close_menu()
 		"gold", "stone":
 			if economy.build_mine(id):
@@ -239,15 +239,31 @@ func _on_menu_choice(id: String) -> void:
 			economy.reassign("idle", id.trim_prefix("worker_"))
 		"stone_towers":
 			if economy.buy_upgrade(id):
-				battle.upgrade_towers(Battlefield.PLAYER, cfg.upgrades.stone_towers.tower_hp_bonus)
 				_close_menu()
 	_refresh()
 
 
-func _can_build_towers() -> bool:
-	var towers: Dictionary = GameConfig.data().buildings.towers
-	return economy.era_index >= towers.min_era and not battle.towers_built[Battlefield.PLAYER] \
-		and economy.can_afford(towers.cost)
+## Finished jobs that touch the battlefield: units walk out, towers go up.
+func _on_job_done(job: Dictionary) -> void:
+	match job.kind:
+		"unit":
+			battle.spawn(Battlefield.PLAYER, job.id, job.lane)
+		"towers":
+			battle.build_towers(Battlefield.PLAYER)
+		"upgrade":
+			if job.id == "stone_towers":
+				battle.upgrade_towers(Battlefield.PLAYER, GameConfig.data().upgrades.stone_towers.tower_hp_bonus)
+
+
+## Ring note for something that may be done, under way, locked by era, or buyable.
+func _status_note(done: bool, kind: String, id: String, min_era: int, cost: Dictionary) -> String:
+	if done:
+		return "built"
+	if economy.is_pending(kind, id):
+		return "in progress"
+	if economy.era_index < min_era:
+		return GameConfig.data().eras[min_era].name
+	return _cost_text(cost)
 
 
 ## "150 wood", or two per line for bigger costs so ring labels stay narrow.
@@ -277,24 +293,22 @@ func _menu_options(kind: String) -> Array:
 			if ecost.is_empty():
 				opts.append(_option("era", "era", "Final era", "", false))
 			else:
-				opts.append(_option("era", "era", era_name.call(economy.era_index + 1), _cost_text(ecost), economy.can_advance()))
+				var enote := "in progress" if economy.is_pending("era", "next") else _cost_text(ecost)
+				opts.append(_option("era", "era", era_name.call(economy.era_index + 1), enote, economy.can_advance()))
 			var hut: Dictionary = cfg.buildings.hut
 			var full: bool = economy.max_population() >= cfg.population.max_cap
 			opts.append(_option("hut", "hut", "Hut +%d" % hut.population, "max pop" if full else _cost_text(hut.cost), economy.can_build_hut()))
 			var towers: Dictionary = cfg.buildings.towers
-			var tnote := "built" if battle.towers_built[Battlefield.PLAYER] else \
-				("%s" % era_name.call(towers.min_era) if economy.era_index < towers.min_era else _cost_text(towers.cost))
-			opts.append(_option("towers", "towers", "Towers", tnote, _can_build_towers()))
+			var tnote := _status_note(economy.has_towers, "towers", "towers", towers.min_era, towers.cost)
+			opts.append(_option("towers", "towers", "Towers", tnote, economy.can_build_towers()))
 			var mine: Dictionary = cfg.buildings.mine
 			for res in Economy.MINED:
-				var mnote: String = "built" if economy.mines.has(res) else \
-					(era_name.call(mine.min_era) if economy.era_index < mine.min_era else _cost_text(mine.cost))
+				var mnote := _status_note(economy.mines.has(res), "mine", res, mine.min_era, mine.cost)
 				opts.append(_option(res, res, "%s mine" % res.capitalize(), mnote, economy.can_build_mine(res)))
 			# Middle ring: military buildings.
 			for id in cfg.military:
 				var b: Dictionary = cfg.military[id]
-				var bnote: String = "built" if economy.military.has(id) else \
-					(era_name.call(b.min_era) if economy.era_index < b.min_era else _cost_text(b.cost))
+				var bnote := _status_note(economy.military.has(id), "military", id, b.min_era, b.cost)
 				opts.append(_option(id, id, b.name, bnote, economy.can_build_military(id), 1))
 			# Outer ring: the next upgrade of every building, so it can all be done from here.
 			for id in _next_upgrades():
@@ -336,6 +350,8 @@ func _upgrade_option(id: String) -> Dictionary:
 	var note: String
 	if economy.upgrades.has(id):
 		note = "done"
+	elif economy.is_pending("upgrade", id):
+		note = "in progress"
 	elif economy.era_index < up.min_era:
 		note = "needs %s" % cfg.eras[up.min_era].name
 	elif not economy.upgrade_unlocked(id):
@@ -380,12 +396,16 @@ func _refresh() -> void:
 
 	var dragging: String = _press.get("card", "") if _ghost else ""
 	var vcost := economy.villager_cost()
-	_cards.villager.set_state("%d food" % vcost.food, economy.can_recruit(), dragging == "villager")
+	var vq := economy.pending_count("villager")
+	_cards.villager.set_state("%d food%s" % [vcost.food, " · %d queued" % vq if vq else ""], economy.can_recruit(), dragging == "villager")
 	var cfg := GameConfig.data()
 	for id in cfg.units:
 		var unit: Dictionary = cfg.units[id]
 		var note: String = _cost_text(unit.cost).replace("\n", " ") if economy.unit_unlocked(id) \
 			else "needs %s" % cfg.military[unit.requires].name
+		var queued := economy.jobs.filter(func(j): return j.kind == "unit" and j.id == id).size()
+		if queued:
+			note += " · %d queued" % queued
 		_cards[id].set_state(note, economy.can_train(id), dragging == id)
 
 

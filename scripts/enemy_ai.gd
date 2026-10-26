@@ -19,6 +19,16 @@ func _init(civ_id: String, field: Battlefield, cfg: Dictionary = GameConfig.data
 	economy = Economy.new(civ_id, cfg)
 	battle = field
 	battle.unit_died.connect(func(team): if team == Battlefield.ENEMY: economy.army_size -= 1)
+	economy.job_done.connect(_on_job_done)
+
+
+## Finished jobs that touch the battlefield: units walk out, towers go up.
+func _on_job_done(job: Dictionary) -> void:
+	match job.kind:
+		"unit":
+			battle.spawn(Battlefield.ENEMY, job.id, job.lane)
+		"towers":
+			battle.build_towers(Battlefield.ENEMY)
 
 
 func tick(delta: float) -> void:
@@ -34,40 +44,41 @@ func tick(delta: float) -> void:
 		if economy.mines.has("gold") and economy.villagers.gold < _cfg.ai.gold_miners:
 			job = "gold"
 		economy.reassign("idle", job)
+	if economy.mines.has("gold") and economy.villagers.gold < _cfg.ai.gold_miners:
+		economy.reassign("wood", "gold")
 	# Keep a little headroom so it never gets stuck at the population cap.
-	if economy.population() >= economy.max_population() - 1 and economy.build_hut():
+	if economy.population() >= economy.max_population() - 1 and not economy.is_pending("hut", "hut") \
+			and economy.build_hut():
 		return
-	if economy.total_villagers() >= 6 and not economy.military.has("barracks"):
+	if economy.total_villagers() >= 6 and not economy.military.has("barracks") \
+			and not economy.is_pending("military", "barracks"):
 		economy.build_military("barracks")
 		return  # save for it before more villagers
-	if economy.total_villagers() < _cfg.ai.target_villagers:
+	if economy.total_villagers() + economy.pending_count("villager") < _cfg.ai.target_villagers:
 		economy.recruit()
 		return
+	# Units still in training count too, so it does not over-order while saving.
+	var army := economy.army_size + economy.pending_count("unit")
 	# In Era I keep only a small army out and save everything else for Era II.
-	if economy.era_index == 0 and economy.army_size >= _cfg.ai.era1_max_army:
+	if economy.era_index == 0 and army >= _cfg.ai.era1_max_army and not economy.is_pending("era", "next"):
 		economy.advance()
 		return
-	if economy.era_index >= 1 and not battle.towers_built[Battlefield.ENEMY]:
-		if economy.spend(_cfg.buildings.towers.cost):
-			battle.build_towers(Battlefield.ENEMY)
+	if economy.era_index >= 1 and not economy.has_towers and not economy.is_pending("towers", "towers"):
+		economy.build_towers()
 		return
 	for id in ["mill", "lumber_camp"]:
 		if economy.buy_upgrade(id):
 			return
 	if economy.era_index >= 1:
 		for id in ["archery_range", "stables"]:
-			if not economy.military.has(id):
+			if not economy.military.has(id) and not economy.is_pending("military", id):
 				# Build it, or save up for it while a small army holds the lanes.
-				if economy.build_military(id) or economy.army_size >= _cfg.ai.era1_max_army:
+				if economy.build_military(id) or army >= _cfg.ai.era1_max_army:
 					return
-		if not economy.mines.has("gold"):
-			if economy.build_mine("gold"):
-				for i in _cfg.ai.gold_miners:
-					economy.reassign("wood", "gold")
+		if not economy.mines.has("gold") and not economy.is_pending("mine", "gold"):
+			economy.build_mine("gold")
 			return
 	# A random unit it can train right now, down a random lane.
 	var options: Array = _cfg.units.keys().filter(func(id): return economy.can_train(id))
 	if not options.is_empty():
-		var unit: String = options.pick_random()
-		economy.train(unit)
-		battle.spawn(Battlefield.ENEMY, unit, randi() % Battlefield.LANES)
+		economy.train(options.pick_random(), randi() % Battlefield.LANES)

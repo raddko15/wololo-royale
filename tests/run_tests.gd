@@ -34,16 +34,23 @@ func _init() -> void:
 
 	e.resources.food = 50
 	var total := e.total_villagers()
-	_check(e.recruit() and e.resources.food == 0 and e.total_villagers() == total + 1, "recruit costs 50 food, adds idle")
+	_check(e.recruit() and e.resources.food == 0 and e.total_villagers() == total and e.population() == total + 1, "recruit costs 50 food and reserves population")
+	e.tick(5.9)
+	_check(e.total_villagers() == total, "villager still training before 6 s")
+	e.tick(0.2)
+	_check(e.total_villagers() == total + 1 and e.villagers.idle >= 1, "villager comes out idle after 6 s")
 	_check(not e.recruit(), "cannot recruit when broke")
 
 	var p := Economy.new("romans")
 	_check(p.population() == 5 and p.max_population() == 10, "starts at 5/10 population")
 	p.resources = {"food": 1e6, "wood": 30.0}
-	_check(p.build_hut() and p.max_population() == 15 and p.resources.wood == 0, "hut costs 30 wood, +5 cap")
+	_check(p.build_hut() and p.max_population() == 10 and p.resources.wood == 0, "hut costs 30 wood, still being built")
+	p.finish_jobs()
+	_check(p.max_population() == 15, "finished hut adds +5 cap")
 	p.resources.wood = 1e6
 	while p.build_hut():
 		pass
+	p.finish_jobs()
 	_check(p.max_population() == 200, "population cap tops out at 200")
 	p.villagers.idle = 199 - p.total_villagers() + p.villagers.idle
 	p.army_size = 1
@@ -53,24 +60,41 @@ func _init() -> void:
 	_check(not e.can_advance(), "cannot advance without 500/500")
 	e.resources = {"food": 500.0, "wood": 500.0, "gold": 0.0, "stone": 0.0}
 	_check(not e.can_build_mine("gold"), "no mines in Era I")
-	_check(e.advance() and e.era_index == 1 and e.resources.food == 0, "advance to Era II spends 500/500")
+	_check(e.advance() and e.era_index == 0 and e.resources.food == 0 and not e.can_advance(), "advancing to Era II takes time; paid up front")
+	e.finish_jobs()
+	_check(e.era_index == 1, "Era II reached when the research finishes")
 	e.resources = {"food": 1000.0, "wood": 1150.0, "gold": 500.0, "stone": 499.0}
 	_check(not e.reassign("idle", "gold"), "cannot mine gold before the mine exists")
 	_check(e.build_mine("gold") and e.resources.wood == 1000 and not e.build_mine("gold"), "gold mine costs 150 wood, built once")
+	e.finish_jobs()
 	e.villagers.idle += 1
 	_check(e.reassign("idle", "gold") and e.villagers.gold == 1, "villager works the gold mine")
 	_check(not e.can_advance(), "Era III needs 500 stone too")
 	e.resources.stone = 500.0
-	_check(e.advance() and e.era_index == 2, "advance to Era III with 1000/1000/500/500")
+	_check(e.advance(), "advance to Era III with 1000/1000/500/500")
+	e.finish_jobs()
+	_check(e.era_index == 2, "Era III reached")
 	_check(e.next_era_cost().is_empty() and not e.advance(), "no era beyond the last")
 
 	var m := Economy.new("franks")
 	m.resources = {"food": 1000.0, "wood": 1000.0, "gold": 1000.0, "stone": 0.0}
 	_check(not m.can_train("fighter"), "no fighters without a barracks")
-	_check(m.build_military("barracks") and m.can_train("fighter"), "barracks unlocks fighters")
+	_check(m.build_military("barracks") and not m.can_train("fighter"), "barracks under construction")
+	m.finish_jobs()
+	_check(m.can_train("fighter"), "barracks unlocks fighters")
 	_check(not m.build_military("stables"), "stables need Era II")
 	m.era_index = 1
-	_check(m.build_military("stables") and m.train("cavalry") and m.army_size == 1, "stables train cavalry, counted in population")
+	m.build_military("stables")
+	m.finish_jobs()
+	var spawned := []
+	m.job_done.connect(func(j): if j.kind == "unit": spawned.append([j.id, j.lane]))
+	_check(m.train("cavalry", 2) and m.army_size == 0 and m.population() == 6, "queued cavalry reserves population")
+	m.tick(9.1)
+	_check(m.army_size == 1 and spawned == [["cavalry", 2]], "cavalry ready after 9 s, bound for its lane")
+	m.train("fighter", 0)
+	m.train("fighter", 1)
+	m.tick(6.1)
+	_check(spawned.size() == 2, "one barracks trains one fighter at a time")
 	_check(not m.can_train("archer"), "archers need an archery range")
 
 	var ba := Battlefield.new()
@@ -87,14 +111,18 @@ func _init() -> void:
 	_check(not u2.buy_upgrade("mill"), "windmill needs Era II")
 	u2.era_index = 1
 	var food_rate := u2.rate_per_villager("food")
-	_check(u2.buy_upgrade("mill") and is_equal_approx(u2.rate_per_villager("food"), food_rate * 1.15), "windmill: +15% food gathering")
+	u2.buy_upgrade("mill")
+	u2.finish_jobs()
+	_check(is_equal_approx(u2.rate_per_villager("food"), food_rate * 1.15), "windmill: +15% food gathering")
 	_check(not u2.buy_upgrade("mill"), "upgrade bought only once")
 	_check(not u2.can_upgrade("stone_towers"), "stone towers need Era III")
 	u2.era_index = 2
 	u2.resources.gold = 1000.0
 	_check(not u2.can_upgrade("lumber_camp2"), "sawmill needs the lumber camp first")
 	_check(not u2.can_upgrade("gold_mine2"), "deep mine needs the gold mine first")
-	_check(u2.buy_upgrade("mill2") and is_equal_approx(u2.rate_per_villager("food"), food_rate * 1.35), "Era III food upgrade stacks: +15% +20%")
+	u2.buy_upgrade("mill2")
+	u2.finish_jobs()
+	_check(is_equal_approx(u2.rate_per_villager("food"), food_rate * 1.35), "Era III food upgrade stacks: +15% +20%")
 	_check(u2.upgrade_name("mill2") == "Oil Workshop" and Economy.new("franks").upgrade_name("mill2") == "Grand Mill", "Era III food building named per style")
 	var bt := Battlefield.new()
 	bt.build_towers(Battlefield.PLAYER)

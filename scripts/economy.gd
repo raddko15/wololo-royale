@@ -4,6 +4,9 @@ extends RefCounted
 ## No UI here so it can be reused by the AI and tested headless.
 
 signal changed
+## A timed job finished: {"kind", "id", "lane"}. Units and towers need the
+## battlefield, so whoever owns this economy spawns / builds them on this.
+signal job_done(job: Dictionary)
 
 const RESOURCES := ["food", "wood", "gold", "stone"]
 const MINED := ["gold", "stone"]
@@ -27,6 +30,12 @@ var upgrades := {}
 ## phase: "gather" (filling up), "to_drop" (walking to mill/camp), "to_work" (walking back).
 ## t: 0..1 walk progress. spot: which crop plot / tree it works at.
 var workers: Array[Dictionary] = []
+## Lane towers finished (they are built through a job like everything else).
+var has_towers := false
+## Everything ordered but not finished: {"queue", "kind", "id", "lane", "t", "total"}.
+## Jobs in the same queue run one after another (e.g. villagers and the era at
+## the town center); different queues run at the same time. Paid up front.
+var jobs: Array[Dictionary] = []
 
 var _cfg: Dictionary
 
@@ -44,8 +53,10 @@ func _init(civ: String, cfg: Dictionary = GameConfig.data()) -> void:
 
 
 ## Workers fill up to carry_capacity, walk to the drop-off, and only then
-## does the load land in the stockpile (Age of Empires style).
+## does the load land in the stockpile (Age of Empires style). Also advances
+## the front job of every queue.
 func tick(delta: float) -> void:
+	_tick_jobs(delta)
 	var g: Dictionary = _cfg.gathering
 	for w in workers:
 		match w.phase:
@@ -66,6 +77,72 @@ func tick(delta: float) -> void:
 				if w.t >= 1.0:
 					w.phase = "gather"
 	changed.emit()
+
+
+# --- Timed jobs ---------------------------------------------------------
+
+func _enqueue(queue: String, kind: String, id: String, total: float, lane := -1) -> void:
+	jobs.append({"queue": queue, "kind": kind, "id": id, "lane": lane, "t": 0.0, "total": total})
+	changed.emit()
+
+
+## The job currently being worked on in each queue.
+func active_jobs() -> Array[Dictionary]:
+	var seen := {}
+	var result: Array[Dictionary] = []
+	for j in jobs:
+		if not seen.has(j.queue):
+			seen[j.queue] = true
+			result.append(j)
+	return result
+
+
+func queue_length(queue: String) -> int:
+	return jobs.filter(func(j): return j.queue == queue).size()
+
+
+func is_pending(kind: String, id: String) -> bool:
+	return jobs.any(func(j): return j.kind == kind and j.id == id)
+
+
+func pending_count(kind: String) -> int:
+	return jobs.filter(func(j): return j.kind == kind).size()
+
+
+func _tick_jobs(delta: float) -> void:
+	for j in active_jobs():
+		j.t += delta
+		if j.t >= j.total:
+			_complete(j)
+
+
+func _complete(j: Dictionary) -> void:
+	jobs.erase(j)
+	match j.kind:
+		"villager":
+			villagers.idle = villagers.get("idle", 0) + 1
+		"unit":
+			army_size += 1
+		"era":
+			era_index += 1
+		"hut":
+			huts += 1
+		"mine":
+			mines[j.id] = true
+		"military":
+			military[j.id] = true
+		"upgrade":
+			upgrades[j.id] = true
+		"towers":
+			has_towers = true
+	job_done.emit(j)
+	changed.emit()
+
+
+## Finish every queued job right away (tests and debugging).
+func finish_jobs() -> void:
+	while not jobs.is_empty():
+		_complete(jobs[0])
 
 
 ## Resources a villager picks up per second while gathering.
@@ -122,8 +199,9 @@ func total_villagers() -> int:
 	return n
 
 
+## Living units plus villagers and units already queued (they reserve space).
 func population() -> int:
-	return total_villagers() + army_size
+	return total_villagers() + army_size + pending_count("villager") + pending_count("unit")
 
 
 ## Starting cap plus what huts add, never above the hard maximum.
@@ -137,15 +215,16 @@ func hut_cost() -> Dictionary:
 
 
 func can_build_hut() -> bool:
-	return max_population() < _cfg.population.max_cap and can_afford(hut_cost())
+	var cap_after: int = _cfg.population.starting_cap + (huts + pending_count("hut")) * _cfg.buildings.hut.population
+	return cap_after < _cfg.population.max_cap and can_afford(hut_cost())
 
 
+## Huts go up side by side, each on its own site.
 func build_hut() -> bool:
 	if not can_build_hut():
 		return false
 	_pay(hut_cost())
-	huts += 1
-	changed.emit()
+	_enqueue("hut:%d" % (huts + pending_count("hut")), "hut", "hut", _cfg.buildings.hut.time)
 	return true
 
 
@@ -161,13 +240,12 @@ func can_recruit() -> bool:
 	return has_room() and can_afford(villager_cost())
 
 
-## New villagers start idle until the player assigns them.
+## Trains at the town center; new villagers come out idle.
 func recruit() -> bool:
 	if not can_recruit():
 		return false
 	_pay(villager_cost())
-	villagers.idle = villagers.get("idle", 0) + 1
-	changed.emit()
+	_enqueue("town_center", "villager", "villager", _cfg.villager_time)
 	return true
 
 
@@ -198,29 +276,42 @@ func next_era_cost() -> Dictionary:
 
 func can_advance() -> bool:
 	var cost := next_era_cost()
-	return not cost.is_empty() and can_afford(cost)
+	return not cost.is_empty() and not is_pending("era", "next") and can_afford(cost)
 
 
+## Researched at the town center, in the same queue as villagers.
 func advance() -> bool:
 	if not can_advance():
 		return false
 	_pay(next_era_cost())
-	era_index += 1
-	changed.emit()
+	_enqueue("town_center", "era", "next", _cfg.eras[era_index + 1].time)
 	return true
 
 
 func can_build_military(id: String) -> bool:
 	var b: Dictionary = _cfg.military[id]
-	return not military.has(id) and era_index >= b.min_era and can_afford(b.cost)
+	return not military.has(id) and not is_pending("military", id) and era_index >= b.min_era and can_afford(b.cost)
 
 
 func build_military(id: String) -> bool:
 	if not can_build_military(id):
 		return false
 	_pay(_cfg.military[id].cost)
-	military[id] = true
-	changed.emit()
+	_enqueue("build:" + id, "military", id, _cfg.military[id].time)
+	return true
+
+
+func can_build_towers() -> bool:
+	var t: Dictionary = _cfg.buildings.towers
+	return not has_towers and not is_pending("towers", "towers") and era_index >= t.min_era and can_afford(t.cost)
+
+
+## All three lane towers at once; the owner raises them on job_done.
+func build_towers() -> bool:
+	if not can_build_towers():
+		return false
+	_pay(_cfg.buildings.towers.cost)
+	_enqueue("build:towers", "towers", "towers", _cfg.buildings.towers.time)
 	return true
 
 
@@ -233,13 +324,14 @@ func can_train(unit_id: String) -> bool:
 	return unit_unlocked(unit_id) and has_room() and can_afford(_cfg.units[unit_id].cost)
 
 
-## Pays for a unit and counts it toward population; the caller spawns it.
-func train(unit_id: String) -> bool:
+## Queues a unit at its building, bound for `lane`; job_done reports when it
+## is ready to spawn. It reserves population right away.
+func train(unit_id: String, lane := 0) -> bool:
 	if not can_train(unit_id):
 		return false
-	_pay(_cfg.units[unit_id].cost)
-	army_size += 1
-	changed.emit()
+	var unit: Dictionary = _cfg.units[unit_id]
+	_pay(unit.cost)
+	_enqueue(unit.requires, "unit", unit_id, unit.time, lane)
 	return true
 
 
@@ -248,15 +340,15 @@ func mine_cost() -> Dictionary:
 
 
 func can_build_mine(res: String) -> bool:
-	return era_index >= _cfg.buildings.mine.min_era and not mines.has(res) and can_afford(mine_cost())
+	return era_index >= _cfg.buildings.mine.min_era and not mines.has(res) and not is_pending("mine", res) \
+		and can_afford(mine_cost())
 
 
 func build_mine(res: String) -> bool:
 	if not can_build_mine(res):
 		return false
 	_pay(mine_cost())
-	mines[res] = true
-	changed.emit()
+	_enqueue("build:mine:" + res, "mine", res, _cfg.buildings.mine.time)
 	return true
 
 
@@ -272,15 +364,26 @@ func upgrade_unlocked(id: String) -> bool:
 
 func can_upgrade(id: String) -> bool:
 	var up: Dictionary = _cfg.upgrades[id]
-	return not upgrades.has(id) and era_index >= up.min_era and upgrade_unlocked(id) and can_afford(up.cost)
+	return not upgrades.has(id) and not is_pending("upgrade", id) and era_index >= up.min_era \
+		and upgrade_unlocked(id) and can_afford(up.cost)
+
+
+## Which building an upgrade works on, so its scaffolding can be drawn there.
+static func upgrade_site(id: String) -> String:
+	if id.begins_with("mill"):
+		return "mill"
+	if id.begins_with("lumber_camp"):
+		return "lumber_camp"
+	if id == "stone_towers":
+		return "towers"
+	return id.trim_suffix("_mine2")  # "gold" / "stone"
 
 
 func buy_upgrade(id: String) -> bool:
 	if not can_upgrade(id):
 		return false
 	_pay(_cfg.upgrades[id].cost)
-	upgrades[id] = true
-	changed.emit()
+	_enqueue("upgrade:" + upgrade_site(id), "upgrade", id, _cfg.upgrades[id].time)
 	return true
 
 

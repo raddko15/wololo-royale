@@ -71,7 +71,8 @@
       "advance_cost": {
         "food": 500,
         "wood": 500
-      }
+      },
+      "time": 30
     },
     {
       "name": "Era III",
@@ -80,7 +81,8 @@
         "wood": 1000,
         "gold": 500,
         "stone": 500
-      }
+      },
+      "time": 45
     }
   ],
   "units": {
@@ -94,7 +96,8 @@
       "speed": 0.06,
       "damage_per_sec": 10,
       "range": 0.04,
-      "requires": "barracks"
+      "requires": "barracks",
+      "time": 6
     },
     "archer": {
       "name": "Archer",
@@ -106,7 +109,8 @@
       "damage_per_sec": 7,
       "range": 0.15,
       "speed": 0.06,
-      "requires": "archery_range"
+      "requires": "archery_range",
+      "time": 7
     },
     "cavalry": {
       "name": "Cavalry",
@@ -118,7 +122,8 @@
       "damage_per_sec": 11,
       "range": 0.04,
       "speed": 0.11,
-      "requires": "stables"
+      "requires": "stables",
+      "time": 9
     }
   },
   "buildings": {
@@ -140,20 +145,23 @@
       "cost": {
         "wood": 30
       },
-      "population": 5
+      "population": 5,
+      "time": 6
     },
     "towers": {
       "name": "Towers",
       "cost": {
         "wood": 300
       },
-      "min_era": 1
+      "min_era": 1,
+      "time": 25
     },
     "mine": {
       "cost": {
         "wood": 150
       },
-      "min_era": 1
+      "min_era": 1,
+      "time": 15
     }
   },
   "ai": {
@@ -183,7 +191,8 @@
       "min_era": 1,
       "gather_bonus": {
         "food": 0.15
-      }
+      },
+      "time": 20
     },
     "lumber_camp": {
       "name": "Lumber Camp",
@@ -193,7 +202,8 @@
       "min_era": 1,
       "gather_bonus": {
         "wood": 0.15
-      }
+      },
+      "time": 20
     },
     "stone_towers": {
       "name": "Stone Towers",
@@ -201,7 +211,8 @@
         "stone": 300
       },
       "min_era": 2,
-      "tower_hp_bonus": 0.5
+      "tower_hp_bonus": 0.5,
+      "time": 30
     },
     "mill2": {
       "name": "Grand Mill",
@@ -215,7 +226,8 @@
       },
       "gather_bonus": {
         "food": 0.2
-      }
+      },
+      "time": 30
     },
     "lumber_camp2": {
       "name": "Sawmill",
@@ -229,7 +241,8 @@
       },
       "gather_bonus": {
         "wood": 0.2
-      }
+      },
+      "time": 30
     },
     "gold_mine2": {
       "name": "Deep Gold Mine",
@@ -243,7 +256,8 @@
       },
       "gather_bonus": {
         "gold": 0.2
-      }
+      },
+      "time": 30
     },
     "stone_mine2": {
       "name": "Stone Quarry",
@@ -257,7 +271,8 @@
       },
       "gather_bonus": {
         "stone": 0.2
-      }
+      },
+      "time": 30
     }
   },
   "military": {
@@ -266,21 +281,25 @@
       "cost": {
         "wood": 100
       },
-      "min_era": 0
+      "min_era": 0,
+      "time": 15
     },
     "archery_range": {
       "name": "Archery Range",
       "cost": {
         "wood": 175
       },
-      "min_era": 1
+      "min_era": 1,
+      "time": 20
     },
     "stables": {
       "name": "Stables",
       "cost": {
         "wood": 200
       },
-      "min_era": 1
+      "min_era": 1,
+      "time": 20
     }
-  }
+  },
+  "villager_time": 6
 }
