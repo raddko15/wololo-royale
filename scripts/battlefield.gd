@@ -86,6 +86,8 @@ func spawn(team: int, unit_id: String, lane: int, bonus := {}, tier := 0) -> Dic
 		"team": team, "type": unit_id, "lane": lane, "y": TOWER_Y[team] + behind * MAIN_DIST[lane], "hp": hp,
 		"max_hp": hp, "speed": stats.speed, "dps": stats.damage_per_sec * (1.0 + bonus.get("damage", 0.0)),
 		"range": stats.range * (1.0 + bonus.get("range", 0.0)), "tier": tier,
+		# Damage multipliers against unit types, e.g. spears vs horses.
+		"bonus_vs": stats.get("bonus_vs", {}),
 		# What it is hitting this tick: "unit", "tower", "main" or "" when walking;
 		# `foe` is the unit it hits when target is "unit".
 		"target": "", "foe": null,
@@ -116,7 +118,7 @@ func _unit_act(u: Dictionary, delta: float) -> void:
 	u.target = ""
 	u.foe = null
 	if foe and absf(foe.y - u.y) <= u.range + REACH_EPS:
-		foe.hp -= u.dps * delta
+		foe.hp -= u.dps * u.bonus_vs.get(foe.type, 1.0) * delta
 		u.target = "unit"
 		u.foe = foe
 		return

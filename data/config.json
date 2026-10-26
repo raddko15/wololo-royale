@@ -173,6 +173,11 @@
       "civ": "greeks",
       "min_era": 2,
       "squad": 3,
+      "bonus_vs": {
+        "cavalry": 3.0,
+        "knight": 3.0,
+        "chariot": 3.0
+      },
       "cost": {
         "food": 120,
         "wood": 60,

@@ -270,8 +270,9 @@ func _pick_unit(reserve: Dictionary) -> String:
 						weight.archer += 1.0
 					"archer":
 						weight.cavalry += 1.0
-					"cavalry":
+					"cavalry", "knight", "chariot":
 						weight.fighter += 1.0
+						weight.phalanx = weight.get("phalanx", 2.5) + 2.0  # spears vs horses
 	var options := []
 	var total := 0.0
 	for id in _cfg.units:

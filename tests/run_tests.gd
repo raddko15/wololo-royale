@@ -287,6 +287,14 @@ func _init() -> void:
 	var bf := Battlefield.new()
 	bf.spawn_squad(Battlefield.PLAYER, "phalanx", 1, 3)
 	_check(bf.units.size() == 3 and bf.units[0].side < bf.units[2].side, "the three hoplites stand side by side")
+	var duel := Battlefield.new()
+	var hop := duel.spawn(Battlefield.PLAYER, "phalanx", 1)
+	var horse := duel.spawn(Battlefield.ENEMY, "knight", 1)
+	hop.y = 0.5
+	horse.y = 0.53
+	var knight_hp: float = horse.hp
+	duel.tick(1.0)
+	_check(is_equal_approx(knight_hp - horse.hp, 24.0), "hoplites deal triple damage to horsemen")
 	_check(Economy.new("franks").available_units().has("knight") and Economy.new("romans").available_units().has("chariot"), "franks get knights, romans chariots")
 
 	var kv := Economy.new("romans")
