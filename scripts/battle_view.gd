@@ -829,7 +829,7 @@ func _draw_city(team: int, now: float) -> void:
 		_draw_hut(hut_pos(team, i), e.era_index, style)
 	_draw_campfire(campfire_pos(team), now)
 	# The fort's bar after the huts, so none of them hides it.
-	_draw_hp(tc + Vector2(0, bar_y), battle.buildings[team].main, battle.max_hp("main"), 110)
+	_draw_hp(tc + Vector2(0, bar_y), battle.buildings[team].main, battle.fort_max_hp[team], 110)
 	_draw_fort_status(team, tc + Vector2(0, bar_y), now)
 	# Idle villagers sit at the campfire, except those helping on a building site.
 	var helping := _helper_spots(team, e)

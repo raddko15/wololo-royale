@@ -92,6 +92,7 @@ func _start_game(civ_id: String, menu: Control) -> void:
 	var others: Array = GameConfig.data().civs.keys().filter(func(id): return id != civ_id)
 	var enemy_civ: String = others.pick_random()
 	ai = EnemyAI.new(enemy_civ, battle, _difficulty)
+	battle.fort_civ_bonus(Battlefield.PLAYER, economy.civ().get("fort_bonus", {}))
 	battle.unit_died.connect(func(team): if team == Battlefield.PLAYER: economy.army_size -= 1)
 	battle.game_over.connect(_on_game_over)
 	var box := _vbox(self, 0)

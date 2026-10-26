@@ -283,6 +283,11 @@ func _init() -> void:
 		rb.tick(0.1)
 	_check(rb.buildings[Battlefield.PLAYER].main > 500.0 and rb.buildings[Battlefield.PLAYER].main < 520.0, "then the fort slowly repairs itself")
 
+	var fb := Battlefield.new()
+	fb.fort_civ_bonus(Battlefield.ENEMY, Economy.new("franks").civ().fort_bonus)
+	fb.fort_new_era(Battlefield.ENEMY, 1)
+	_check(fb.fort_max_hp[Battlefield.ENEMY] == 1150.0 and fb.buildings[Battlefield.ENEMY].main == 1150.0 and is_equal_approx(fb.fort_armor[Battlefield.ENEMY], 0.25), "frankish fort: +15% HP and +5% armor on top of the era's")
+
 	# Unique units: one per civ, Era III, sharing their building's upgrades.
 	var gr := Economy.new("greeks")
 	gr.military = {"barracks": 1, "stables": 1}

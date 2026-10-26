@@ -31,6 +31,7 @@ func _init(civ_id: String, field: Battlefield, level := "normal", side := Battle
 	economy = Economy.new(civ_id, cfg)
 	economy.gather_bonus = _d.get("gather_bonus", 0.0)
 	battle = field
+	battle.fort_civ_bonus(team, economy.civ().get("fort_bonus", {}))
 	battle.unit_died.connect(func(t): if t == team: economy.army_size -= 1)
 	economy.job_done.connect(_on_job_done)
 

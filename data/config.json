@@ -72,7 +72,11 @@
       "name": "Franks",
       "color": "#7d3c98",
       "style": "medieval",
-      "bonus": "mounted units +20% HP",
+      "bonus": "mounted units +20% HP, sturdier town center",
+      "fort_bonus": {
+        "hp": 0.15,
+        "armor": 0.05
+      },
       "unit_bonus": {
         "cavalry": {
           "hp": 0.2

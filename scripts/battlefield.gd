@@ -40,6 +40,9 @@ var fort_armed := [false, false]
 var fort_armor := [0.0, 0.0]
 ## Seconds since each fort was last hit; after a while it slowly repairs.
 var fort_quiet := [0.0, 0.0]
+## Full health of each fort, and armor a civ adds to every era's armor.
+var fort_max_hp := [0.0, 0.0]
+var _fort_extra_armor := [0.0, 0.0]
 
 var _cfg: Dictionary
 
@@ -48,6 +51,7 @@ func _init(cfg: Dictionary = GameConfig.data()) -> void:
 	_cfg = cfg
 	for team in 2:
 		buildings.append({"towers": [0.0, 0.0, 0.0], "main": float(_cfg.buildings.main.hp)})
+		fort_max_hp[team] = float(_cfg.buildings.main.hp)
 		tower_max_hp[team] = float(_cfg.buildings.tower.hp)
 
 
@@ -57,19 +61,27 @@ func _repair_forts(delta: float) -> void:
 	for team in 2:
 		fort_quiet[team] += delta
 		if fort_quiet[team] >= fort.regen_delay_sec and buildings[team].main > 0:
-			buildings[team].main = minf(buildings[team].main + fort.regen_per_sec * delta, max_hp("main"))
+			buildings[team].main = minf(buildings[team].main + fort.regen_per_sec * delta, fort_max_hp[team])
 
 
 func fort_repairing(team: int) -> bool:
-	return fort_quiet[team] >= _cfg.buildings.main.regen_delay_sec and buildings[team].main < max_hp("main")
+	return fort_quiet[team] >= _cfg.buildings.main.regen_delay_sec and buildings[team].main < fort_max_hp[team]
 
 
 ## A new era: the fort shoots (from Era II), gets tougher and is patched up.
 func fort_new_era(team: int, era: int) -> void:
 	var fort: Dictionary = _cfg.buildings.main
 	fort_armed[team] = era >= 1
-	fort_armor[team] = fort.era_armor[mini(era, fort.era_armor.size() - 1)]
-	buildings[team].main = minf(buildings[team].main + max_hp("main") * fort.era_heal, max_hp("main"))
+	fort_armor[team] = fort.era_armor[mini(era, fort.era_armor.size() - 1)] + _fort_extra_armor[team]
+	buildings[team].main = minf(buildings[team].main + fort_max_hp[team] * fort.era_heal, fort_max_hp[team])
+
+
+## A civ's sturdier fort (e.g. Franks): more health and a little armor.
+func fort_civ_bonus(team: int, bonus: Dictionary) -> void:
+	fort_max_hp[team] = float(_cfg.buildings.main.hp) * (1.0 + bonus.get("hp", 0.0))
+	buildings[team].main = fort_max_hp[team]
+	_fort_extra_armor[team] = bonus.get("armor", 0.0)
+	fort_armor[team] += _fort_extra_armor[team]
 
 
 ## All three lane towers of `team` at full health.
