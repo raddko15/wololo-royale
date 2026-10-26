@@ -23,6 +23,9 @@
     },
     "walk_time_sec": 1.5
   },
+  "construction": {
+    "help_per_idle_villager": 0.3
+  },
   "villager_cost": {
     "food": 50
   },

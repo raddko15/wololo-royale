@@ -69,6 +69,7 @@ func _init() -> void:
 		e.advance()
 		e.recruit()
 		e.recruit()
+		e.villagers.idle += 7  # helpers for the building sites
 		e.build_hut()
 		e.build_hut()
 		e.build_military("archery_range")
@@ -96,9 +97,8 @@ func _init() -> void:
 		main._open_menu("mill", main._view.drop_off(Battlefield.PLAYER, "food"))
 	elif mode == "mine":
 		main._open_menu("gold_mine", main._view.mine_pos(Battlefield.PLAYER, "gold"))
-	for i in 5:
+	for i in (150 if mode == "jobs" else 5):  # jobs: let helpers walk to the sites
 		await process_frame
-	print("hut slots: ", main._view._slots().size())
 	await RenderingServer.frame_post_draw
 	root.get_texture().get_image().save_png(args[0])
 	quit()

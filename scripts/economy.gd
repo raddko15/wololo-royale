@@ -117,9 +117,29 @@ func pending_count(kind: String) -> int:
 	return jobs.filter(func(j): return j.kind == kind).size()
 
 
+## Jobs that put up or rebuild something (they show scaffolding); idle
+## villagers walk over and help with these.
+const BUILD_KINDS := ["hut", "camp", "mine", "military", "towers", "upgrade", "era"]
+
+
+## Idle villagers helping on each construction under way: {queue: count}.
+## They are shared out evenly, oldest site first.
+func builders() -> Dictionary:
+	var sites := active_jobs().filter(func(j): return j.kind in BUILD_KINDS)
+	var counts := {}
+	if sites.is_empty():
+		return counts
+	for i in villagers.get("idle", 0):
+		var q: String = sites[i % sites.size()].queue
+		counts[q] = counts.get(q, 0) + 1
+	return counts
+
+
 func _tick_jobs(delta: float) -> void:
+	var helpers := builders()
+	var help: float = _cfg.get("construction", {}).get("help_per_idle_villager", 0.0)
 	for j in active_jobs():
-		j.t += delta * job_speed
+		j.t += delta * job_speed * (1.0 + help * helpers.get(j.queue, 0))
 		if j.t >= j.total:
 			_complete(j)
 

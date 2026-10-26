@@ -224,6 +224,19 @@ func _init() -> void:
 	_check(ai.economy.total_villagers() >= 10 and b5.units.size() + 0 >= 0 and ai.economy.army_size >= 0, "AI recruits villagers")
 	_check(ai.economy.army_size == b5.units.filter(func(x): return x.team == Battlefield.ENEMY).size(), "AI army count matches its living units")
 
+	# Idle villagers help build: +30% speed each.
+	var hb := Economy.new("romans")
+	hb.resources.wood = 60.0
+	hb.villagers.idle = 0
+	hb.build_hut()
+	hb.tick(3.0)
+	_check(hb.huts == 1, "a hut takes its full 6 s with nobody helping")
+	hb.finish_jobs()
+	hb.villagers.idle = 5
+	hb.build_hut()
+	hb.tick(3.0)
+	_check(hb.huts == 3 and hb.builders().is_empty(), "5 idle villagers build a hut 2.5x faster")
+
 	# Attackers around a tower keep their spots when one of them falls.
 	var vb := Battlefield.new()
 	var view: BattleView = load("res://scripts/battle_view.gd").new()

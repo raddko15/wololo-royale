@@ -797,9 +797,11 @@ func _draw_city(team: int, now: float) -> void:
 	for i in order:
 		_draw_hut(hut_pos(team, i), e.era_index, style)
 	_draw_campfire(campfire_pos(team), now)
-	var idle: int = e.villagers.get("idle", 0)
-	for i in idle:
-		_draw_figure(idle_spot(team, i, idle) + Vector2(0, 6), VILLAGER_TUNIC, [], 0.6)
+	# Idle villagers sit at the campfire, except those helping on a building site.
+	var helping := _helper_spots(team, e)
+	var at_fire: int = e.villagers.get("idle", 0) - helping.size()
+	for i in at_fire:
+		_draw_figure(idle_spot(team, i, at_fire) + Vector2(0, 6), VILLAGER_TUNIC, [], 0.6)
 	for w in e.workers:
 		_draw_worker(worker_pos(team, w), w, now, olives)
 	# Towers last so their health bars stay visible over the fields.
@@ -807,6 +809,7 @@ func _draw_city(team: int, now: float) -> void:
 		for lane in Battlefield.LANES:
 			_draw_tower(building_pos(team, "tower", lane), color, battle.buildings[team].towers[lane], e.upgrades.has("stone_towers"), style, battle.tower_max_hp[team])
 	_draw_jobs(team, e, now)
+	_draw_helpers(team, helping, now)
 	if team == Battlefield.PLAYER:
 		_draw_upgrade_badges(e, now)
 
@@ -954,6 +957,74 @@ func _draw_jobs(team: int, e: Economy, now: float) -> void:
 			"unit":
 				var at := military_pos(team, GameConfig.data().units[job.id].requires) + Vector2(0, -44)
 				_draw_progress(at, 60, frac, Color("#e67e22"), _queue_label(e, job))
+
+
+## Scaffold sites ([center, size]) of a construction job under way.
+func _job_sites(team: int, e: Economy, job: Dictionary) -> Array:
+	match job.kind:
+		"hut":
+			return [_site("hut", hut_pos(team, e.huts))]
+		"era":
+			return [_site("town_center", town_center(team))]
+		"mine":
+			return [_site("mine", mine_pos(team, job.id))]
+		"camp":
+			return [_site("work", drop_off(team, GameConfig.data().buildings[job.id].resource))]
+		"military":
+			return [_site("military", military_pos(team, job.id))]
+		"towers":
+			var t := []
+			for lane in Battlefield.LANES:
+				t.append(_site("tower", building_pos(team, "tower", lane)))
+			return t
+		"upgrade":
+			return _upgrade_sites(team, job.id)
+	return []
+
+
+## Where each helping villager works: spread along the front of the scaffolds
+## of the job it was given (Economy.builders shares them out).
+func _helper_spots(team: int, e: Economy) -> Array[Vector2]:
+	var spots: Array[Vector2] = []
+	var counts := e.builders()
+	for job in e.active_jobs():
+		var n: int = counts.get(job.queue, 0)
+		if n == 0:
+			continue
+		var sites := _job_sites(team, e, job)
+		var per := ceili(float(n) / sites.size())
+		for k in n:
+			var site: Array = sites[k % sites.size()]
+			var c: Vector2 = site[0]
+			var sz: Vector2 = site[1]
+			var slot := k / sites.size()
+			spots.append(Vector2(c.x - sz.x / 2 + (slot + 0.5) * sz.x / per, c.y + sz.y / 2 + 6))
+	return spots
+
+
+## Helpers walk over from the campfire, then swing a hammer at the scaffold.
+var _helper_pos := [[], []]
+
+
+func _draw_helpers(team: int, spots: Array[Vector2], now: float) -> void:
+	var pos: Array = _helper_pos[team]
+	pos.resize(mini(pos.size(), spots.size()))
+	while pos.size() < spots.size():
+		pos.append(campfire_pos(team))
+	for k in spots.size():
+		var p: Vector2 = pos[k]
+		var arrived := p.distance_to(spots[k]) < 1.0
+		p = p.move_toward(spots[k], 2.5)
+		pos[k] = p
+		var phase := float(k) * 1.3
+		_draw_figure(p, VILLAGER_TUNIC, [], 0.6, -1.0 if arrived else fmod(now * 12.0 + phase, TAU), true)
+		if arrived:
+			# Hammer: handle and head, knocking up and down.
+			var hand := p + Vector2(5, -8)
+			var a := -PI / 2 - 0.9 + absf(sin(now * 7.0 + phase)) * 1.1
+			var tip := hand + Vector2.from_angle(a) * 8
+			draw_line(hand, tip, Color("#6b4426"), 2)
+			draw_line(tip - Vector2.from_angle(a + PI / 2) * 3, tip + Vector2.from_angle(a + PI / 2) * 3, OUTLINE, 3)
 
 
 ## Scaffold frames sit over the building art: [offset from the anchor, size].
