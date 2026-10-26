@@ -1000,11 +1000,24 @@ func _figure_origin(p: Vector2, scale: float) -> Vector2:
 ## A little character: legs and hands, a tunic in `color`, a head, then any
 ## gear layers (helmets, hood, chainmail) in order. `walk` is the step phase
 ## in radians while walking (legs alternate, body bobs), or -1 standing.
-func _draw_figure(p: Vector2, color: Color, gear: Array, scale := 1.0, walk := -1.0) -> void:
+## `back`: seen from behind (the player's troops face the enemy, up the
+## screen), using the *_back head and gear art where it exists.
+## `seated`: astride a horse, legs hanging down both sides.
+func _draw_figure(p: Vector2, color: Color, gear: Array, scale := 1.0, walk := -1.0, back := false, seated := false) -> void:
 	if walk >= 0.0:
 		p.y -= absf(sin(walk)) * 1.6 * scale
 	var o := _figure_origin(p, scale)
 	var box := Rect2(o, FIGURE * scale)
+	if seated:
+		for side in [-1, 1]:
+			var hip := o + Vector2(16 + side * 5, 30) * scale
+			var boot := o + Vector2(16 + side * 10, 37) * scale
+			draw_line(hip, boot, OUTLINE, 5.0 * scale)
+			draw_line(hip, boot, LEG, 3.0 * scale)
+		var layers := ["unit_tint", "head_back" if back else "head"]
+		for name in layers + gear.map(func(g): return _facing_art(g, back)):
+			draw_texture_rect(_tex(name), box, false, color if name == "unit_tint" else Color.WHITE)
+		return
 	# Legs: each lifts and swings in turn while walking.
 	for side in [-1, 1]:
 		var lift := 0.0
@@ -1016,10 +1029,18 @@ func _draw_figure(p: Vector2, color: Color, gear: Array, scale := 1.0, walk := -
 		var leg := Rect2(o + Vector2(16 + side * 3.5 - 2 + swing, 31 - lift) * scale, Vector2(4, 6) * scale)
 		draw_rect(leg, LEG)
 		draw_rect(leg, OUTLINE, false, 1.0)
-	for name in ["unit", "unit_tint", "head"] + gear:
+	var head := "head_back" if back else "head"
+	for name in ["unit", "unit_tint", head] + gear.map(func(g): return _facing_art(g, back)):
 		var t := _tex(name)
 		if t:
 			draw_texture_rect(t, box, false, color if name == "unit_tint" else Color.WHITE)
+
+
+## Gear art for the side we see: "<name>_back" when seen from behind and it exists.
+func _facing_art(name: String, back: bool) -> String:
+	if back and _tex(name + "_back") != null:
+		return name + "_back"
+	return name
 
 
 ## A weapon texture drawn pointing along `angle`, pivoting at `pivot` (in the
@@ -1058,7 +1079,7 @@ func _draw_archer(u: Dictionary, p: Vector2, color: Color, now: float, target: V
 	if tier >= 1:
 		draw_texture_rect(_tex("quiver"), Rect2(o, FIGURE * k), false)
 	var gear := ["hood"] if tier == 1 else (["helmet_1"] if tier >= 2 else [])
-	_draw_figure(p, color, gear, k, _walk_phase(u, now))
+	_draw_figure(p, color, gear, k, _walk_phase(u, now), u.team == Battlefield.PLAYER)
 	var hand := o + Vector2(26, 27) * k
 	if tier >= 2:
 		_draw_weapon("crossbow", Vector2(18, 30), Vector2(9, 22), hand, facing, k)
@@ -1100,8 +1121,9 @@ func _draw_cavalry(u: Dictionary, p: Vector2, color: Color, now: float) -> void:
 		draw_texture_rect(_tex("barding_" + view), box, false)
 		draw_texture_rect(_tex("barding_%s_tint" % view), box, false, color)
 	var saddle := box.position + Vector2(15, body_y) * k
-	var rider := saddle + Vector2(0, 2) * k
-	_draw_figure(rider, color, ["helmet_2"] if tier >= 2 else [], 0.55 * k)
+	var rider := saddle + Vector2(0, -1) * k
+	# Seated astride, facing the way the horse runs: back to us when riding up.
+	_draw_figure(rider, color, ["helmet_2"] if tier >= 2 else [], 0.55 * k, -1.0, up, true)
 	if tier >= 2:
 		_draw_shield(rider + Vector2(-7, -2) * k, color, 0.55 * k)
 	var forward := -PI / 2 if up else PI / 2
@@ -1128,7 +1150,7 @@ func _draw_fighter(u: Dictionary, p: Vector2, color: Color, now: float) -> void:
 	var gear := ["helmet_1"] if tier == 1 else (["chainmail", "helmet_2"] if tier >= 2 else [])
 	var k := UNIT_SCALE
 	var walk := _walk_phase(u, now)
-	_draw_figure(p, color, gear, k, walk)
+	_draw_figure(p, color, gear, k, walk, u.team == Battlefield.PLAYER)
 	if walk >= 0.0:
 		p.y -= absf(sin(walk)) * 1.6 * k  # keep shield and weapon with the bobbing body
 	var o := _figure_origin(p, k)
