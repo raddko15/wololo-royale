@@ -382,7 +382,60 @@ static func _cost_text(cost: Dictionary) -> String:
 
 
 func _option(id: String, icon: String, title: String, note: String, enabled: bool, ring := 0) -> Dictionary:
-	return {"id": id, "icon": icon, "title": title, "note": note, "enabled": enabled, "ring": ring}
+	return {"id": id, "icon": icon, "title": title, "note": note, "enabled": enabled, "ring": ring, "art": _icon_art(id)}
+
+
+## Picture for a menu option: the building it makes, in the same art as on the
+## map ({} keeps the drawn glyph). "layers" are drawn in order, each with its
+## civ-tinted "_tint" layer when one exists; "sails" adds windmill sails at that
+## hub (fraction of the picture).
+func _icon_art(id: String) -> Dictionary:
+	var classical := economy.style() == "classical"
+	var tint := Color(economy.civ().color)
+	var art := func(layers: Array, size_px: Vector2, extra := {}) -> Dictionary:
+		var d := {"layers": layers, "size": size_px, "tint": tint}
+		d.merge(extra)
+		return d
+	match id:
+		"era":
+			var next := mini(economy.era_index + 1, GameConfig.data().eras.size() - 1)
+			if next == 1:
+				return art.call(["timber_hall" if classical else "fort_wood"], Vector2(174, 137))
+			return art.call(["marble_palace" if classical else "castle_stone"], Vector2(174, 137))
+		"hut":
+			var look := "era0" if economy.era_index == 0 else economy.style()
+			return art.call(["hut_" + look], Vector2(30, 27))
+		"towers":
+			return art.call(["tower_wood"], Vector2(56, 84))
+		"stone_towers":
+			return art.call(["tower_marble" if classical else "tower_stone"], Vector2(56, 84))
+		"gold", "stone":
+			return art.call([id + "_mine"], Vector2(62, 49))
+		"gold_mine2", "stone_mine2":
+			return art.call([id], Vector2(62, 49))
+		"barracks", "archery_range", "stables":
+			return art.call([id + "_era0"], Vector2(80, 65))
+		"mill":
+			if classical:
+				return art.call(["olive_press"], Vector2(64, 56))
+			return art.call(["windmill_base"], Vector2(64, 56), {"sails": Vector2(29, 22) / Vector2(64, 56), "blade": 26.0 / 64.0})
+		"mill2":
+			if classical:
+				return art.call(["oil_workshop"], Vector2(64, 56))
+			return art.call(["grand_mill_base"], Vector2(64, 56), {"sails": Vector2(29, 14) / Vector2(64, 56), "blade": 32.0 / 64.0})
+		"lumber_camp":
+			return art.call(["timber_yard" if classical else "lumber_camp"], Vector2(62, 46))
+		"lumber_camp2":
+			return art.call(["carpentry" if classical else "sawmill"], Vector2(62, 46))
+	for mil in GameConfig.data().military:
+		for tier in [1, 2]:
+			if id == mil + str(tier):
+				var layers := [mil + "_" + economy.style()]
+				if tier == 2:
+					layers.append("mil_tier2")
+				layers.append("mil_tier1")
+				return art.call(layers, Vector2(80, 65))
+	return {}
 
 
 ## What a tapped building offers right now; locked options say why.
