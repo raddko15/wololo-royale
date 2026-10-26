@@ -276,6 +276,65 @@ ART["grand_mill_base.svg"] = windmill_base(grand=True)
 ART["olive_press.svg"] = olive_press()
 ART["oil_workshop.svg"] = olive_press(big=True)
 
+# --- Town centers: 170 x 140, ground at y=122 (Era I and the wooden fort are
+# hand-drawn files: longhouse.svg, fort_wood.svg) -----------------------------
+def battlements(x, y, w, mat="stone", step=10):
+    light, base, shade = C[mat]
+    return "".join(f'<rect x="{x+k}" y="{y-5}" width="6" height="5" fill="{base}" stroke-width="1"/>' for k in range(0, int(w) - 4, step))
+
+
+def castle_stone():
+    b = [shadow(86, 126, 82, 11),
+         box(28, 52, 116, 24, 10, "stone"), battlements(28, 52, 116),          # back curtain wall
+         box(60, 30, 50, 60, 16, "stone"), battlements(60, 30, 50),              # keep
+         window(70, 44), window(95, 44), window(70, 62), window(95, 62),
+         box(16, 86, 140, 34, 10, "stone"), battlements(16, 86, 140),            # front wall
+         ''.join(f'<line x1="16" y1="{86+r*11}" x2="156" y2="{86+r*11}" stroke="{C["stone"][2]}" stroke-width="0.8"/>' for r in (1, 2)),
+         door(72, 94, 28, 26), ''.join(f'<line x1="{76+k*5}" y1="100" x2="{76+k*5}" y2="120" stroke="#6f6a60" stroke-width="1.2"/>' for k in range(5)),
+         box(2, 70, 26, 52, 8, "stone"), box(144, 70, 26, 52, 8, "stone"),      # corner towers
+         battlements(2, 70, 26, step=8), battlements(144, 70, 26, step=8),
+         window(13, 88), window(155, 88), flag(85, 16)]
+    t = [f'<polygon points="{P((56, 30), (85, 10), (114, 30))}" fill="#ffffff"/><polygon points="{P((85, 10), (114, 30), (126, 22), (101, 3))}" fill="#a8a8a8"/>',
+         f'<polygon points="{P((0, 66), (15, 48), (30, 66))}" fill="#ffffff"/><polygon points="{P((15, 48), (30, 66), (36, 62))}" fill="#a8a8a8"/>',
+         f'<polygon points="{P((142, 66), (157, 48), (172, 66))}" fill="#ffffff"/><polygon points="{P((157, 48), (172, 66), (176, 62))}" fill="#a8a8a8"/>',
+         flag_tint(85, 16)]
+    return svg(178, 140, "".join(b)), svg(178, 140, "".join(t))
+
+
+def timber_hall():
+    b = [shadow(86, 126, 80, 11),
+         box(14, 112, 140, 10, 12, "dark_wood"),                                 # platform
+         box(24, 66, 120, 46, 12, "wood"), planks(24, 66, 120, 46),
+         door(72, 84, 24, 28),
+         ''.join(f'<rect x="{x}" y="66" width="6" height="46" fill="{C["wood"][0]}" stroke-width="1"/><rect x="{x-1.5}" y="63" width="9" height="4" fill="{C["dark_wood"][1]}" stroke-width="1"/>' for x in (26, 46, 116, 136)),
+         gable(18, 62, 132, 14, 34, "terracotta", o=6),
+         ''.join(f'<line x1="{84-72*(1-k*7/34)+3}" y1="{62-k*7}" x2="{84+72*(1-k*7/34)-3}" y2="{62-k*7}" stroke="{C["terracotta"][2]}" stroke-width="1" stroke-opacity="0.7"/>' for k in range(1, 4)),
+         flag(84, 28)]
+    t = [flag_tint(84, 28), '<circle cx="84" cy="50" r="5" fill="#ffffff" stroke-width="1.2"/>']
+    return svg(178, 140, "".join(b)), svg(178, 140, "".join(t))
+
+
+def marble_palace():
+    b = [shadow(86, 128, 84, 11)]
+    for k in range(3):  # steps
+        b.append(box(8 + k * 6, 112 - k * 6, 152 - k * 12, 6, 12, "marble"))
+    b += [box(30, 58, 108, 42, 12, "marble"), door(74, 74, 20, 26),
+          columns(26, 58, 116, 42, 7),
+          box(22, 48, 124, 10, 12, "marble")]                                   # entablature
+    tri = P((18, 48), (84, 14), (150, 48))
+    b += [f'<polygon points="{P((84, 14), (96, 8), (162, 42), (150, 48))}" fill="{C["terracotta"][2]}"/>',
+          f'<polygon points="{tri}" fill="{C["marble"][1]}"/>',
+          f'<polygon points="{P((34, 44), (84, 20), (134, 44))}" fill="{C["marble"][2]}"/>',
+          ''.join(f'<line x1="{x}" y1="112" x2="{x}" y2="56" stroke-width="1.4"/>' for x in (4, 164))]
+    t = ['<rect x="22" y="51" width="124" height="3.5" fill="#ffffff" stroke-width="0.9"/>',
+         '<circle cx="84" cy="34" r="6" fill="#ffffff" stroke-width="1.2"/>',
+         ''.join(f'<rect x="{x - (8 if x > 84 else 0)}" y="56" width="8" height="22" fill="#ffffff" stroke-width="1"/>' for x in (4, 164))]
+    return svg(178, 140, "".join(b)), svg(178, 140, "".join(t))
+
+
+for name, fn in (("castle_stone", castle_stone), ("timber_hall", timber_hall), ("marble_palace", marble_palace)):
+    ART[name + ".svg"], ART[name + "_tint.svg"] = fn()
+
 for name, text in ART.items():
     with open(os.path.join(OUT, name), "w") as f:
         f.write(text)

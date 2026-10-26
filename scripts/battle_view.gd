@@ -711,95 +711,20 @@ func _draw_scaffold(c: Vector2, sz: Vector2, frac: float, now: float, new_site: 
 		_draw_progress(Vector2(c.x, r.end.y + 12), sz.x, frac, Color("#f9ca24"), label)
 
 
-## Town center, drawn around (0, 0). Era I is a longhouse for every civ.
-## Medieval (Franks): wooden fort, then stone castle. Classical (Romans,
-## Greeks): timber hall with wooden columns, then a marble palace.
+## Town center, the same for both sides. Era I: longhouse for everyone. Then
+## medieval (Franks): wooden fort, stone castle; classical (Romans, Greeks):
+## timber hall, marble palace.
 func _draw_fort(c: Vector2, civ_color: Color, era: int, style: String) -> void:
 	if era == 0:
 		_draw_art("longhouse", c + Vector2(0, -16), Vector2(150, 120), civ_color)
 		return
-	if era == 1 and style != "classical":
-		_draw_art("fort_wood", c + Vector2(0, -20), Vector2(170, 140), civ_color)
-		return
-	draw_set_transform(c, 0, Vector2.ONE)
-	if era == 0:
-		_draw_longhouse(civ_color)
-		draw_set_transform(Vector2.ZERO)
-		return
+	var name: String
 	if style == "classical":
-		if era == 1:
-			_draw_timber_hall(civ_color)
-		else:
-			_draw_marble_palace(civ_color)
-		draw_set_transform(Vector2.ZERO)
-		return
-	var stone := era >= 2
-	var wall: Color = COLORS.stone if stone else COLORS.wood
-	var wall_dark := wall.darkened(0.3)
-	# Back and side walls (lower, behind the keep).
-	draw_rect(Rect2(-58, -38, 116, 14), wall_dark)
-	draw_rect(Rect2(-62, -38, 12, 60), wall_dark)
-	draw_rect(Rect2(50, -38, 12, 60), wall_dark)
-	# Keep with a civ-colored roof and a flag.
-	var keep := Rect2(-26, -44, 52, 40) if stone else Rect2(-22, -36, 44, 32)
-	draw_rect(keep, wall.darkened(0.1) if stone else COLORS.trunk)
-	draw_colored_polygon(PackedVector2Array([Vector2(keep.position.x - 6, keep.position.y), Vector2(0, keep.position.y - 22), Vector2(keep.end.x + 6, keep.position.y)]), civ_color)
-	var pole := Vector2(0, keep.position.y - 22)
-	draw_line(pole, pole + Vector2(0, -18), Color.BLACK, 2)
-	draw_colored_polygon(PackedVector2Array([pole + Vector2(0, -18), pole + Vector2(16, -13), pole + Vector2(0, -8)]), civ_color)
-	# Front wall: pointed log stakes, or stone blocks with battlements.
-	if stone:
-		draw_rect(Rect2(-60, 4, 120, 36), wall)
-		for x in range(-60, 60, 12):
-			draw_rect(Rect2(x, -2, 7, 7), wall)
-		for row in 3:
-			draw_line(Vector2(-60, 4 + row * 12), Vector2(60, 4 + row * 12), wall_dark, 1)
+		name = "timber_hall" if era == 1 else "marble_palace"
 	else:
-		for x in range(-60, 60, 10):
-			draw_rect(Rect2(x + 1, 8, 8, 32), wall)
-			draw_colored_polygon(PackedVector2Array([Vector2(x + 1, 8), Vector2(x + 5, 1), Vector2(x + 9, 8)]), wall)
-			draw_line(Vector2(x + 1, 8), Vector2(x + 1, 40), wall_dark, 1)
-	# Gate.
-	draw_rect(Rect2(-12, 16, 24, 24), Color("#2b1d10"))
-	draw_circle(Vector2(0, 16), 12, Color("#2b1d10"))
-	# Corner towers: wooden watchtowers, or taller stone towers with banners.
-	for side in [-1, 1]:
-		var t := Vector2(side * 64, 0)
-		if stone:
-			draw_rect(Rect2(t.x - 14, -26, 28, 66), wall)
-			draw_colored_polygon(PackedVector2Array([t + Vector2(-18, -26), t + Vector2(0, -50), t + Vector2(18, -26)]), civ_color)
-			draw_rect(Rect2(t.x - 4, -10, 8, 14), civ_color)
-		else:
-			for leg in [-8, 6]:
-				draw_rect(Rect2(t.x + leg, 0, 3, 40), COLORS.trunk)
-			draw_rect(Rect2(t.x - 12, -18, 24, 18), COLORS.wood)
-			draw_colored_polygon(PackedVector2Array([t + Vector2(-15, -18), t + Vector2(0, -32), t + Vector2(15, -18)]), civ_color.darkened(0.2))
-	draw_set_transform(Vector2.ZERO)
-
-
-## Era I town center around (0, 0): a straw-roofed longhouse inside a low
-## fence, with a campfire by the door.
-func _draw_longhouse(civ_color: Color) -> void:
-	var straw: Color = COLORS.farm.darkened(0.15)
-	# Low stake fence.
-	for x in range(-58, 60, 9):
-		draw_rect(Rect2(x, 24, 4, 14), COLORS.trunk)
-	draw_line(Vector2(-58, 30), Vector2(-24, 30), COLORS.trunk, 2)
-	draw_line(Vector2(24, 30), Vector2(60, 30), COLORS.trunk, 2)
-	# Hall and roof.
-	draw_rect(Rect2(-40, -8, 80, 30), COLORS.wood)
-	for x in range(-36, 40, 10):
-		draw_line(Vector2(x, -8), Vector2(x, 22), COLORS.wood.darkened(0.25), 1)
-	draw_colored_polygon(PackedVector2Array([Vector2(-48, -8), Vector2(-30, -34), Vector2(30, -34), Vector2(48, -8)]), straw)
-	draw_line(Vector2(-30, -34), Vector2(30, -34), straw.darkened(0.3), 3)
-	draw_rect(Rect2(-8, 4, 16, 18), Color("#2b1d10"))
-	# Banner on the roof ridge in the civ's color.
-	draw_line(Vector2(0, -34), Vector2(0, -52), Color.BLACK, 2)
-	draw_colored_polygon(PackedVector2Array([Vector2(0, -52), Vector2(14, -47), Vector2(0, -42)]), civ_color)
-	# Campfire.
-	var fire := Vector2(30, 32)
-	draw_circle(fire, 6, Color("#e67e22"))
-	draw_circle(fire + Vector2(0, -2), 3, Color("#f9ca24"))
+		name = "fort_wood" if era == 1 else "castle_stone"
+	var sz := Vector2(170, 140) if name == "fort_wood" else Vector2(174, 137)
+	_draw_art(name, c + Vector2(0, -20), sz, civ_color)
 
 
 ## Era I food store: round mud hut with a cone of straw, a hand grindstone
@@ -1094,50 +1019,6 @@ func _draw_farm(area: Rect2) -> void:
 
 func _draw_tree(c: Vector2) -> void:
 	_draw_art("tree", c + Vector2(0, -6), Vector2(44, 51))
-
-
-## Classical Era II town center around (0, 0): a timber hall on a low
-## platform with wooden columns and a terracotta tiled roof.
-func _draw_timber_hall(civ_color: Color) -> void:
-	var wood: Color = COLORS.wood
-	draw_rect(Rect2(-66, 30, 132, 10), wood.darkened(0.35))  # platform
-	draw_rect(Rect2(-56, -10, 112, 40), wood.darkened(0.15))  # back wall
-	draw_rect(Rect2(-10, 6, 20, 24), Color("#2b1d10"))  # doorway
-	for x in [-52, -32, 22, 42]:  # wooden columns
-		draw_rect(Rect2(x, -10, 10, 40), wood)
-		draw_rect(Rect2(x - 2, -13, 14, 4), wood.darkened(0.25))
-	draw_rect(Rect2(-62, -20, 124, 8), wood.darkened(0.3))  # beam
-	draw_colored_polygon(PackedVector2Array([Vector2(-68, -20), Vector2(0, -46), Vector2(68, -20)]), COLORS.terracotta)
-	for k in 4:  # roof tile rows
-		var y := -24.0 - k * 6
-		var half := 68.0 * (y + 46) / 26.0
-		draw_line(Vector2(-half, y), Vector2(half, y), COLORS.terracotta.darkened(0.25), 1.5)
-	draw_line(Vector2(0, -46), Vector2(0, -62), Color.BLACK, 2)
-	draw_colored_polygon(PackedVector2Array([Vector2(0, -62), Vector2(16, -57), Vector2(0, -52)]), civ_color)
-
-
-## Classical Era III town center around (0, 0): marble palace on steps with
-## a colonnade, an entablature and a pediment.
-func _draw_marble_palace(civ_color: Color) -> void:
-	for k in 3:  # steps
-		draw_rect(Rect2(-72 + k * 5, 30 + k * -5, 144 - k * 10, 6), COLORS.marble_shade if k % 2 == 0 else COLORS.marble)
-	draw_rect(Rect2(-58, -14, 116, 34), COLORS.marble_shade)  # cella wall
-	draw_rect(Rect2(-10, 0, 20, 20), Color("#2b1d10"))
-	for i in 6:  # columns with capitals and bases
-		var x := -60.0 + i * 22.0
-		draw_rect(Rect2(x, -14, 9, 34), COLORS.marble)
-		draw_line(Vector2(x + 3, -12), Vector2(x + 3, 18), COLORS.marble_shade, 1)
-		draw_rect(Rect2(x - 2, -18, 13, 4), COLORS.marble)
-		draw_rect(Rect2(x - 2, 18, 13, 3), COLORS.marble)
-	draw_rect(Rect2(-66, -28, 132, 10), COLORS.marble)  # entablature
-	draw_rect(Rect2(-66, -24, 132, 3), civ_color)  # painted frieze
-	draw_colored_polygon(PackedVector2Array([Vector2(-70, -28), Vector2(0, -52), Vector2(70, -28)]), COLORS.marble)
-	draw_colored_polygon(PackedVector2Array([Vector2(-52, -31), Vector2(0, -48), Vector2(52, -31)]), COLORS.marble_shade)
-	draw_circle(Vector2(0, -37), 5, civ_color)  # emblem in the pediment
-	for side in [-1, 1]:  # banners
-		var pole := Vector2(side * 76, 30)
-		draw_line(pole, pole + Vector2(0, -64), Color.BLACK, 2)
-		draw_rect(Rect2(pole + Vector2(-5 if side < 0 else 0, -62), Vector2(5, 22)), civ_color)
 
 
 ## Olive grove: rows of small grey-green olive trees on dry ground.
