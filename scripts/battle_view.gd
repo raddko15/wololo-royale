@@ -6,6 +6,8 @@ extends Control
 
 ## A hut was tapped: build another one.
 signal hut_tapped
+## An empty build plot was tapped: build that ("barracks", "gold", "towers", ...).
+signal site_tapped(id: String)
 ## A gold upgrade badge was tapped: buy that upgrade ("era": next era).
 signal upgrade_badge_tapped(id: String)
 ## A building of the player's was tapped: "town_center", "mill", "lumber_camp",
@@ -405,6 +407,10 @@ func _gui_input(event: InputEvent) -> void:
 		if pos.distance_to(b[0]) < 24:
 			upgrade_badge_tapped.emit(b[1])
 			return
+	for site in build_sites(economy):
+		if pos.distance_to(site[1]) < 34:
+			site_tapped.emit(site[0])
+			return
 	for job in ["food", "wood"]:
 		if pos.distance_to(unassign_icon(job)) < 34:
 			economy.reassign(job, "idle")
@@ -621,6 +627,9 @@ func _draw_city(team: int, now: float) -> void:
 		else: _draw_lumber_camp(wood_at, 1.5)
 	else:
 		_draw_lean_to(wood_at)
+	if team == Battlefield.PLAYER:
+		for site in build_sites(e):
+			_draw_build_site(site, e, now)
 	for res in e.mines:
 		_draw_mine(mine_pos(team, res), res, e.upgrades.has(res + "_mine2"))
 	for id in e.military:
@@ -651,6 +660,59 @@ func _draw_city(team: int, now: float) -> void:
 	_draw_jobs(team, e, now)
 	if team == Battlefield.PLAYER:
 		_draw_upgrade_badges(e, now)
+
+
+## Empty plots where the player could build right now (era reached, not built
+## or under way): [option id, position, kind].
+func build_sites(e: Economy) -> Array:
+	var p := Battlefield.PLAYER
+	var sites := []
+	for id in GameConfig.data().military:
+		if e.site_open("military", id):
+			sites.append([id, military_pos(p, id), "military"])
+	for res in Economy.MINED:
+		if e.site_open("mine", res):
+			sites.append([res, mine_pos(p, res), "mine"])
+	if e.site_open("towers", "towers") and not battle.towers_built[p]:
+		for lane in Battlefield.LANES:
+			sites.append(["towers", building_pos(p, "tower", lane), "tower"])
+	return sites
+
+
+## A free plot: grey ground shadow under a faint outline of the building, with
+## a "+" that glows gold when it can be paid for.
+func _draw_build_site(site: Array, e: Economy, now: float) -> void:
+	var c: Vector2 = site[1]
+	var id: String = site[0]
+	var art: Array  # [texture name, center offset, size, shadow offset, shadow radii]
+	var affordable: bool
+	match site[2]:
+		"military":
+			art = [id + "_era0", Vector2(0, -12), Vector2(80, 65), Vector2(0, 12), Vector2(38, 14)]
+			affordable = e.can_build_military(id)
+		"mine":
+			art = [id + "_mine", Vector2(0, -8), Vector2(62, 49), Vector2(0, 10), Vector2(30, 12)]
+			affordable = e.can_build_mine(id)
+		_:
+			art = ["tower_wood", Vector2(0, -10), Vector2(56, 84), Vector2(0, 26), Vector2(22, 9)]
+			affordable = e.can_build_towers()
+	var base: Vector2 = c + art[3]
+	var radii: Vector2 = art[4]
+	var ring := PackedVector2Array()
+	for k in 33:
+		ring.append(base + Vector2(cos(k * TAU / 32) * radii.x, sin(k * TAU / 32) * radii.y))
+	draw_colored_polygon(ring, Color(0, 0, 0, 0.22))
+	for k in range(0, 32, 2):  # dashed rim
+		draw_line(ring[k], ring[k + 1], Color(1, 1, 1, 0.5), 2)
+	var tex := _tex(art[0])
+	if tex:
+		draw_texture_rect(tex, Rect2(c + art[1] - art[2] / 2, art[2]), false, Color(0.15, 0.15, 0.15, 0.25))
+	var pulse := 0.5 + 0.5 * sin(now * 4.0)
+	var at: Vector2 = c + art[1]
+	draw_circle(at, 13, OUTLINE)
+	draw_circle(at, 11, Color("#f9ca24").lerp(Color("#ffe58a"), pulse) if affordable else Color("#8f8a80"))
+	draw_line(at + Vector2(-6, 0), at + Vector2(6, 0), OUTLINE, 3)
+	draw_line(at + Vector2(0, -6), at + Vector2(0, 6), OUTLINE, 3)
 
 
 ## Gold arrow badges: one over every building with an upgrade the player can

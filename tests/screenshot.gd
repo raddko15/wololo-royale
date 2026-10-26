@@ -1,6 +1,6 @@
 extends SceneTree
 ## Renders game screens to PNGs (needs a display, e.g. xvfb-run).
-## Args: <out.png> <era1|era2|era2up|era3|window|mill|mine|jobs> [player_civ] [enemy_civ] [huts]
+## Args: <out.png> <era1|era2|era2up|era3|window|mill|mine|jobs|sites|sites0> [player_civ] [enemy_civ] [huts]
 ## era2up buys the mill and lumber upgrades, era3 every upgrade (both sides);
 ## window / mill open that building's ring menu.
 
@@ -14,11 +14,13 @@ func _init() -> void:
 	if args.size() > 3:
 		main.ai.economy = Economy.new(args[3])
 		main._view.enemy_economy = main.ai.economy
-	var era: int = {"era1": 0, "era2": 1, "era2up": 1, "era3": 2, "window": 1, "mill": 1, "mine": 2, "jobs": 1}[mode]
+	var era: int = {"era1": 0, "era2": 1, "era2up": 1, "era3": 2, "window": 1, "mill": 1, "mine": 2, "jobs": 1, "sites": 1, "sites0": 0}[mode]
 	for e in [main.economy, main.ai.economy]:
 		e.era_index = era
 		e.huts = int(args[4]) if args.size() > 4 else 10
 		e.military = {"barracks": true} if era == 0 else {"barracks": true, "archery_range": true, "stables": true}
+		if mode.begins_with("sites"):
+			e.military = {} if mode == "sites0" else {"barracks": true}
 		if mode == "era2up":
 			e.upgrades = {"mill": true, "lumber_camp": true}
 		elif mode == "era3":
@@ -26,7 +28,7 @@ func _init() -> void:
 				"lumber_camp2": true, "gold_mine2": true, "stone_mine2": true, "barracks1": true,
 				"barracks2": true, "archery_range1": true, "stables1": true}
 			e.mines = {"gold": true, "stone": true}
-	if era >= 1:
+	if era >= 1 and mode != "sites":
 		main.battle.build_towers(Battlefield.PLAYER)
 		main.battle.build_towers(Battlefield.ENEMY)
 		main.economy.mines = {"gold": true, "stone": true}

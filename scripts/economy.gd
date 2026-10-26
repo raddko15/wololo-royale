@@ -291,9 +291,21 @@ func advance() -> bool:
 	return true
 
 
+## Whether a building could go up now, cost aside: its era is reached and it is
+## neither built nor under way. `kind` is "military", "mine" or "towers".
+func site_open(kind: String, id: String) -> bool:
+	if is_pending(kind, id):
+		return false
+	match kind:
+		"military":
+			return not military.has(id) and era_index >= _cfg.military[id].min_era
+		"mine":
+			return not mines.has(id) and era_index >= _cfg.buildings.mine.min_era
+	return not has_towers and era_index >= _cfg.buildings.towers.min_era
+
+
 func can_build_military(id: String) -> bool:
-	var b: Dictionary = _cfg.military[id]
-	return not military.has(id) and not is_pending("military", id) and era_index >= b.min_era and can_afford(b.cost)
+	return site_open("military", id) and can_afford(_cfg.military[id].cost)
 
 
 func build_military(id: String) -> bool:
@@ -305,8 +317,7 @@ func build_military(id: String) -> bool:
 
 
 func can_build_towers() -> bool:
-	var t: Dictionary = _cfg.buildings.towers
-	return not has_towers and not is_pending("towers", "towers") and era_index >= t.min_era and can_afford(t.cost)
+	return site_open("towers", "towers") and can_afford(_cfg.buildings.towers.cost)
 
 
 ## All three lane towers at once; the owner raises them on job_done.
@@ -343,8 +354,7 @@ func mine_cost() -> Dictionary:
 
 
 func can_build_mine(res: String) -> bool:
-	return era_index >= _cfg.buildings.mine.min_era and not mines.has(res) and not is_pending("mine", res) \
-		and can_afford(mine_cost())
+	return site_open("mine", res) and can_afford(mine_cost())
 
 
 func build_mine(res: String) -> bool:

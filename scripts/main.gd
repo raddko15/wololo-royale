@@ -81,6 +81,7 @@ func _start_game(civ_id: String, menu: Control) -> void:
 	_view.hut_tapped.connect(func():
 		if not economy.build_hut():
 			_flash_hint("Need %d wood for a hut" % GameConfig.data().buildings.hut.cost.wood if economy.max_population() < GameConfig.data().population.max_cap else "Population is at the maximum"))
+	_view.site_tapped.connect(_on_site_tapped)
 	_view.upgrade_badge_tapped.connect(func(id: String):
 		if id == "era":
 			economy.advance()
@@ -344,6 +345,26 @@ func _on_menu_choice(id: String) -> void:
 		"worker_gold", "worker_stone":
 			economy.reassign("idle", id.trim_prefix("worker_"))
 	_refresh()
+
+
+## An empty plot on the map was tapped: build it, or say what's missing.
+func _on_site_tapped(id: String) -> void:
+	var cfg := GameConfig.data()
+	var cost: Dictionary
+	var name: String
+	if cfg.military.has(id):
+		cost = cfg.military[id].cost
+		name = cfg.military[id].name
+	elif id in Economy.MINED:
+		cost = economy.mine_cost()
+		name = "%s mine" % id.capitalize()
+	else:
+		cost = cfg.buildings.towers.cost
+		name = "Towers"
+	var before := economy.jobs.size()
+	_on_menu_choice(id)
+	if economy.jobs.size() == before:
+		_flash_hint("%s needs %s" % [name, _cost_text(cost).replace("\n", " ")])
 
 
 ## Finished jobs that touch the battlefield: units walk out, towers go up.
