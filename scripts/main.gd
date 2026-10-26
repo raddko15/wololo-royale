@@ -601,7 +601,7 @@ func _describe(id: String) -> String:
 		var up: Dictionary = cfg.upgrades[id]
 		var parts := []
 		for res in up.get("gather_bonus", {}):
-			parts.append("+%d%% faster %s" % [roundi(up.gather_bonus[res] * 100), res])
+			parts.append("+%d%% %s gathering" % [roundi(up.gather_bonus[res] * 100), res])
 		for stat in up.get("unit_bonus", {}):
 			parts.append("+%d%% %s" % [roundi(up.unit_bonus[stat] * 100), {"hp": "HP", "damage": "dmg", "range": "range"}[stat]])
 		if up.has("tower_hp_bonus"):
