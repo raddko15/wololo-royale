@@ -576,6 +576,7 @@ func _draw() -> void:
 	for job in ["food", "wood"]:
 		_draw_unassign_icon(unassign_icon(job), economy.villagers.get(job, 0) > 0)
 
+	_draw_corpses(now)
 	var positions := unit_positions()
 	for i in battle.units.size():
 		var u: Dictionary = battle.units[i]
@@ -591,6 +592,120 @@ func _draw() -> void:
 		var idx := battle.units.find(a.target)
 		if idx != -1:
 			_draw_arrow(a, positions[idx])
+
+
+# --- Corpses -------------------------------------------------------------
+# A fallen unit lies where it died: fresh, then rotten (dull green, flies),
+# then a skeleton that fades away. Each stage crossfades into the next.
+
+var corpses: Array[Dictionary] = []
+const BONE := Color("#ece4cf")
+const ROT := Color(0.55, 0.62, 0.4)
+
+
+func _draw_corpses(now: float) -> void:
+	var cfg: Dictionary = GameConfig.data().corpse
+	for u in battle.fallen:
+		if u.has("view_pos"):
+			var h := hash(u)
+			corpses.append({"pos": u.view_pos, "type": u.type, "tier": u.get("tier", 0),
+				"color": Color(econ(u.team).civ().color), "born": now,
+				"angle": (PI / 2 if h % 2 == 0 else -PI / 2) + float(h % 7 - 3) * 0.12,
+				"weapon_angle": float(h % 360) / 360.0 * TAU})
+	battle.fallen.clear()
+	var fresh: float = cfg.fresh_sec
+	var rotten: float = fresh + cfg.rotten_sec
+	var gone: float = rotten + cfg.skeleton_sec
+	var x: float = cfg.crossfade_sec
+	corpses = corpses.filter(func(c: Dictionary) -> bool: return now - c.born < gone)
+	for c in corpses:
+		var t: float = now - c.born
+		var a_fresh := clampf((fresh - t) / x, 0, 1)
+		var a_rot := minf(clampf((t - fresh + x) / x, 0, 1), clampf((rotten - t) / x, 0, 1))
+		var a_bones := minf(clampf((t - rotten + x) / x, 0, 1), clampf((gone - t) / 3.0, 0, 1))
+		if a_fresh > 0:
+			_draw_body(c, Color(1, 1, 1, a_fresh), false, now)
+		if a_rot > 0:
+			_draw_body(c, Color(ROT.r, ROT.g, ROT.b, a_rot), true, now)
+		if a_bones > 0:
+			_draw_skeleton(c, a_bones)
+	_mod = Color.WHITE
+
+
+## A body lying on its side (a horse beside a fallen rider), its weapon
+## dropped nearby; `rotten` adds a dark stain and buzzing flies.
+func _draw_body(c: Dictionary, m: Color, rotten: bool, now: float) -> void:
+	var p: Vector2 = c.pos
+	var stain := Color("#4a2a1a", 0.35 * m.a) if rotten else Color("#7a1010", 0.4 * m.a)
+	_draw_ellipse(p + Vector2(0, 4), Vector2(16, 7) if c.type != "cavalry" else Vector2(28, 12), stain)
+	_mod = m
+	if c.type == "cavalry":
+		var k := UNIT_SCALE * 1.15
+		draw_set_transform(p + Vector2(0, -2), c.angle * 0.9, Vector2(k, k))
+		var box := Rect2(-Vector2(15, 31), Vector2(30, 56))
+		draw_texture_rect(_tex("cav_horse"), box, false, m)
+		if c.tier >= 1:
+			draw_texture_rect(_tex("cav_barding"), box, false, m)
+			draw_texture_rect(_tex("cav_barding_tint"), box, false, c.color * m)
+		draw_set_transform(Vector2.ZERO)
+		p += Vector2(14, 8)
+	draw_set_transform(p, c.angle, Vector2.ONE)
+	_draw_figure(Vector2(0, 10), c.color, [], UNIT_SCALE)
+	draw_set_transform(Vector2.ZERO)
+	var weapon: Array = {"archer": ["bow", Vector2(16, 30), Vector2(8, 15)], "cavalry": ["lance", Vector2(8, 56), Vector2(4, 28)]}.get(c.type, ["sword" if c.tier >= 2 else "club", Vector2(10, 30), Vector2(5, 15)])
+	_draw_weapon(weapon[0], weapon[1], weapon[2], p + Vector2(10, 6), c.weapon_angle, UNIT_SCALE * 0.8)
+	draw_set_transform(Vector2.ZERO)
+	_mod = Color.WHITE
+	if rotten:
+		for f in 3:
+			var orbit := now * (3.0 + f) + f * 2.1
+			draw_circle(p + Vector2(cos(orbit) * 9, -6 + sin(orbit * 1.7) * 5), 1.3, Color(0, 0, 0, 0.8 * m.a))
+
+
+## Bones in the same pose as the body: skull, spine, ribs, arm and leg bones
+## (and a long horse skeleton for cavalry).
+func _draw_skeleton(c: Dictionary, alpha: float) -> void:
+	var bone := Color(BONE, alpha)
+	var line := Color(OUTLINE, alpha * 0.7)
+	var p: Vector2 = c.pos
+	if c.type == "cavalry":
+		draw_set_transform(p + Vector2(0, -2), c.angle * 0.9, Vector2.ONE)
+		_bone(Vector2(0, -22), Vector2(0, 20), 3.0, bone, line)  # spine
+		for k in 5:
+			var y := -10.0 + k * 5
+			_bone(Vector2(-9, y + 2), Vector2(9, y + 2), 2.0, bone, line)
+		for leg in [Vector2(-6, -14), Vector2(6, -14), Vector2(-6, 16), Vector2(6, 16)]:
+			_bone(leg, leg + Vector2(sign(leg.x) * 8, 4), 2.0, bone, line)
+		draw_circle(Vector2(0, -27), 5.5, line)
+		draw_circle(Vector2(0, -27), 4.5, bone)
+		draw_set_transform(Vector2.ZERO)
+		p += Vector2(14, 8)
+	draw_set_transform(p, c.angle, Vector2.ONE)
+	# Local space: head up at (0, -12), feet down at (0, 10).
+	_bone(Vector2(0, -6), Vector2(0, 4), 2.2, bone, line)
+	for y in [-4.0, -1.0, 2.0]:
+		_bone(Vector2(-4, y), Vector2(4, y), 1.6, bone, line)
+	_bone(Vector2(-3, -5), Vector2(-7, 3), 1.6, bone, line)
+	_bone(Vector2(3, -5), Vector2(7, 2), 1.6, bone, line)
+	_bone(Vector2(-2, 4), Vector2(-3, 12), 1.8, bone, line)
+	_bone(Vector2(2, 4), Vector2(4, 12), 1.8, bone, line)
+	draw_circle(Vector2(0, -10), 4.6, line)
+	draw_circle(Vector2(0, -10), 3.8, bone)
+	draw_circle(Vector2(-1.4, -10.5), 0.9, line)
+	draw_circle(Vector2(1.4, -10.5), 0.9, line)
+	draw_set_transform(Vector2.ZERO)
+
+
+func _bone(a: Vector2, b: Vector2, w: float, bone: Color, line: Color) -> void:
+	draw_line(a, b, line, w + 1.2)
+	draw_line(a, b, bone, w)
+
+
+func _draw_ellipse(c: Vector2, radii: Vector2, color: Color) -> void:
+	var pts := PackedVector2Array()
+	for k in 24:
+		pts.append(c + Vector2(cos(k * TAU / 24) * radii.x, sin(k * TAU / 24) * radii.y))
+	draw_colored_polygon(pts, color)
 
 
 ## Everything one side owns: farm, forest, mill, lumber camp, fort, huts,
@@ -1008,6 +1123,8 @@ const FIGURE := Vector2(32, 40)
 const UNIT_SCALE := 0.9
 const LEG := Color("#4a2f1a")
 const OUTLINE := Color("#2b1d10")
+## Multiplies figure and weapon colors (corpses use it to rot and fade).
+var _mod := Color.WHITE
 ## Civilian tunic color for villagers (soldiers wear their civ color).
 const VILLAGER_TUNIC := Color("#d9c8a0")
 
@@ -1024,6 +1141,7 @@ func _figure_origin(p: Vector2, scale: float) -> Vector2:
 ## screen), using the *_back head and gear art where it exists.
 ## `seated`: astride a horse, legs hanging down both sides.
 func _draw_figure(p: Vector2, color: Color, gear: Array, scale := 1.0, walk := -1.0, back := false, seated := false) -> void:
+	var m := _mod
 	if walk >= 0.0:
 		p.y -= absf(sin(walk)) * 1.6 * scale
 	var o := _figure_origin(p, scale)
@@ -1032,11 +1150,11 @@ func _draw_figure(p: Vector2, color: Color, gear: Array, scale := 1.0, walk := -
 		for side in [-1, 1]:
 			var hip := o + Vector2(16 + side * 5, 30) * scale
 			var boot := o + Vector2(16 + side * 10, 37) * scale
-			draw_line(hip, boot, OUTLINE, 5.0 * scale)
-			draw_line(hip, boot, LEG, 3.0 * scale)
+			draw_line(hip, boot, OUTLINE * m, 5.0 * scale)
+			draw_line(hip, boot, LEG * m, 3.0 * scale)
 		var layers := ["unit_tint", "head_back" if back else "head"]
 		for name in layers + gear.map(func(g): return _facing_art(g, back)):
-			draw_texture_rect(_tex(name), box, false, color if name == "unit_tint" else Color.WHITE)
+			draw_texture_rect(_tex(name), box, false, (color if name == "unit_tint" else Color.WHITE) * m)
 		return
 	# Legs: each lifts and swings in turn while walking.
 	for side in [-1, 1]:
@@ -1047,13 +1165,13 @@ func _draw_figure(p: Vector2, color: Color, gear: Array, scale := 1.0, walk := -
 			lift = maxf(s, 0.0) * 1.8
 			swing = s * 1.2
 		var leg := Rect2(o + Vector2(16 + side * 3.5 - 2 + swing, 31 - lift) * scale, Vector2(4, 6) * scale)
-		draw_rect(leg, LEG)
-		draw_rect(leg, OUTLINE, false, 1.0)
+		draw_rect(leg, LEG * m)
+		draw_rect(leg, OUTLINE * m, false, 1.0)
 	var head := "head_back" if back else "head"
 	for name in ["unit", "unit_tint", head] + gear.map(func(g): return _facing_art(g, back)):
 		var t := _tex(name)
 		if t:
-			draw_texture_rect(t, box, false, color if name == "unit_tint" else Color.WHITE)
+			draw_texture_rect(t, box, false, (color if name == "unit_tint" else Color.WHITE) * m)
 
 
 ## Gear art for the side we see: "<name>_back" when seen from behind and it exists.
@@ -1070,7 +1188,7 @@ func _draw_weapon(name: String, tex_size: Vector2, pivot: Vector2, at: Vector2, 
 	if t == null:
 		return
 	draw_set_transform(at, angle + PI / 2, Vector2(scale, scale))
-	draw_texture_rect(t, Rect2(-pivot, tex_size), false)
+	draw_texture_rect(t, Rect2(-pivot, tex_size), false, _mod)
 	draw_set_transform(Vector2.ZERO)
 
 

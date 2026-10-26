@@ -164,6 +164,12 @@
       "time": 15
     }
   },
+  "corpse": {
+    "fresh_sec": 6,
+    "rotten_sec": 8,
+    "skeleton_sec": 10,
+    "crossfade_sec": 1.5
+  },
   "ai": {
     "target_villagers": 16,
     "think_interval": 2.0,

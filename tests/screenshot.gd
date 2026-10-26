@@ -1,6 +1,6 @@
 extends SceneTree
 ## Renders game screens to PNGs (needs a display, e.g. xvfb-run).
-## Args: <out.png> <era1|era2|era2up|era3|window|mill|mine|jobs|sites|sites0> [player_civ] [enemy_civ] [huts]
+## Args: <out.png> <era1|era2|era2up|era3|window|mill|mine|jobs|sites|sites0|corpses> [player_civ] [enemy_civ] [huts]
 ## era2up buys the mill and lumber upgrades, era3 every upgrade (both sides);
 ## window / mill open that building's ring menu.
 
@@ -14,7 +14,7 @@ func _init() -> void:
 	if args.size() > 3:
 		main.ai.economy = Economy.new(args[3])
 		main._view.enemy_economy = main.ai.economy
-	var era: int = {"era1": 0, "era2": 1, "era2up": 1, "era3": 2, "window": 1, "mill": 1, "mine": 2, "jobs": 1, "sites": 1, "sites0": 0}[mode]
+	var era: int = {"era1": 0, "era2": 1, "era2up": 1, "era3": 2, "window": 1, "mill": 1, "mine": 2, "jobs": 1, "sites": 1, "sites0": 0, "corpses": 1}[mode]
 	for e in [main.economy, main.ai.economy]:
 		e.era_index = era
 		e.huts = int(args[4]) if args.size() > 4 else 10
@@ -68,6 +68,15 @@ func _init() -> void:
 		e.train("fighter", 2)
 		for i in 40:
 			e.tick(0.1)
+	if mode == "corpses":
+		# Every unit type at each stage: fresh, rotten, skeleton (left to right).
+		var now := Time.get_ticks_msec() / 1000.0
+		var types := ["fighter", "archer", "cavalry"]
+		for row in 3:
+			for col in 3:
+				main._view.corpses.append({"pos": Vector2(150 + col * 210, 560 + row * 110), "type": types[row],
+					"tier": row % 2 + 1, "color": Color("#c0392b") if col % 2 == 0 else Color("#2e86de"), "born": now - [2.0, 10.0, 19.0][col],
+					"angle": PI / 2 if col % 2 == 0 else -PI / 2 + 0.2, "weapon_angle": 0.7 + col})
 	await process_frame
 	if mode == "window":
 		main._open_menu("town_center", main._view.town_center())

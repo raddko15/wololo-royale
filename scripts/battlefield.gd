@@ -25,6 +25,8 @@ var towers_built := [false, false]
 ## Full health of each side's lane towers (raised by the stone towers upgrade).
 var tower_max_hp := [0.0, 0.0]
 var units: Array[Dictionary] = []
+## Units that died since the view last looked (it leaves corpses for them).
+var fallen: Array[Dictionary] = []
 ## Arrows in flight: {"team", "lane", "target": unit, "t": 0..1, "damage"}.
 ## Damage is applied when the arrow lands.
 var arrows: Array[Dictionary] = []
@@ -185,6 +187,9 @@ func _remove_dead() -> void:
 	for i in range(units.size() - 1, -1, -1):
 		if units[i].hp <= 0:
 			var team: int = units[i].team
+			fallen.append(units[i])
+			if fallen.size() > 64:
+				fallen.pop_front()  # nobody is collecting them (e.g. tests)
 			units.remove_at(i)
 			unit_died.emit(team)
 
