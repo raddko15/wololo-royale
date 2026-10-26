@@ -1,6 +1,7 @@
 class_name Card
 extends PanelContainer
-## A Clash Royale style card: press to tap or start a drag. Greyed out when not affordable.
+## A Clash Royale style card: press to tap or start a drag. Greyed out when not
+## affordable; a green border and "AUTO" tag when it is training on repeat.
 
 signal pressed
 
@@ -29,11 +30,15 @@ func _init(title: String) -> void:
 	set_state("", true, false)
 
 
-func set_state(cost_text: String, enabled: bool, selected: bool) -> void:
-	_cost.text = cost_text
-	modulate.a = 1.0 if enabled else 0.45
-	_style.bg_color = Color("#5d4a2f") if enabled else Color("#2d2d2d")
-	_style.border_color = Color("#f9ca24") if selected else Color("#1e1e1e")
+func set_state(cost_text: String, enabled: bool, selected: bool, auto := false) -> void:
+	_cost.text = ("AUTO · " if auto else "") + cost_text
+	# An auto card stays bright even while it waits for resources.
+	modulate.a = 1.0 if enabled or auto else 0.45
+	_style.bg_color = Color("#5d4a2f") if enabled or auto else Color("#2d2d2d")
+	if auto:
+		_style.border_color = Color("#44bd32")
+	else:
+		_style.border_color = Color("#f9ca24") if selected else Color("#1e1e1e")
 
 
 func _gui_input(event: InputEvent) -> void:

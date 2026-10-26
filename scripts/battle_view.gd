@@ -34,6 +34,8 @@ var battle: Battlefield
 ## Card being dragged ("" when none) and where the finger is, in local coordinates.
 var drag_card := ""
 var drag_pos := Vector2.ZERO
+## Lanes auto-trained units are sent to; each is marked with moving chevrons.
+var active_lanes := [false, true, false]
 
 
 func _process(_delta: float) -> void:
@@ -326,6 +328,18 @@ func _draw() -> void:
 			lane_color = Color("#f9ca24") if lane == hover_lane else COLORS.lane.lightened(0.2)
 		var top := tower_line(Battlefield.ENEMY)
 		draw_rect(Rect2((LANE_X[lane] - LANE_W / 2) * size.x, top, LANE_W * size.x, tower_line(Battlefield.PLAYER) - top), lane_color)
+	# Chevrons moving up every active lane.
+	var top := tower_line(Battlefield.ENEMY) + 40
+	var bottom := tower_line(Battlefield.PLAYER) - 40
+	var shift := fmod(Time.get_ticks_msec() / 1000.0 * 40.0, 60.0)
+	for lane in Battlefield.LANES:
+		if not active_lanes[lane]:
+			continue
+		var lx: float = LANE_X[lane] * size.x
+		var y := bottom - shift
+		while y > top:
+			draw_polyline(PackedVector2Array([Vector2(lx - 14, y + 8), Vector2(lx, y - 4), Vector2(lx + 14, y + 8)]), Color(1, 1, 1, 0.35), 4)
+			y -= 60
 	for team in [Battlefield.ENEMY, Battlefield.PLAYER]:
 		for lane in Battlefield.LANES:
 			var path := road(team, lane)

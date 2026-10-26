@@ -5,7 +5,7 @@ var _failures := 0
 
 
 func _init() -> void:
-	for path in ["res://scripts/main.gd", "res://scripts/battle_view.gd", "res://scripts/card.gd", "res://scripts/hud_icon.gd", "res://scripts/radial_menu.gd"]:
+	for path in ["res://scripts/main.gd", "res://scripts/battle_view.gd", "res://scripts/card.gd", "res://scripts/hud_icon.gd", "res://scripts/radial_menu.gd", "res://scripts/lane_toggle.gd"]:
 		var script: GDScript = load(path)
 		_check(script != null and script.can_instantiate(), "script compiles: " + path.get_file())
 
