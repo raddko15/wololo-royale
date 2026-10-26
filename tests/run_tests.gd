@@ -95,6 +95,9 @@ func _init() -> void:
 	m.train("fighter", 1)
 	m.tick(6.1)
 	_check(spawned.size() == 2, "one barracks trains one fighter at a time")
+	m.job_speed = 10.0
+	m.tick(0.61)
+	_check(spawned.size() == 3, "testing job speed: 10x faster training")
 	_check(not m.can_train("archer"), "archers need an archery range")
 
 	var ba := Battlefield.new()

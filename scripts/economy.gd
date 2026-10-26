@@ -36,6 +36,8 @@ var has_towers := false
 ## Jobs in the same queue run one after another (e.g. villagers and the era at
 ## the town center); different queues run at the same time. Paid up front.
 var jobs: Array[Dictionary] = []
+## Multiplies how fast jobs progress (testing: the player's builds can run 10x faster).
+var job_speed := 1.0
 
 var _cfg: Dictionary
 
@@ -111,7 +113,7 @@ func pending_count(kind: String) -> int:
 
 func _tick_jobs(delta: float) -> void:
 	for j in active_jobs():
-		j.t += delta
+		j.t += delta * job_speed
 		if j.t >= j.total:
 			_complete(j)
 

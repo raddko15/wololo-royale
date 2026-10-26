@@ -52,6 +52,7 @@ func _start_game(civ_id: String, menu: Control) -> void:
 	var testing: Dictionary = GameConfig.data().get("testing", {})
 	if testing.has("player_starting_resources"):
 		economy.resources = testing.player_starting_resources.duplicate()
+	economy.job_speed = testing.get("job_speed", 1.0)
 	battle = Battlefield.new()
 	var others: Array = GameConfig.data().civs.keys().filter(func(id): return id != civ_id)
 	var enemy_civ: String = others.pick_random()
@@ -61,6 +62,8 @@ func _start_game(civ_id: String, menu: Control) -> void:
 	var box := _vbox(self, 0)
 
 	box.add_child(_header())
+	_ui.fast.set_pressed_no_signal(economy.job_speed > 1.0)
+	_ui.fast.text = "Fast ×10 ON" if economy.job_speed > 1.0 else "Fast ×10"
 
 	_view = BattleView.new()
 	_view.economy = economy
@@ -101,10 +104,19 @@ func _header() -> Control:
 	_ui.title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(_ui.title)
 	var restart := Button.new()
-	restart.text = "↻ Restart"
+	restart.text = "Restart"
 	restart.add_theme_font_size_override("font_size", 20)
 	restart.focus_mode = Control.FOCUS_NONE
 	restart.pressed.connect(func(): get_tree().reload_current_scene())
+	# Testing aid: makes the player's builds, training and research 10x faster.
+	_ui.fast = Button.new()
+	_ui.fast.toggle_mode = true
+	_ui.fast.add_theme_font_size_override("font_size", 20)
+	_ui.fast.focus_mode = Control.FOCUS_NONE
+	_ui.fast.toggled.connect(func(on: bool):
+		economy.job_speed = maxf(GameConfig.data().get("testing", {}).get("job_speed", 10.0), 2.0) if on else 1.0
+		_ui.fast.text = "Fast ×10 ON" if on else "Fast ×10")
+	top.add_child(_ui.fast)
 	top.add_child(restart)
 	for row_keys in [Economy.RESOURCES, ["villagers", "pop"]]:
 		var row := HBoxContainer.new()

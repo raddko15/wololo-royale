@@ -180,7 +180,8 @@
       "wood": 2500,
       "gold": 1000,
       "stone": 1000
-    }
+    },
+    "job_speed": 10
   },
   "upgrades": {
     "mill": {
