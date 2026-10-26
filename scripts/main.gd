@@ -154,6 +154,17 @@ func _header() -> Control:
 		economy.job_speed = maxf(GameConfig.data().get("testing", {}).get("job_speed", 10.0), 2.0) if on else 1.0
 		_ui.fast.text = "Fast ×10 ON" if on else "Fast ×10")
 	top.add_child(_ui.fast)
+	# Testing aid: tap for +10k of every resource.
+	var rich := Button.new()
+	var bonus: int = GameConfig.data().get("testing", {}).get("bonus_resources", 10000)
+	rich.text = "+%dk" % (bonus / 1000)
+	rich.add_theme_font_size_override("font_size", 20)
+	rich.focus_mode = Control.FOCUS_NONE
+	rich.pressed.connect(func():
+		for res in Economy.RESOURCES:
+			economy.resources[res] += bonus
+		_refresh())
+	top.add_child(rich)
 	top.add_child(restart)
 	for row_keys in [Economy.RESOURCES, ["villagers", "pop"]]:
 		var row := HBoxContainer.new()

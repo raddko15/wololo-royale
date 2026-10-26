@@ -176,12 +176,13 @@
   },
   "testing": {
     "player_starting_resources": {
-      "food": 2000,
-      "wood": 2500,
-      "gold": 1000,
-      "stone": 1000
+      "food": 10000,
+      "wood": 10000,
+      "gold": 10000,
+      "stone": 10000
     },
-    "job_speed": 10
+    "job_speed": 10,
+    "bonus_resources": 10000
   },
   "upgrades": {
     "mill": {
