@@ -427,26 +427,29 @@ func _draw_jobs(team: int, e: Economy, now: float) -> void:
 	for job in e.jobs:
 		if job.kind == "hut":
 			if e.active_jobs().has(job):
-				_draw_scaffold(hut_pos(team, e.huts + huts_seen), Vector2(22, 18), job.t / job.total, now, true)
+				_draw_scaffold(hut_pos(team, e.huts + huts_seen), Vector2(18, 16), job.t / job.total, now, true)
 			huts_seen += 1
 	for job in e.active_jobs():
 		var frac: float = job.t / job.total
 		match job.kind:
-			"villager", "era":
+			"villager":
 				var bar_y := 64.0 if team == Battlefield.PLAYER else -108.0
-				if job.kind == "era":
-					_draw_scaffold(tc, Vector2(150, 96), frac, now, false)
 				_draw_progress(tc + Vector2(0, bar_y), 110, frac, Color("#f9ca24"), _queue_label(e, job))
+			"era":
+				# The scaffolding carries the only bar; villagers queued behind show as "×n".
+				_draw_scaffold(tc, Vector2(150, 96), frac, now, false, true, _queue_label(e, job))
 			"mine":
 				_draw_scaffold(mine_pos(team, job.id), Vector2(44, 32), frac, now, true)
 			"military":
 				_draw_scaffold(military_pos(team, job.id), Vector2(56, 40), frac, now, true)
 			"towers":
+				# One job for all three: only the middle site shows the bar.
 				for lane in Battlefield.LANES:
-					_draw_scaffold(building_pos(team, "tower", lane), Vector2(44, 56), frac, now, true)
+					_draw_scaffold(building_pos(team, "tower", lane), Vector2(44, 56), frac, now, true, lane == 1)
 			"upgrade":
-				for site in _upgrade_sites(team, job.id):
-					_draw_scaffold(site, Vector2(56, 48), frac, now, false)
+				var sites := _upgrade_sites(team, job.id)
+				for k in sites.size():
+					_draw_scaffold(sites[k], Vector2(56, 48), frac, now, false, k == sites.size() / 2)
 			"unit":
 				var at := military_pos(team, GameConfig.data().units[job.id].requires) + Vector2(0, -44)
 				_draw_progress(at, 60, frac, Color("#e67e22"), _queue_label(e, job))
@@ -482,7 +485,7 @@ func _draw_progress(center: Vector2, width: float, frac: float, color: Color, la
 
 ## Wooden scaffolding over a site (with a dirt patch for new buildings), a
 ## villager swinging a hammer beside it, and a progress bar underneath.
-func _draw_scaffold(c: Vector2, sz: Vector2, frac: float, now: float, new_site: bool) -> void:
+func _draw_scaffold(c: Vector2, sz: Vector2, frac: float, now: float, new_site: bool, show_bar := true, label := "") -> void:
 	var r := Rect2(c - sz / 2, sz)
 	if new_site:
 		draw_rect(r.grow(4), Color("#8a6d45"))
@@ -504,7 +507,8 @@ func _draw_scaffold(c: Vector2, sz: Vector2, frac: float, now: float, new_site: 
 	draw_line(b + Vector2(-2, -6), head, COLORS.stick, 2)
 	draw_rect(Rect2(head - Vector2(3, 2), Vector2(6, 4)), COLORS.stone)
 	_draw_ball(b, VILLAGER_R - 2, COLORS.villager)
-	_draw_progress(Vector2(c.x, r.end.y + 12), maxf(sz.x, 30), frac, Color("#f9ca24"))
+	if show_bar:
+		_draw_progress(Vector2(c.x, r.end.y + 12), sz.x, frac, Color("#f9ca24"), label)
 
 
 ## Town center, drawn around (0, 0). Era I is a longhouse for every civ.
