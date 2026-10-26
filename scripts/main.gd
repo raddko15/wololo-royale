@@ -327,15 +327,18 @@ func _drop(id: String, local: Vector2) -> void:
 				economy.train(id, lane)  # walks out when its building finishes it
 
 
-## Keep one of each auto unit in training; the next starts as soon as it is
+## Keep each auto unit training at every building of its kind; the next starts as soon as it is
 ## affordable, sent to that unit's active lanes in turn. All paused: wait.
 func _run_auto() -> void:
 	for id in _auto:
 		if not _lanes_on[id].has(true):
 			continue
-		var waiting := economy.jobs.any(func(j): return j.kind == "unit" and j.id == id)
-		if not waiting and economy.can_train(id):
+		# One in training per building of its kind, so 3 barracks train 3 at once.
+		var waiting := economy.jobs.filter(func(j): return j.kind == "unit" and j.id == id).size()
+		var buildings: int = economy.military.get(GameConfig.data().units[id].requires, 0)
+		while waiting < buildings and economy.can_train(id):
 			economy.train(id, _take_lane(id))
+			waiting += 1
 
 
 func _flash_hint(text: String) -> void:
