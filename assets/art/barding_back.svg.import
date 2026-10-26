@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cokst7va06ral"
-path="res://.godot/imported/barding.svg-11d6095cbbaa25f73e4e2173a06161c2.ctex"
+uid="uid://yrm8lo4ekhjl"
+path="res://.godot/imported/barding_back.svg-7e7518de276b5c37c711ecb5e74e7d32.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/art/barding.svg"
-dest_files=["res://.godot/imported/barding.svg-11d6095cbbaa25f73e4e2173a06161c2.ctex"]
+source_file="res://assets/art/barding_back.svg"
+dest_files=["res://.godot/imported/barding_back.svg-7e7518de276b5c37c711ecb5e74e7d32.ctex"]
 
 [params]
 

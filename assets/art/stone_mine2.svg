@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="112" height="88" viewBox="0 0 56 44">
+<g stroke="#2b1d10" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round">
+
+<ellipse cx="28" cy="40" rx="26" ry="4" fill="#000" fill-opacity="0.25" stroke="none"/>
+<polygon points="2,38 6,26 50,26 54,38" fill="#9e998d"/>
+<polygon points="6,26 10,16 46,16 50,26" fill="#b5b0a4"/>
+<polygon points="10,16 16,7 40,7 46,16" fill="#cdc9bd"/>
+<g stroke="#6f6a60" stroke-width="0.8"><line x1="20" y1="26" x2="20" y2="38"/><line x1="36" y1="26" x2="36" y2="38"/><line x1="26" y1="16" x2="26" y2="26"/><line x1="30" y1="7" x2="30" y2="16"/></g>
+<g fill="#e8e6df" stroke-width="0.9"><rect x="40" y="31" width="7" height="5"/><rect x="47" y="31" width="7" height="5"/><rect x="43.5" y="26" width="7" height="5"/></g>
+</g>
+</svg>

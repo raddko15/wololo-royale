@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="80" height="120" viewBox="0 0 40 60">
+<g stroke="#2b1d10" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round">
+<ellipse cx="20" cy="56" rx="17" ry="3.5" fill="#000" fill-opacity="0.25" stroke="none"/>
+<polygon points="8,20 32,20 32,56 8,56" fill="#b9b4a8"/>
+<polygon points="8,20 20,20 20,56 8,56" fill="#d6d2c6" stroke="none"/>
+<polygon points="26,20 32,20 32,56 26,56" fill="#8c877c" stroke="none"/>
+<polygon points="8,20 32,20 32,56 8,56" fill="none"/>
+<g stroke="#8c877c" stroke-width="0.8"><line x1="8" y1="30" x2="32" y2="30"/><line x1="8" y1="40" x2="32" y2="40"/><line x1="8" y1="50" x2="32" y2="50"/>
+<line x1="15" y1="20" x2="15" y2="30"/><line x1="25" y1="30" x2="25" y2="40"/><line x1="15" y1="40" x2="15" y2="50"/></g>
+<g fill="#b9b4a8"><rect x="6" y="15" width="7" height="6"/><rect x="16.5" y="15" width="7" height="6"/><rect x="27" y="15" width="7" height="6"/></g>
+<rect x="18.5" y="25" width="3" height="9" rx="1" fill="#2b1d10" stroke="none"/>
+</g>
+</svg>

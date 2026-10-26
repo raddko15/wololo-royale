@@ -337,6 +337,73 @@ func _gui_input(event: InputEvent) -> void:
 
 # --- Drawing ------------------------------------------------------------
 
+const GRASS := Color("#4f8a3c")
+const ROAD := Color("#b8a074")
+const ROAD_EDGE := Color("#8a7552")
+## Scattered grass detail, generated once per screen size so it never flickers.
+var _ground_size := Vector2.ZERO
+var _ground_bits := {}
+
+
+func _draw_ground() -> void:
+	draw_rect(Rect2(Vector2.ZERO, size), GRASS)
+	if _ground_size != size:
+		_ground_size = size
+		var rng := RandomNumberGenerator.new()
+		rng.seed = 7
+		var patches := []
+		for i in 90:
+			patches.append([Vector2(rng.randf() * size.x, rng.randf() * size.y), rng.randf_range(14, 46), rng.randf() < 0.5])
+		var tufts := []
+		for i in 320:
+			tufts.append(Vector2(rng.randf() * size.x, rng.randf() * size.y))
+		var flowers := []
+		for i in 45:
+			flowers.append([Vector2(rng.randf() * size.x, rng.randf() * size.y), rng.randi() % 3])
+		_ground_bits = {"patches": patches, "tufts": tufts, "flowers": flowers}
+	for pt in _ground_bits.patches:  # soft light and dark patches
+		draw_circle(pt[0], pt[1], Color(1, 1, 0.8, 0.035) if pt[2] else Color(0, 0.1, 0, 0.04))
+	for t in _ground_bits.tufts:  # little grass blades
+		draw_line(t, t + Vector2(-2, -5), Color("#3d7230"), 1.4)
+		draw_line(t, t + Vector2(2, -5), Color("#6aa84f"), 1.4)
+	for f in _ground_bits.flowers:
+		draw_circle(f[0], 2.0, [Color("#f5f6fa"), Color("#f9ca24"), Color("#e8a0c8")][f[1]])
+
+
+## Dirt lanes and L roads: a darker edge under a lighter fill, then pebbles.
+func _draw_roads(lane_fill: Array[Color]) -> void:
+	var w := size.x * LANE_W
+	var top := tower_line(Battlefield.ENEMY)
+	var lane_rects := []
+	for lane in Battlefield.LANES:
+		lane_rects.append(Rect2(LANE_X[lane] * size.x - w / 2, top, w, tower_line(Battlefield.PLAYER) - top))
+	var paths := []
+	for team in [Battlefield.ENEMY, Battlefield.PLAYER]:
+		for lane in Battlefield.LANES:
+			paths.append(road(team, lane))
+	for pass_i in 2:
+		var edge := pass_i == 0
+		var grow := 3.0 if edge else 0.0
+		for path in paths:
+			draw_polyline(path, ROAD_EDGE if edge else ROAD, w + grow * 2)
+			for corner in path:  # square joints
+				draw_rect(Rect2(corner - Vector2.ONE * (w / 2 + grow), Vector2.ONE * (w + grow * 2)), ROAD_EDGE if edge else ROAD)
+		for lane in Battlefield.LANES:
+			draw_rect(lane_rects[lane].grow_individual(grow, 0, grow, 0), ROAD_EDGE if edge else lane_fill[lane])
+	# Pebbles and wheel ruts along the lanes.
+	for lane in Battlefield.LANES:
+		var r: Rect2 = lane_rects[lane]
+		var y := r.position.y + 14.0
+		var k := 0
+		while y < r.end.y:
+			var x := r.position.x + r.size.x * (0.25 + 0.5 * float((k * 37) % 7) / 6.0)
+			draw_circle(Vector2(x, y), 1.8, ROAD_EDGE)
+			y += 23.0
+			k += 1
+		draw_line(Vector2(r.position.x + w * 0.3, r.position.y), Vector2(r.position.x + w * 0.3, r.end.y), Color(0, 0, 0, 0.06), 2)
+		draw_line(Vector2(r.position.x + w * 0.7, r.position.y), Vector2(r.position.x + w * 0.7, r.end.y), Color(0, 0, 0, 0.06), 2)
+
+
 func _tex(name: String) -> Texture2D:
 	if not _art.has(name):
 		var path := "res://assets/art/%s.svg" % name
@@ -357,15 +424,16 @@ func _draw_art(name: String, center: Vector2, size_px: Vector2, tint := Color.WH
 
 func _draw() -> void:
 	var now := Time.get_ticks_msec() / 1000.0
-	draw_rect(Rect2(Vector2.ZERO, size), COLORS.grass)
+	_draw_ground()
 	var unit_drag: bool = GameConfig.data().units.has(drag_card)
 	var hover_lane := lane_at(drag_pos) if unit_drag else -1
+	var lane_fill: Array[Color] = []
 	for lane in Battlefield.LANES:
-		var lane_color: Color = COLORS.lane
+		var c: Color = ROAD
 		if unit_drag:
-			lane_color = Color("#f9ca24") if lane == hover_lane else COLORS.lane.lightened(0.2)
-		var top := tower_line(Battlefield.ENEMY)
-		draw_rect(Rect2((LANE_X[lane] - LANE_W / 2) * size.x, top, LANE_W * size.x, tower_line(Battlefield.PLAYER) - top), lane_color)
+			c = Color("#f9ca24") if lane == hover_lane else ROAD.lightened(0.2)
+		lane_fill.append(c)
+	_draw_roads(lane_fill)
 	# Chevrons moving up every active lane.
 	var top := tower_line(Battlefield.ENEMY) + 40
 	var bottom := tower_line(Battlefield.PLAYER) - 40
@@ -378,12 +446,6 @@ func _draw() -> void:
 		while y > top:
 			draw_polyline(PackedVector2Array([Vector2(lx - 10, y + 6), Vector2(lx, y - 3), Vector2(lx + 10, y + 6)]), Color(1, 1, 1, 0.13), 3)
 			y -= 90
-	for team in [Battlefield.ENEMY, Battlefield.PLAYER]:
-		for lane in Battlefield.LANES:
-			var path := road(team, lane)
-			draw_polyline(path, COLORS.lane, size.x * LANE_W)
-			for corner in path:  # square joints
-				draw_rect(Rect2(corner - Vector2.ONE * size.x * LANE_W / 2, Vector2.ONE * size.x * LANE_W), COLORS.lane)
 
 	for team in [Battlefield.ENEMY, Battlefield.PLAYER]:
 		_draw_city(team, now)
@@ -765,6 +827,10 @@ func _draw_lean_to(c: Vector2) -> void:
 ## dark entrance. Upgraded: a deep gold mine gets a headframe and a cart;
 ## a stone quarry gets cut terraces and stacked blocks.
 func _draw_mine(c: Vector2, res: String, upgraded := false) -> void:
+	_draw_art(res + ("_mine2" if upgraded else "_mine"), c + Vector2(0, -8), Vector2(62, 49))
+
+
+func _draw_mine_shapes(c: Vector2, res: String, upgraded := false) -> void:
 	if upgraded and res == "stone":
 		for k in 3:  # terraces cut into the rock
 			draw_rect(Rect2(c + Vector2(-24 + k * 6, -12 + k * 8), Vector2(48 - k * 12, 9)), Color("#9a9a94").darkened(k * 0.1))
@@ -818,6 +884,13 @@ func _draw_hut(c: Vector2, era: int, style: String) -> void:
 ## tower (medieval) or a marble tower (classical), with an
 ## arrow slit and a civ-colored roof. Destroyed towers leave broken logs.
 func _draw_tower(pos: Vector2, color: Color, hp: float, stone: bool, style: String, max_hp: float) -> void:
+	var name := "tower_ruin" if hp <= 0 else ("tower_wood" if not stone else ("tower_marble" if style == "classical" else "tower_stone"))
+	_draw_art(name, pos + Vector2(0, -10), Vector2(56, 84), color)
+	if hp > 0:
+		_draw_hp(pos + Vector2(0, -60), hp, max_hp)
+
+
+func _draw_tower_shapes(pos: Vector2, color: Color, hp: float, stone: bool, style: String, max_hp: float) -> void:
 	draw_set_transform(pos, 0, Vector2(1.4, 1.4))
 	var c := Vector2.ZERO
 	if stone and style == "classical" and hp > 0:
@@ -1001,40 +1074,43 @@ func _draw_archer(u: Dictionary, p: Vector2, color: Color, now: float, target: V
 	_draw_hp(p + Vector2(0, -30), u.hp, u.max_hp, 26)
 
 
-## Rider on a horse with a lance; armored horse at level 2, a knight (helm,
-## shield, pennant) at level 3.
+## Rider on a horse that faces the way it runs: seen from behind when riding
+## up the screen (the player's), from the front when riding down (the enemy's).
+## Armored horse at level 2; knight (helm, shield, pennant) at level 3.
 func _draw_cavalry(u: Dictionary, p: Vector2, color: Color, now: float) -> void:
 	var tier: int = u.get("tier", 0)
+	var view := "back" if u.team == Battlefield.PLAYER else "front"
 	var gallop := _walk_phase(u, now, 13.0)
 	var bob := -absf(sin(gallop)) * 2.0 if gallop >= 0.0 else 0.0
-	var k := UNIT_SCALE
-	var horse_box := Rect2(p + Vector2(-26, -22 + bob) * k, Vector2(52, 40) * k)
-	# Four legs from the body, front and back pairs swinging opposite ways.
-	for leg in [[13, 0.0], [17, PI], [35, PI], [39, 0.0]]:
-		var a: float = sin(gallop + leg[1]) * 0.45 if gallop >= 0.0 else 0.0
-		var top: Vector2 = horse_box.position + Vector2(leg[0], 25) * k
-		var foot := top + Vector2.from_angle(PI / 2 + a) * 11 * k
-		draw_line(top, foot, OUTLINE, 5.0 * k)
-		draw_line(top, foot, Color("#7a4a26"), 3.0 * k)
-	draw_texture_rect(_tex("horse"), horse_box, false)
+	var k := UNIT_SCALE * 1.15
+	var box := Rect2(p + Vector2(-18, -32 + bob) * k, Vector2(36, 44) * k)
+	# Two visible legs at the bottom, lifting in turn.
+	for side in [-1, 1]:
+		var lift := maxf(sin(gallop) * side, 0.0) * 3.5 if gallop >= 0.0 else 0.0
+		var top := box.position + Vector2(18 + side * 5.5, 31) * k
+		var leg := Rect2(top - Vector2(2, 0) * k, Vector2(4, 9.5 - lift) * k)
+		draw_rect(leg, Color("#7a4a26"))
+		draw_rect(leg, OUTLINE, false, 1.0)
+		draw_rect(Rect2(leg.position + Vector2(0, leg.size.y - 2 * k), Vector2(4, 2) * k), Color("#2b1d10"))
+	draw_texture_rect(_tex("horse_" + view), box, false)
 	if tier >= 1:
-		draw_texture_rect(_tex("barding"), horse_box, false)
-		draw_texture_rect(_tex("barding_tint"), horse_box, false, color)
-	var rider := p + Vector2(-1, -12 + bob) * k
-	_draw_figure(rider, color, ["helmet_2"] if tier >= 2 else [], 0.8 * k)
+		draw_texture_rect(_tex("barding_" + view), box, false)
+		draw_texture_rect(_tex("barding_%s_tint" % view), box, false, color)
+	var rider := p + Vector2(0, -14 + bob) * k
+	_draw_figure(rider, color, ["helmet_2"] if tier >= 2 else [], 0.75 * k)
 	if tier >= 2:
-		_draw_shield(rider + Vector2(-10, 1) * k, color, 0.8 * k)
-	var dir := -1.0 if u.team == Battlefield.PLAYER else 1.0
+		_draw_shield(rider + Vector2(-9, 1) * k, color, 0.75 * k)
+	var forward := -PI / 2 if u.team == Battlefield.PLAYER else PI / 2
 	var swing := sin(now * 10.0 + u.side * 7.0) * 0.25 if u.target != "" else 0.0
-	var lance_angle := (-PI / 2 if dir < 0 else PI / 2) + 0.45 * -dir + swing
-	var hand := rider + Vector2(8, 1) * k
-	_draw_weapon("lance", Vector2(8, 56), Vector2(4, 44), hand, lance_angle, k)
+	var lance_angle := forward + 0.3 + swing  # couched forward, a little to the right
+	var hand := rider + Vector2(7, 1) * k
+	_draw_weapon("lance", Vector2(8, 56), Vector2(4, 44), hand, lance_angle, k * 0.9)
 	if tier >= 2:
 		var t := _tex("pennant_tint")
-		draw_set_transform(hand, lance_angle + PI / 2, Vector2(k, k))
+		draw_set_transform(hand, lance_angle + PI / 2, Vector2(k, k) * 0.9)
 		draw_texture_rect(t, Rect2(-Vector2(4, 44), Vector2(8, 56)), false, color)
 		draw_set_transform(Vector2.ZERO)
-	_draw_hp(p + Vector2(0, -40), u.hp, u.max_hp, 30)
+	_draw_hp(p + Vector2(0, -44), u.hp, u.max_hp, 30)
 
 
 ## Fighter: a figure with a club (helmet and shield at level 2; great helm,
@@ -1084,6 +1160,14 @@ func _draw_worker(p: Vector2, w: Dictionary, now: float, olives := false) -> voi
 
 
 func _draw_farm(area: Rect2) -> void:
+	draw_rect(area.grow(3), Color("#6e5a3a"))
+	var cell := area.size / Vector2(FARM_COLS, FARM_ROWS)
+	for i in FARM_COLS * FARM_ROWS:
+		var plot := Rect2(area.position + cell * Vector2(i % FARM_COLS, i / FARM_COLS), cell).grow(-1.5)
+		draw_texture_rect(_tex("wheat_plot"), plot, false)
+
+
+func _draw_farm_shapes(area: Rect2) -> void:
 	draw_rect(area, COLORS.farm)
 	var cell := area.size / Vector2(FARM_COLS, FARM_ROWS)
 	for i in FARM_COLS * FARM_ROWS:
@@ -1155,6 +1239,15 @@ func _draw_marble_palace(civ_color: Color) -> void:
 
 ## Olive grove: rows of small grey-green olive trees on dry ground.
 func _draw_olive_grove(area: Rect2) -> void:
+	draw_rect(area.grow(3), Color("#a8955f"))
+	draw_rect(area, Color("#c9b47a"))
+	var cell := area.size / Vector2(FARM_COLS, FARM_ROWS)
+	for i in FARM_COLS * FARM_ROWS:
+		var c := area.position + cell * Vector2(i % FARM_COLS + 0.5, i / FARM_COLS + 0.5)
+		_draw_art("olive_tree", c + Vector2(0, -3), Vector2(34, 34))
+
+
+func _draw_olive_grove_shapes(area: Rect2) -> void:
 	draw_rect(area, Color("#b5a46a"))
 	var cell := area.size / Vector2(FARM_COLS, FARM_ROWS)
 	for i in FARM_COLS * FARM_ROWS:

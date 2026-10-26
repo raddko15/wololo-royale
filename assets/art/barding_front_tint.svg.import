@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bxggib33owoqd"
-path="res://.godot/imported/horse.svg-530e683768d9c9c3ffd140668455093f.ctex"
+uid="uid://d05wwdxbp3gok"
+path="res://.godot/imported/barding_front_tint.svg-90229ad801fc64e634169f0882b3541b.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/art/horse.svg"
-dest_files=["res://.godot/imported/horse.svg-530e683768d9c9c3ffd140668455093f.ctex"]
+source_file="res://assets/art/barding_front_tint.svg"
+dest_files=["res://.godot/imported/barding_front_tint.svg-90229ad801fc64e634169f0882b3541b.ctex"]
 
 [params]
 
