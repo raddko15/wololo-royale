@@ -23,6 +23,8 @@ var huts := 0
 var mines := {}
 ## Farm and lumberjack built so far, e.g. {"farm": true}. Food and wood need them.
 var camps := {}
+## Extra gathering speed on top of civ and upgrades (the Hard AI's handicap).
+var gather_bonus := 0.0
 ## Which camp each gathered resource needs.
 const CAMP_FOR := {"food": "farm", "wood": "lumberjack"}
 ## Military buildings built so far, e.g. {"barracks": true}; each unlocks a unit.
@@ -181,7 +183,7 @@ func rate_per_villager(res: String) -> float:
 	var bonus := 0.0
 	for id in upgrades:
 		bonus += _cfg.upgrades[id].get("gather_bonus", {}).get(res, 0.0)
-	return base * civ().gather_multiplier.get(res, 1.0) * (1.0 + bonus)
+	return base * civ().gather_multiplier.get(res, 1.0) * (1.0 + bonus + gather_bonus)
 
 
 ## New workers walk out from the drop-off to the first free plot/tree.

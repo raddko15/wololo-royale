@@ -195,11 +195,43 @@
     "crossfade_sec": 1.5
   },
   "ai": {
-    "target_villagers": 16,
-    "think_interval": 2.0,
-    "era1_max_army": 2,
-    "gold_miners": 3
+    "difficulty": {
+      "easy": {
+        "think_interval": 2.5,
+        "target_villagers": 12,
+        "barracks_at_villagers": 8,
+        "era_at_villagers": [12, 99],
+        "min_army": [2, 3, 3],
+        "defend_threshold_hp": 9999,
+        "focus_sec": 0,
+        "gather_bonus": 0.0,
+        "tactics": false
+      },
+      "normal": {
+        "think_interval": 1.0,
+        "target_villagers": 22,
+        "barracks_at_villagers": 7,
+        "era_at_villagers": [14, 20],
+        "min_army": [2, 4, 6],
+        "defend_threshold_hp": 40,
+        "focus_sec": 25,
+        "gather_bonus": 0.0,
+        "tactics": true
+      },
+      "hard": {
+        "think_interval": 0.5,
+        "target_villagers": 28,
+        "barracks_at_villagers": 6,
+        "era_at_villagers": [13, 20],
+        "min_army": [3, 5, 8],
+        "defend_threshold_hp": 20,
+        "focus_sec": 30,
+        "gather_bonus": 0.2,
+        "tactics": true
+      }
+    }
   },
+
   "population": {
     "starting_cap": 5,
     "max_cap": 100,

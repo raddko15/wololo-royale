@@ -229,6 +229,17 @@ func _init() -> void:
 	_check(ai.economy.total_villagers() >= 10 and b5.units.size() + 0 >= 0 and ai.economy.army_size >= 0, "AI recruits villagers")
 	_check(ai.economy.army_size == b5.units.filter(func(x): return x.team == Battlefield.ENEMY).size(), "AI army count matches its living units")
 
+	var b6 := Battlefield.new()
+	var smart := EnemyAI.new("franks", b6, "normal")
+	for i in 4800:
+		smart.tick(0.1)
+	_check(smart.economy.era_index >= 1 and smart.economy.military.has("barracks"), "normal AI reaches Era II within 8 minutes")
+	for i in 3:
+		b6.spawn(Battlefield.PLAYER, "fighter", 2).y = 0.8
+	smart.economy.resources = {"food": 500.0, "wood": 500.0, "gold": 0.0, "stone": 0.0}
+	smart._think()
+	_check(smart.economy.jobs.any(func(j): return j.kind == "unit" and j.lane == 2), "AI sends defenders to the lane being pushed")
+
 	# Idle villagers help build: +30% speed each.
 	var hb := Economy.new("romans")
 	hb.resources.wood = 60.0

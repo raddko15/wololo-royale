@@ -21,6 +21,8 @@ var _menu: RadialMenu
 var _lanes_on := {}
 var _next_lane := {}
 var _auto := {}
+## Opponent strength picked on the start screen (config ai.difficulty).
+var _difficulty := "normal"
 
 
 func _ready() -> void:
@@ -41,6 +43,32 @@ func _process(delta: float) -> void:
 func _show_civ_select() -> void:
 	var box := _vbox(self, 24)
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	# Opponent strength: one of three toggles, Normal to start with.
+	box.add_child(_label("Opponent", 32))
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 12)
+	var group := ButtonGroup.new()
+	for level in ["easy", "normal", "hard"]:
+		var b := Button.new()
+		b.text = level.capitalize()
+		b.toggle_mode = true
+		b.button_group = group
+		b.button_pressed = level == _difficulty
+		b.custom_minimum_size = Vector2(180, 70)
+		b.add_theme_font_size_override("font_size", 28)
+		b.focus_mode = Control.FOCUS_NONE
+		for state in ["normal", "hover", "pressed", "hover_pressed"]:
+			var on: bool = state.contains("pressed")
+			var box_style := StyleBoxFlat.new()
+			box_style.bg_color = Color("#5d4a2f") if on else Color("#3a3328")
+			box_style.border_color = Color("#f9ca24") if on else Color("#1e1e1e")
+			box_style.set_border_width_all(4)
+			box_style.set_corner_radius_all(10)
+			b.add_theme_stylebox_override(state, box_style)
+		b.pressed.connect(func(): _difficulty = level)
+		row.add_child(b)
+	box.add_child(row)
 	box.add_child(_label("Choose your civilization", 40))
 	var civs: Dictionary = GameConfig.data().civs
 	for id in civs:
@@ -63,7 +91,7 @@ func _start_game(civ_id: String, menu: Control) -> void:
 	battle = Battlefield.new()
 	var others: Array = GameConfig.data().civs.keys().filter(func(id): return id != civ_id)
 	var enemy_civ: String = others.pick_random()
-	ai = EnemyAI.new(enemy_civ, battle)
+	ai = EnemyAI.new(enemy_civ, battle, _difficulty)
 	battle.unit_died.connect(func(team): if team == Battlefield.PLAYER: economy.army_size -= 1)
 	battle.game_over.connect(_on_game_over)
 	var box := _vbox(self, 0)
@@ -589,7 +617,7 @@ func _on_game_over(winner: int) -> void:
 
 func _refresh() -> void:
 	var r := economy.resources
-	_ui.title.text = "%s · %s   vs   %s (AI) · %s" % [economy.civ().name, economy.era().name, ai.economy.civ().name, ai.economy.era().name]
+	_ui.title.text = "%s · %s   vs   %s (%s AI) · %s" % [economy.civ().name, economy.era().name, ai.economy.civ().name, ai.difficulty.capitalize(), ai.economy.era().name]
 	for res in Economy.RESOURCES:
 		_ui[res].text = "%d" % r[res]
 	_ui.villagers.text = "%d (%d idle)" % [economy.total_villagers(), economy.villagers.get("idle", 0)]

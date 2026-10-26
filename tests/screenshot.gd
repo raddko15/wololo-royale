@@ -1,6 +1,6 @@
 extends SceneTree
 ## Renders game screens to PNGs (needs a display, e.g. xvfb-run).
-## Args: <out.png> <era1|era2|era2up|era3|window|mill|mine|jobs|sites|sites0|corpses|start> [player_civ] [enemy_civ] [huts]
+## Args: <out.png> <era1|era2|era2up|era3|window|mill|mine|jobs|sites|sites0|corpses|start|menu> [player_civ] [enemy_civ] [huts]
 ## era2up buys the mill and lumber upgrades, era3 every upgrade (both sides);
 ## window / mill open that building's ring menu.
 
@@ -10,6 +10,11 @@ func _init() -> void:
 	var main = load("res://scenes/main.tscn").instantiate()
 	root.add_child(main)
 	await process_frame
+	if mode == "menu":
+		await RenderingServer.frame_post_draw
+		root.get_texture().get_image().save_png(args[0])
+		quit()
+		return
 	main._start_game(args[2] if args.size() > 2 else "romans", main.get_child(0))
 	if args.size() > 3:
 		main.ai.economy = Economy.new(args[3])
