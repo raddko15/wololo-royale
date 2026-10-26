@@ -6,6 +6,8 @@ extends Control
 
 ## A hut was tapped: build another one.
 signal hut_tapped
+## Something to tell the player in the header hint line.
+signal hint(text: String)
 ## An empty build plot was tapped: build that ("barracks", "gold", "towers", ...).
 signal site_tapped(id: String)
 ## A gold upgrade badge was tapped: buy that upgrade ("era": next era).
@@ -441,12 +443,12 @@ func _gui_input(event: InputEvent) -> void:
 			return
 	var job := job_at(pos)
 	if job != "":
-		# Tapping a working villager sends it back to idle; tapping the area sends an idle one in.
-		for w in economy.workers:
-			if w.job == job and worker_pos(Battlefield.PLAYER, w).distance_to(pos) < VILLAGER_R * 2.2:
-				economy.reassign(job, "idle")
-				return
-		economy.reassign("idle", job)
+		# Tapping the area always sends an idle villager in, however crowded it
+		# is; the ↩ icon beside it calls one back.
+		if not economy.can_work(job):
+			hint.emit("Build the %s first" % GameConfig.data().buildings[Economy.CAMP_FOR[job]].name)
+		elif not economy.reassign("idle", job):
+			hint.emit("No idle villagers: recruit one, or tap ↩ to call a worker back")
 		return
 	if pos.distance_to(town_center()) < size.x * 0.12:
 		building_tapped.emit("town_center", town_center())
@@ -592,7 +594,7 @@ func _draw() -> void:
 		for res in economy.mines:
 			draw_arc(mine_pos(Battlefield.PLAYER, res), 34, 0, TAU, 32, Color("#f9ca24") if hover == res else Color(1, 1, 1, 0.5), 4)
 	for job in ["food", "wood"]:
-		_draw_unassign_icon(unassign_icon(job), economy.villagers.get(job, 0) > 0)
+		_draw_unassign_icon(unassign_icon(job), economy.villagers.get(job, 0))
 
 	_draw_corpses(now)
 	var positions := unit_positions()
@@ -1209,13 +1211,22 @@ func _draw_hp(center: Vector2, hp: float, max_hp: float, width := 70.0) -> void:
 
 
 ## A villager dot with a "back" arrow; faded when nobody works there.
-func _draw_unassign_icon(c: Vector2, active: bool) -> void:
-	var alpha := 1.0 if active else 0.35
+## "Call a worker back" button, with how many work there on a small tag.
+func _draw_unassign_icon(c: Vector2, workers: int) -> void:
+	var alpha := 1.0 if workers > 0 else 0.35
 	draw_circle(c, 26, Color("#2b2620", alpha))
 	draw_arc(c, 26, 0, TAU, 24, Color("#f9ca24", alpha), 3)
 	draw_circle(c + Vector2(6, 0), 8, Color(COLORS.villager, alpha))
 	draw_line(c + Vector2(-16, 0), c + Vector2(-4, 0), Color("#f9ca24", alpha), 3)
 	draw_colored_polygon(PackedVector2Array([c + Vector2(-18, 0), c + Vector2(-10, -7), c + Vector2(-10, 7)]), Color("#f9ca24", alpha))
+	if workers > 0:
+		var tag := c + Vector2(0, 34)
+		draw_circle(tag, 13, OUTLINE)
+		draw_circle(tag, 11, Color("#f9ca24"))
+		var font := get_theme_default_font()
+		var text := str(workers)
+		var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
+		draw_string(font, tag + Vector2(-w / 2, 6), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, OUTLINE)
 
 
 func _draw_ball(p: Vector2, r: float, color: Color) -> void:

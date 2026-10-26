@@ -10,10 +10,10 @@
   },
   "gathering": {
     "rate_per_sec": {
-      "food": 1.0,
-      "wood": 1.0,
-      "gold": 0.8,
-      "stone": 0.8
+      "food": 1.3,
+      "wood": 1.3,
+      "gold": 1.0,
+      "stone": 1.0
     },
     "carry_capacity": {
       "food": 10,
@@ -21,7 +21,7 @@
       "gold": 5,
       "stone": 5
     },
-    "walk_time_sec": 1.5
+    "walk_time_sec": 1.2
   },
   "construction": {
     "help_per_idle_villager": 0.3
