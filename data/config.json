@@ -2,7 +2,7 @@
   "starting_resources": {
     "food": 100,
     "wood": 100,
-    "gold": 0,
+    "gold": 50,
     "stone": 0
   },
   "starting_villagers": {
@@ -117,14 +117,15 @@
       "name": "Fighter",
       "cost": {
         "food": 40,
-        "wood": 30
+        "wood": 30,
+        "gold": 10
       },
       "hp": 60,
       "speed": 0.06,
       "damage_per_sec": 10,
       "range": 0.04,
       "requires": "barracks",
-      "time": 6
+      "time": 10
     },
     "archer": {
       "name": "Archer",
@@ -267,6 +268,9 @@
         "wood": 150
       },
       "min_era": 1,
+      "min_era_by_resource": {
+        "gold": 0
+      },
       "time": 15
     }
   },

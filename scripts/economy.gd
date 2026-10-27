@@ -373,7 +373,7 @@ func site_open(kind: String, id: String) -> bool:
 			return military.get(id, 0) < _cfg.max_of_each_military and era_index >= _cfg.military[id].min_era \
 				and (camp == "" or camps.has(camp))
 		"mine":
-			return not mines.has(id) and era_index >= _cfg.buildings.mine.min_era
+			return not mines.has(id) and era_index >= mine_era(id)
 		"camp":
 			return not camps.has(id)
 	return not has_towers and era_index >= _cfg.buildings.towers.min_era
@@ -454,6 +454,12 @@ func military_count() -> int:
 	for id in military:
 		n += military[id]
 	return n
+
+
+## Era a mine can be built in: gold from the start, stone from Era II.
+func mine_era(res: String) -> int:
+	var mine: Dictionary = _cfg.buildings.mine
+	return mine.get("min_era_by_resource", {}).get(res, mine.min_era)
 
 
 func mine_cost() -> Dictionary:

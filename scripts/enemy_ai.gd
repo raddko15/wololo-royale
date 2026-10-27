@@ -82,7 +82,7 @@ func _think() -> void:
 func _next_goal() -> Dictionary:
 	var e := economy
 	var steps := [
-		["camp", "lumberjack"], ["camp", "farm"], ["military", "barracks"], ["era", "1"],
+		["camp", "lumberjack"], ["camp", "farm"], ["military", "barracks"], ["mine", "gold"], ["era", "1"],
 		["towers", ""], ["upgrade", "lumber_camp"], ["upgrade", "mill"], ["military", "archery_range"],
 		["mine", "gold"], ["military", "stables"], ["upgrade", "barracks1"], ["upgrade", "archery_range1"],
 		["upgrade", "stables1"], ["military", "barracks:2"], ["mine", "stone"], ["era", "2"],

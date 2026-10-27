@@ -78,7 +78,7 @@ func _init() -> void:
 	e.resources = {"food": 0.0, "wood": 0.0}
 	_check(not e.can_advance(), "cannot advance without 300/300")
 	e.resources = {"food": 300.0, "wood": 300.0, "gold": 0.0, "stone": 0.0}
-	_check(not e.can_build_mine("gold"), "no mines in Era I")
+	_check(e.can_build_mine("gold") and not e.can_build_mine("stone"), "gold mine from the start; stone mine needs Era II")
 	_check(e.advance() and e.era_index == 0 and e.resources.food == 0 and not e.can_advance(), "advancing to Era II takes time; paid up front")
 	e.finish_jobs()
 	_check(e.era_index == 1, "Era II reached when the research finishes")
@@ -113,10 +113,10 @@ func _init() -> void:
 	_check(m.army_size == 1 and spawned == [["cavalry", 2]], "cavalry ready after 9 s, bound for its lane")
 	m.train("fighter", 0)
 	m.train("fighter", 1)
-	m.tick(6.1)
-	_check(spawned.size() == 2, "one barracks trains one fighter at a time")
+	m.tick(10.1)
+	_check(spawned.size() == 2, "one barracks trains one fighter at a time (10 s each)")
 	m.job_speed = 10.0
-	m.tick(0.61)
+	m.tick(1.01)
 	_check(spawned.size() == 3, "testing job speed: 10x faster training")
 	_check(not m.can_train("archer"), "archers need an archery range")
 	m.resources.gold = 1000.0
@@ -261,7 +261,7 @@ func _init() -> void:
 	# Up to 3 of each military building, each training on its own.
 	var mb := Economy.new("romans")
 	mb.camps = {"farm": true, "lumberjack": true}
-	mb.resources = {"food": 9000.0, "wood": 9000.0, "gold": 0.0, "stone": 0.0}
+	mb.resources = {"food": 9000.0, "wood": 9000.0, "gold": 9000.0, "stone": 0.0}
 	mb.huts = 10
 	for i in 3:
 		mb.build_military("barracks")
@@ -269,7 +269,7 @@ func _init() -> void:
 	_check(mb.military.barracks == 3 and not mb.can_build_military("barracks"), "three barracks at most")
 	for i in 3:
 		mb.train("fighter", 1)
-	mb.tick(6.1)
+	mb.tick(10.1)
 	_check(mb.army_size == 3, "three barracks train three fighters at once")
 	_check(is_equal_approx(mb.villager_time(), 6.0), "villagers take 6 s in Era I")
 	mb.era_index = 2

@@ -607,7 +607,7 @@ func _menu_options(kind: String) -> Array:
 			opts.append(_option("towers", "towers", "Towers", tnote, economy.can_build_towers()))
 			var mine: Dictionary = cfg.buildings.mine
 			for res in Economy.MINED:
-				var mnote := _status_note(economy.mines.has(res), "mine", res, mine.min_era, mine.cost)
+				var mnote := _status_note(economy.mines.has(res), "mine", res, economy.mine_era(res), mine.cost)
 				opts.append(_option(res, res, "%s mine" % res.capitalize(), mnote, economy.can_build_mine(res)))
 			# Middle ring: military buildings.
 			for id in cfg.military:
