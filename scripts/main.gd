@@ -16,9 +16,8 @@ var _cards := {}
 var _press := {}
 var _ghost: Card
 var _menu: RadialMenu
-## Per unit type: lanes its auto-trained units go to (they take turns), the
-## next lane in that rotation, and which types are on repeat.
-var _lanes_on := {}
+## Per unit type: the next lane its AUTO units go to (they take turns), and
+## which types are on repeat.
 var _next_lane := {}
 var _auto := {}
 ## Pause button: nothing moves, trains or gathers until the player resumes.
@@ -63,6 +62,7 @@ func _start_game(civ_id: String, menu: Control) -> void:
 		economy.resources = testing.player_starting_resources.duplicate()
 	economy.job_speed = testing.get("job_speed", 1.0) if testing.get("fast_at_start", false) else 1.0
 	battle = Battlefield.new()
+	battle.default_order[Battlefield.PLAYER] = "stop"  # troops wait by the towers until sent
 	var others: Array = GameConfig.data().civs.keys().filter(func(id): return id != civ_id)
 	var enemy_civ: String = others.pick_random()
 	ai = EnemyAI.new(enemy_civ, battle, _difficulty)
@@ -85,11 +85,7 @@ func _start_game(civ_id: String, menu: Control) -> void:
 		if not economy.build_hut():
 			_flash_hint("Need %d wood for a hut" % GameConfig.data().buildings.hut.cost.wood if economy.max_population() < GameConfig.data().population.max_cap else "Population is at the maximum"))
 	_view.site_tapped.connect(_on_site_tapped)
-	_view.gather_tapped.connect(func(lane: int):
-		var on: bool = not battle.gather[Battlefield.PLAYER][lane]
-		battle.set_gather(Battlefield.PLAYER, lane, on)
-		_flash_hint("Gathering: new troops wait by the tower. Tap the swords to charge!" if on else "Gathering off: troops march straight out"))
-	_view.charge_tapped.connect(func(lane: int): battle.charge(Battlefield.PLAYER, lane))
+
 	_view.hint.connect(_flash_hint)
 	_view.upgrade_badge_tapped.connect(func(id: String):
 		if id == "era":
@@ -123,7 +119,6 @@ func _start_game(civ_id: String, menu: Control) -> void:
 			spacer.custom_minimum_size.y = 40
 			col.add_child(spacer)
 		else:
-			_lanes_on[id] = [false, true, false]
 			_next_lane[id] = 0
 			col.add_child(_lane_switches(id))
 		bar.add_child(col)
@@ -134,34 +129,36 @@ func _start_game(civ_id: String, menu: Control) -> void:
 	_refresh()
 
 
-## Left / Middle / Right play-pause switches for one unit type: where its
-## auto-trained units walk.
+## Left / Middle / Right order buttons for one troop type: ■ stop, ▶ march,
+## ◀ retreat in that lane.
 func _lane_switches(unit_id: String) -> Control:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 3)
 	for lane in Battlefield.LANES:
-		var t := LaneToggle.new(["L", "M", "R"][lane], _lanes_on[unit_id][lane], true)
-		t.toggled.connect(func(on: bool):
-			_lanes_on[unit_id][lane] = on
+		var t := LaneOrder.new(["L", "M", "R"][lane], battle.order(Battlefield.PLAYER, unit_id, lane),
+			battle.units_of.bind(Battlefield.PLAYER, unit_id, lane))
+		t.changed.connect(func(state: String):
+			battle.set_order(Battlefield.PLAYER, unit_id, lane, state)
 			_update_lane_marks())
 		row.add_child(t)
 	return row
 
 
-## Chevrons on the map: lanes that some AUTO unit is currently sent down.
+## Chevrons on the map: lanes where some troop type is marching.
 func _update_lane_marks() -> void:
 	var marks := [false, false, false]
-	for id in _auto:
+	for id in economy.available_units():
 		for lane in Battlefield.LANES:
-			marks[lane] = marks[lane] or _lanes_on[id][lane]
+			marks[lane] = marks[lane] or battle.order(Battlefield.PLAYER, id, lane) == "march"
 	_view.active_lanes = marks
 
 
-## Next active lane in turn for a unit type, or -1 when all its lanes are paused.
+## Next lane in turn for an AUTO troop type (lanes on retreat are skipped),
+## or -1 when every lane is retreating.
 func _take_lane(unit_id: String) -> int:
 	for k in Battlefield.LANES:
 		var lane: int = (_next_lane[unit_id] + k) % Battlefield.LANES
-		if _lanes_on[unit_id][lane]:
+		if battle.order(Battlefield.PLAYER, unit_id, lane) != "retreat":
 			_next_lane[unit_id] = lane + 1
 			return lane
 	return -1
@@ -312,11 +309,11 @@ func _drop(id: String, local: Vector2) -> void:
 				economy.train(id, lane)  # walks out when its building finishes it
 
 
-## Keep each auto unit training at every building of its kind; the next starts as soon as it is
-## affordable, sent to that unit's active lanes in turn. All paused: wait.
+## Keep each AUTO troop type training at every building of its kind; each
+## new one goes to the next lane in turn (skipping lanes on retreat).
 func _run_auto() -> void:
 	for id in _auto:
-		if not _lanes_on[id].has(true):
+		if not range(Battlefield.LANES).any(func(l): return battle.order(Battlefield.PLAYER, id, l) != "retreat"):
 			continue
 		# One in training per building of its kind, so 3 barracks train 3 at once.
 		var waiting := economy.jobs.filter(func(j): return j.kind == "unit" and j.id == id).size()
@@ -743,7 +740,7 @@ func _refresh() -> void:
 	var full := not economy.has_room()
 	_ui.pop.add_theme_color_override("font_color", Color("#e55039") if full else Color.WHITE)
 	if Time.get_ticks_msec() > _ui.get("hint_until", 0):
-		_ui.hint.text = "Tap a unit card for AUTO · its L/M/R switches pick lanes · drag for one unit"
+		_ui.hint.text = "Tap a card for AUTO · L/M/R under it: ■ stop ▶ march ◀ retreat · drag for one"
 
 	var dragging: String = _press.get("card", "") if _ghost else ""
 	var vcost := economy.villager_cost()

@@ -80,12 +80,15 @@ func _init() -> void:
 		quit()
 		return
 	if mode == "gather":
-		# Troops gathered by the left and middle towers, ready to charge.
+		# Troops stopped by the left and middle towers (the default order).
 		main.battle.units.clear()
 		for lane in [0, 1]:
-			main.battle.set_gather(Battlefield.PLAYER, lane, true)
 			for t in ["fighter", "fighter", "fighter", "archer", "archer", "cavalry", "cavalry"]:
 				main.battle.spawn(Battlefield.PLAYER, t, lane)
+		# Archers on the right lane march; cavalry on the left retreat.
+		main.battle.spawn(Battlefield.PLAYER, "archer", 2)
+		main.battle.set_order(Battlefield.PLAYER, "archer", 2, "march")
+		main._cards.archer.get_parent().get_child(1).get_child(2).state = "march"
 	elif mode == "unique":
 		# Each civ's unique unit on both sides, one lane each.
 		for team in [Battlefield.PLAYER, Battlefield.ENEMY]:

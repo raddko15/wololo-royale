@@ -34,10 +34,13 @@ var arrows: Array[Dictionary] = []
 var cooldowns := [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
 var main_cooldowns := [0.0, 0.0]
 var winner := -1
-## Gather mode per side and lane: new units wait at a rally point in front of
-## their own tower until the lane charges.
-var gather := [[false, false, false], [false, false, false]]
-## A gathered unit standing within this of a foe defends itself.
+## Standing orders per side, unit type and lane: "march" (walk on and
+## fight), "stop" (halt where they are; new ones wait at the rally point in
+## front of their tower) or "retreat" (walk back to the rally point and wait).
+## Types without an entry follow default_order[team].
+var orders := [{}, {}]
+var default_order := ["march", "march"]
+## A holding unit within this of a foe defends itself.
 const AGGRO := 0.25
 ## Rally point distance in front of the tower, and how far back archers stand.
 const RALLY := 0.2
@@ -141,11 +144,12 @@ func spawn(team: int, unit_id: String, lane: int, bonus := {}, tier := 0) -> Dic
 		"target": "", "foe": null,
 		# Sideways spread inside the lane (-1..1) so walking units don't overlap.
 		"side": randf_range(-1.0, 1.0),
-		# Waiting at the rally point (gather mode); `march` is the pace of the
-		# group it charged with (the slowest member) until it meets the enemy.
-		"waiting": gather[team][lane], "march": 0.0, "moving": false,
+		# `released`: sent off by a charge even though its order is stop.
+		# `march`: the pace of the group it charged with (the slowest member)
+		# until it meets the enemy. `waiting`: holding still under its order.
+		"released": false, "march": 0.0, "moving": false, "waiting": false,
 	}
-	if unit.waiting:
+	if order(team, unit_id, lane) != "march":
 		_formation_side(unit)
 	units.append(unit)
 	return unit
@@ -161,33 +165,55 @@ func _formation_side(u: Dictionary) -> void:
 	u.rank = randf() * 0.03  # a little depth so they stand in ranks, not one pile
 
 
-## Where `u` waits while its lane gathers.
+## Where `u` waits while it holds.
 func rally_y(u: Dictionary) -> float:
 	var forward := 1.0 if u.team == PLAYER else -1.0
 	return TOWER_Y[u.team] + forward * (RALLY - RALLY_DEPTH.get(u.type, 0.0) - u.get("rank", 0.0))
 
 
-## Turn gathering on or off for a lane; turning it off charges.
-func set_gather(team: int, lane: int, on: bool) -> void:
-	gather[team][lane] = on
-	if not on:
-		charge(team, lane)
+func order(team: int, unit_type: String, lane: int) -> String:
+	return orders[team].get(unit_type, [default_order[team], default_order[team], default_order[team]])[lane]
 
 
-## Release everyone waiting in a lane at once; they march at the pace of the
-## slowest so they arrive together.
+## What `u` does now: its type's order in its lane, unless a charge released it.
+func current_order(u: Dictionary) -> String:
+	return "march" if u.released else order(u.team, u.type, u.lane)
+
+
+## Give a unit type in a lane a new standing order; it applies to the ones
+## already out there too (a charge's release is cancelled).
+func set_order(team: int, unit_type: String, lane: int, what: String) -> void:
+	if not orders[team].has(unit_type):
+		orders[team][unit_type] = [default_order[team], default_order[team], default_order[team]]
+	orders[team][unit_type][lane] = what
+	for u in units:
+		if u.team == team and u.type == unit_type and u.lane == lane:
+			u.released = false
+			u.march = 0.0
+			if what != "march":
+				_formation_side(u)
+
+
+## Send everyone holding in a lane at once (all types); they march at the
+## pace of the slowest so they arrive together.
 func charge(team: int, lane: int) -> void:
-	var group := units.filter(func(u): return u.team == team and u.lane == lane and u.waiting)
+	var group := units.filter(func(u): return u.team == team and u.lane == lane and current_order(u) != "march")
 	if group.is_empty():
 		return
 	var pace: float = group.map(func(u): return u.speed).min()
 	for u in group:
-		u.waiting = false
+		u.released = true
 		u.march = pace
 
 
-func waiting_count(team: int, lane: int) -> int:
-	return units.filter(func(u): return u.team == team and u.lane == lane and u.waiting).size()
+## Units holding (stopped or retreated) in a lane.
+func waiting_count(team: int, lane: int, unit_type := "") -> int:
+	return units.filter(func(u): return u.team == team and u.lane == lane and current_order(u) != "march" \
+		and (unit_type == "" or u.type == unit_type)).size()
+
+
+func units_of(team: int, unit_type: String, lane: int) -> int:
+	return units.filter(func(u): return u.team == team and u.lane == lane and u.type == unit_type).size()
 
 
 func tick(delta: float) -> void:
@@ -221,6 +247,16 @@ func _unit_act(u: Dictionary, delta: float) -> void:
 	if foe and charging and u.bonus_vs.get(foe.type, 1.0) <= 1.0:
 		foe = null
 	u.moving = false
+	var what := current_order(u)
+	u.waiting = what != "march"
+	if what == "retreat":
+		# Walking back to the rally point: no stopping to fight on the way.
+		var home := rally_y(u)
+		if absf(home - u.y) > 0.002:
+			var before_y: float = u.y
+			u.y = move_toward(u.y, home, u.speed * delta)
+			u.moving = not is_equal_approx(before_y, u.y)
+			return
 	if foe:
 		foe.hp -= u.dps * u.bonus_vs.get(foe.type, 1.0) * delta
 		u.target = "unit"
@@ -252,8 +288,9 @@ func _unit_act(u: Dictionary, delta: float) -> void:
 	if blocker:
 		step = minf(step, absf(blocker.y - u.y) - u.range)
 	var limit: float = absf(target_y - u.y) - u.range
-	if u.waiting and (blocker == null or absf(blocker.y - u.y) > AGGRO):
-		limit = (rally_y(u) - u.y) * dir  # hold at the rally point
+	if what != "march" and (blocker == null or absf(blocker.y - u.y) > AGGRO):
+		# Holding: new ones walk up to the rally point, the rest halt in place.
+		limit = maxf((rally_y(u) - u.y) * dir, 0.0)
 	var before: float = u.y
 	u.y += dir * maxf(minf(step, limit), 0.0)
 	u.moving = not is_equal_approx(before, u.y)
