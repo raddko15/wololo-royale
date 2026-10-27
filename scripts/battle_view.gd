@@ -653,6 +653,9 @@ func _draw() -> void:
 		var idx := battle.units.find(a.target)
 		if idx != -1:
 			_draw_arrow(a, positions[idx])
+	# Lane order buttons last, on top of the troops.
+	for lane in Battlefield.LANES:
+		_draw_order_button(lane)
 
 
 # --- Corpses -------------------------------------------------------------
@@ -877,9 +880,7 @@ func _draw_city(team: int, now: float) -> void:
 			_draw_tower(building_pos(team, "tower", lane), color, battle.buildings[team].towers[lane], e.upgrades.has("stone_towers"), style, battle.tower_max_hp[team])
 	_draw_jobs(team, e, now)
 	_draw_helpers(team, helping, now)
-	if team == Battlefield.PLAYER:
-		for lane in Battlefield.LANES:
-			_draw_order_button(lane)
+
 	for tag in _tags:
 		_draw_info_tag(tag[0], tag[1], tag[2], tag[3])
 	_tags.clear()
@@ -887,10 +888,10 @@ func _draw_city(team: int, now: float) -> void:
 		_draw_upgrade_badges(e, now)
 
 
-## The order button under each of the player's lane towers, centred on the
-## lane: HOLD / GO / BACK for the troops in that lane.
+## The order button for each lane, in the middle of the lane halfway between
+## the two sides' towers: HOLD / GO / BACK for the player's troops there.
 func order_button(lane: int) -> Vector2:
-	return building_pos(Battlefield.PLAYER, "tower", lane) + Vector2(0, 36)
+	return _lane_pos_at(lane, 0.5, 0.0)
 
 
 ## Fill and rim per order: GO green ▶, HOLD amber ■, BACK blue ◀.
