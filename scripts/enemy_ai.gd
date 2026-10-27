@@ -36,7 +36,7 @@ func _init(civ_id: String, field: Battlefield, level := "normal", side := Battle
 	economy.job_done.connect(_on_job_done)
 	# Smarter levels gather their troops by the towers and charge in force.
 	if _d.has("charge_at"):
-		battle.default_order[team] = "stop"
+		battle.lane_orders[team] = ["stop", "stop", "stop"]
 
 
 ## Finished jobs that touch the battlefield: units walk out, towers go up.

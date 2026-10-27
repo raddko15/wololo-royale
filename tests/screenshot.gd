@@ -85,10 +85,10 @@ func _init() -> void:
 		for lane in [0, 1]:
 			for t in ["fighter", "fighter", "fighter", "archer", "archer", "cavalry", "cavalry"]:
 				main.battle.spawn(Battlefield.PLAYER, t, lane)
-		# Archers on the right lane march; cavalry on the left retreat.
+		# The right lane marches.
 		main.battle.spawn(Battlefield.PLAYER, "archer", 2)
-		main.battle.set_order(Battlefield.PLAYER, "archer", 2, "march")
-		main._cards.archer.get_parent().get_child(1).get_child(2).state = "march"
+		main.battle.set_order(Battlefield.PLAYER, 2, "march")
+		main._cards.archer.get_parent().get_parent().get_child(0).get_child(2).state = "march"
 	elif mode == "unique":
 		# Each civ's unique unit on both sides, one lane each.
 		for team in [Battlefield.PLAYER, Battlefield.ENEMY]:

@@ -368,7 +368,7 @@ func _init() -> void:
 	# Orders: stopped troops wait in front of their tower; a charge sends them together.
 	var gf := Battlefield.new()
 	gf.buildings[1].main = 1e9
-	gf.default_order[Battlefield.PLAYER] = "stop"
+	gf.lane_orders[Battlefield.PLAYER] = ["stop", "stop", "stop"]
 	var g1 := gf.spawn(Battlefield.PLAYER, "fighter", 1)
 	var g2 := gf.spawn(Battlefield.PLAYER, "cavalry", 1)
 	var g3 := gf.spawn(Battlefield.PLAYER, "archer", 1)
@@ -384,12 +384,12 @@ func _init() -> void:
 	for i in 50:
 		gf.tick(0.1)
 	_check(g2.y > 0.3 and absf(g2.y - g1.y) < 0.03, "after a charge the group marches together at the slowest pace")
-	gf.set_order(Battlefield.PLAYER, "cavalry", 1, "stop")
+	gf.set_order(Battlefield.PLAYER, 1, "stop")
 	var halted: float = g2.y
 	for i in 30:
 		gf.tick(0.1)
-	_check(is_equal_approx(g2.y, halted) and g1.y > halted, "stop halts that troop type where it is; others march on")
-	gf.set_order(Battlefield.PLAYER, "cavalry", 1, "retreat")
+	_check(is_equal_approx(g2.y, halted), "hold stops the lane's troops where they are")
+	gf.set_order(Battlefield.PLAYER, 1, "retreat")
 	for i in 100:
 		gf.tick(0.1)
 	_check(absf(g2.y - gf.rally_y(g2)) < 0.01, "retreat walks them back to the rally point")

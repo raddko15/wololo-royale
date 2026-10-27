@@ -34,12 +34,10 @@ var arrows: Array[Dictionary] = []
 var cooldowns := [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
 var main_cooldowns := [0.0, 0.0]
 var winner := -1
-## Standing orders per side, unit type and lane: "march" (walk on and
-## fight), "stop" (halt where they are; new ones wait at the rally point in
-## front of their tower) or "retreat" (walk back to the rally point and wait).
-## Types without an entry follow default_order[team].
-var orders := [{}, {}]
-var default_order := ["march", "march"]
+## Standing orders per side and lane: "march" (walk on and fight), "stop"
+## (halt where they are; new ones wait at the rally point in front of their
+## tower) or "retreat" (walk back to the rally point and wait).
+var lane_orders := [["march", "march", "march"], ["march", "march", "march"]]
 ## A holding unit within this of a foe defends itself.
 const AGGRO := 0.25
 ## Rally point distance in front of the tower, and how far back archers stand.
@@ -149,7 +147,7 @@ func spawn(team: int, unit_id: String, lane: int, bonus := {}, tier := 0) -> Dic
 		# until it meets the enemy. `waiting`: holding still under its order.
 		"released": false, "march": 0.0, "moving": false, "waiting": false,
 	}
-	if order(team, unit_id, lane) != "march":
+	if lane_orders[team][lane] != "march":
 		_formation_side(unit)
 	units.append(unit)
 	return unit
@@ -171,26 +169,22 @@ func rally_y(u: Dictionary) -> float:
 	return TOWER_Y[u.team] + forward * (RALLY - RALLY_DEPTH.get(u.type, 0.0) - u.get("rank", 0.0))
 
 
-func order(team: int, unit_type: String, lane: int) -> String:
-	return orders[team].get(unit_type, [default_order[team], default_order[team], default_order[team]])[lane]
-
-
-## What `u` does now: its type's order in its lane, unless a charge released it.
+## What `u` does now: its lane's order, unless a charge released it.
 func current_order(u: Dictionary) -> String:
-	return "march" if u.released else order(u.team, u.type, u.lane)
+	return "march" if u.released else lane_orders[u.team][u.lane]
 
 
-## Give a unit type in a lane a new standing order; it applies to the ones
-## already out there too (a charge's release is cancelled).
-func set_order(team: int, unit_type: String, lane: int, what: String) -> void:
-	if not orders[team].has(unit_type):
-		orders[team][unit_type] = [default_order[team], default_order[team], default_order[team]]
-	orders[team][unit_type][lane] = what
+## Give a lane a new standing order; it applies to the troops already there
+## too. On "march" the ones that were holding set off together.
+func set_order(team: int, lane: int, what: String) -> void:
+	if what == "march":
+		charge(team, lane)
+	lane_orders[team][lane] = what
 	for u in units:
-		if u.team == team and u.type == unit_type and u.lane == lane:
+		if u.team == team and u.lane == lane:
 			u.released = false
-			u.march = 0.0
 			if what != "march":
+				u.march = 0.0
 				_formation_side(u)
 
 
@@ -207,13 +201,12 @@ func charge(team: int, lane: int) -> void:
 
 
 ## Units holding (stopped or retreated) in a lane.
-func waiting_count(team: int, lane: int, unit_type := "") -> int:
-	return units.filter(func(u): return u.team == team and u.lane == lane and current_order(u) != "march" \
-		and (unit_type == "" or u.type == unit_type)).size()
+func waiting_count(team: int, lane: int) -> int:
+	return units.filter(func(u): return u.team == team and u.lane == lane and current_order(u) != "march").size()
 
 
-func units_of(team: int, unit_type: String, lane: int) -> int:
-	return units.filter(func(u): return u.team == team and u.lane == lane and u.type == unit_type).size()
+func units_in(team: int, lane: int) -> int:
+	return units.filter(func(u): return u.team == team and u.lane == lane).size()
 
 
 func tick(delta: float) -> void:
