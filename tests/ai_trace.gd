@@ -13,7 +13,7 @@ func _init() -> void:
 		ai.tick(0.1)
 		field.tick(0.1)
 		t += 0.1
-		if int(round(t * 10)) % 300 == 0:
+		if int(round(t * 10)) % int(OS.get_environment("TRACE_EVERY") if OS.get_environment("TRACE_EVERY") != "" else "300") == 0:
 			var e := ai.economy
 			var goal := ai._next_goal()
 			print("%4ds era %d vil %s pop %d/%d res %s army %d jobs %s mil %s mines %s ups %d goal %s" % [int(t), e.era_index, e.villagers, e.population(), e.max_population(),

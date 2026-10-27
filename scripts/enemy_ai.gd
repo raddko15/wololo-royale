@@ -68,7 +68,7 @@ func _think() -> void:
 	var goal := _next_goal()
 	_assign_workers(goal)
 	# Houses and villagers first: they keep the economy growing.
-	if economy.population() >= economy.max_population() - 2 and not economy.is_pending("hut", "hut") \
+	if economy.population() >= economy.max_population() - 3 and not economy.is_pending("hut", "hut") \
 			and economy.max_population() < _cfg.population.max_cap:
 		economy.build_hut()
 	if economy.total_villagers() + economy.pending_count("villager") < _d.target_villagers \
@@ -85,9 +85,9 @@ func _think() -> void:
 ## The first step of the build order that is open now: {"cost", "act"}, or {}.
 func _next_goal() -> Dictionary:
 	var e := economy
-	# [kind, id, era it may start in]; "barracks:2" = a second barracks.
+	# [kind, id, era it may start in, (villagers needed)]; "barracks:2" = a second barracks.
 	var steps := [
-		["camp", "lumberjack", 0], ["camp", "farm", 0], ["military", "barracks", 0], ["mine", "gold", 0],
+		["camp", "farm", 0], ["camp", "lumberjack", 0], ["military", "barracks", 0], ["mine", "gold", 0, 12],
 		["military", "barracks:2", 0], ["era", "1", 0], ["towers", "", 1], ["upgrade", "lumber_camp", 1], ["upgrade", "mill", 1],
 		["military", "archery_range", 1], ["military", "barracks:2", 1], ["military", "stables", 1],
 		["upgrade", "barracks1", 1], ["upgrade", "archery_range1", 1], ["upgrade", "stables1", 1],
@@ -100,8 +100,8 @@ func _next_goal() -> Dictionary:
 	for step in steps:
 		var kind: String = step[0]
 		var id: String = step[1]
-		if e.era_index < step[2]:
-			continue
+		if e.era_index < step[2] or (step.size() > 3 and e.total_villagers() < step[3]):
+			continue  # not its era yet, or (4th entry) too few villagers yet
 		match kind:
 			"camp":
 				if e.site_open("camp", id):
@@ -139,7 +139,8 @@ func _next_goal() -> Dictionary:
 func _assign_workers(goal: Dictionary) -> void:
 	var e := economy
 	var weights := {"food": 0.5, "wood": 0.4, "gold": 0.0, "stone": 0.0}
-	if e.mines.has("gold"):
+	# Gold only while the store runs low or the next step needs it.
+	if e.mines.has("gold") and (e.resources.get("gold", 0.0) < 150.0 or goal.get("cost", {}).has("gold")):
 		weights.gold = 0.25
 	if e.mines.has("stone"):
 		weights.stone = 0.1
@@ -174,7 +175,22 @@ func _assign_workers(goal: Dictionary) -> void:
 			total_w += floors[r] * total_w - weights[r]
 			weights[r] = floors[r] * total_w
 	var people := e.total_villagers()
-	var gap := func(r: String) -> float: return weights[r] / total_w * people - e.villagers.get(r, 0)
+	var want := {}
+	for r in workable:
+		want[r] = weights[r] / total_w * people
+	# While it grows, enough farmers to keep the town center training villagers
+	# non-stop come first; the other jobs share the rest.
+	if "food" in workable and e.total_villagers() < _d.target_villagers:
+		# (two stay on wood for huts and the first buildings)
+		var farmers := clampf(float(people - 2), 0.0, float(_d.get("food_workers", 0)))
+		if want.food < farmers:
+			var others: float = people - want.food
+			var left: float = people - farmers
+			for r in workable:
+				if r != "food" and others > 0:
+					want[r] *= left / others
+			want.food = farmers
+	var gap := func(r: String) -> float: return want[r] - e.villagers.get(r, 0)
 	# Idle villagers go where the gap is largest...
 	while e.villagers.get("idle", 0) > 0:
 		var best: String = workable[0]
@@ -191,7 +207,7 @@ func _assign_workers(goal: Dictionary) -> void:
 			most = r
 		if gap.call(r) < gap.call(least):
 			least = r
-	if gap.call(most) >= 1.5 and gap.call(least) <= -1.5:
+	if gap.call(most) >= 1.0 and gap.call(least) <= -1.0:
 		e.reassign(least, most)
 
 
