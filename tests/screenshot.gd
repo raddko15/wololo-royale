@@ -1,6 +1,6 @@
 extends SceneTree
 ## Renders game screens to PNGs (needs a display, e.g. xvfb-run).
-## Args: <out.png> <era1|era2|era2up|era3|window|mill|mine|jobs|sites|sites0|corpses|start|menu|victory|unique> [player_civ] [enemy_civ] [huts]
+## Args: <out.png> <era1|era2|era2up|era3|window|mill|mine|jobs|sites|sites0|corpses|start|menu|victory|unique|paused> [player_civ] [enemy_civ] [huts]
 ## era2up buys the mill and lumber upgrades, era3 every upgrade (both sides);
 ## window / mill open that building's ring menu.
 
@@ -19,7 +19,7 @@ func _init() -> void:
 	if args.size() > 3:
 		main.ai.economy = Economy.new(args[3])
 		main._view.enemy_economy = main.ai.economy
-	var era: int = {"era1": 0, "era2": 1, "era2up": 1, "era3": 2, "window": 1, "mill": 1, "mine": 2, "jobs": 1, "sites": 1, "sites0": 0, "corpses": 1, "start": 0, "victory": 0, "unique": 2, "walkstrip": 2, "fightstrip": 0}[mode]
+	var era: int = {"era1": 0, "era2": 1, "era2up": 1, "era3": 2, "window": 1, "mill": 1, "mine": 2, "jobs": 1, "sites": 1, "sites0": 0, "corpses": 1, "start": 0, "victory": 0, "unique": 2, "walkstrip": 2, "fightstrip": 0, "paused": 1}[mode]
 	if mode == "start":
 		# A real opening: the AI plays its first 30 seconds, the player nothing.
 		for i in 600:
@@ -118,7 +118,8 @@ func _init() -> void:
 			e.tick(0.1)
 	if mode == "corpses":
 		# Every unit type at each stage: fresh, rotten, skeleton (left to right).
-		var now := Time.get_ticks_msec() / 1000.0
+		main._view.game_clock = 100.0
+		var now: float = main._view.game_clock
 		var types := ["fighter", "archer", "cavalry"]
 		for row in 3:
 			for col in 3:
@@ -130,6 +131,8 @@ func _init() -> void:
 		main._open_menu("town_center", main._view.town_center())
 	elif mode == "mill":
 		main._open_menu("mill", main._view.drop_off(Battlefield.PLAYER, "food"))
+	elif mode == "paused":
+		main._set_paused(true)
 	elif mode == "victory":
 		main._on_game_over(Battlefield.PLAYER)
 	elif mode == "mine":

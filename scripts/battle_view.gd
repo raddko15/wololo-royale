@@ -48,7 +48,15 @@ var drag_pos := Vector2.ZERO
 var active_lanes := [false, false, false]
 
 
-func _process(_delta: float) -> void:
+## Set while the game is paused: the game clock (corpses rotting) stops.
+var paused := false
+## Seconds of play so far, not counting pauses.
+var game_clock := 0.0
+
+
+func _process(delta: float) -> void:
+	if not paused:
+		game_clock += delta
 	queue_redraw()
 
 
@@ -646,7 +654,7 @@ func villager_died(gone: Dictionary) -> void:
 		pos = idle_spot(p, idle, idle + 1) + Vector2(0, 6)
 	var h := randi()
 	corpses.append({"pos": pos, "type": "villager", "tier": 0, "color": VILLAGER_TUNIC,
-		"born": Time.get_ticks_msec() / 1000.0, "angle": PI / 2 if h % 2 == 0 else -PI / 2,
+		"born": game_clock, "angle": PI / 2 if h % 2 == 0 else -PI / 2,
 		"weapon_angle": 0.0})
 
 
@@ -656,7 +664,7 @@ func _draw_corpses(now: float) -> void:
 		if u.has("view_pos"):
 			var h := hash(u)
 			corpses.append({"pos": u.view_pos, "type": u.type, "tier": u.get("tier", 0),
-				"color": Color(econ(u.team).civ().color), "born": now,
+				"color": Color(econ(u.team).civ().color), "born": game_clock,
 				"angle": (PI / 2 if h % 2 == 0 else -PI / 2) + float(h % 7 - 3) * 0.12,
 				"weapon_angle": float(h % 360) / 360.0 * TAU})
 	battle.fallen.clear()
@@ -664,9 +672,9 @@ func _draw_corpses(now: float) -> void:
 	var rotten: float = fresh + cfg.rotten_sec
 	var gone: float = rotten + cfg.skeleton_sec
 	var x: float = cfg.crossfade_sec
-	corpses = corpses.filter(func(c: Dictionary) -> bool: return now - c.born < gone)
+	corpses = corpses.filter(func(c: Dictionary) -> bool: return game_clock - c.born < gone)
 	for c in corpses:
-		var t: float = now - c.born
+		var t: float = game_clock - c.born
 		var a_fresh := clampf((fresh - t) / x, 0, 1)
 		var a_rot := minf(clampf((t - fresh + x) / x, 0, 1), clampf((rotten - t) / x, 0, 1))
 		var a_bones := minf(clampf((t - rotten + x) / x, 0, 1), clampf((gone - t) / 3.0, 0, 1))

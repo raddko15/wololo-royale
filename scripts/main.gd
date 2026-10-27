@@ -21,6 +21,10 @@ var _menu: RadialMenu
 var _lanes_on := {}
 var _next_lane := {}
 var _auto := {}
+## Pause button: nothing moves, trains or gathers until the player resumes.
+var _paused := false
+var _pause_overlay: Control
+
 ## Opponent strength picked on the start screen (config ai.difficulty).
 var _difficulty := "normal"
 
@@ -32,6 +36,8 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	if _paused:
+		return
 	if economy and battle.winner == -1:
 		_run_auto()
 	if economy and battle.winner == -1:
@@ -232,6 +238,12 @@ func _header() -> Control:
 			economy.resources[res] += bonus
 		_refresh())
 	top.add_child(rich)
+	var pause := Button.new()
+	pause.text = "Pause"
+	pause.add_theme_font_size_override("font_size", 20)
+	pause.focus_mode = Control.FOCUS_NONE
+	pause.pressed.connect(_set_paused.bind(true))
+	top.add_child(pause)
 	top.add_child(restart)
 	for row_keys in [Economy.RESOURCES, ["villagers", "pop"]]:
 		var row := HBoxContainer.new()
@@ -339,6 +351,37 @@ func _run_auto() -> void:
 		while waiting < buildings and economy.can_train(id):
 			economy.train(id, _take_lane(id))
 			waiting += 1
+
+
+## Freeze or resume the whole game. While paused a dark screen says so;
+## tapping anywhere resumes.
+func _set_paused(on: bool) -> void:
+	if on == _paused or battle == null or battle.winner != -1:
+		return
+	_paused = on
+	_view.paused = on
+	if on:
+		_end_drag()
+		_close_menu()
+		_pause_overlay = ColorRect.new()
+		_pause_overlay.color = Color(0, 0, 0, 0.6)
+		_pause_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		add_child(_pause_overlay)
+		var title := _label("Paused", 72)
+		title.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		_pause_overlay.add_child(title)
+		var again := _label("Tap to resume", 30)
+		again.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+		again.offset_top = -260
+		again.offset_bottom = -200
+		_pause_overlay.add_child(again)
+		_pause_overlay.gui_input.connect(func(e):
+			if e is InputEventMouseButton and e.pressed:
+				_set_paused(false))
+	elif _pause_overlay:
+		_pause_overlay.queue_free()
+		_pause_overlay = null
 
 
 func _flash_hint(text: String) -> void:
