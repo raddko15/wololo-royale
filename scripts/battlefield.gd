@@ -137,6 +137,8 @@ func spawn(team: int, unit_id: String, lane: int, bonus := {}, tier := 0) -> Dic
 		"bonus_vs": stats.get("bonus_vs", {}),
 		# How far ahead a horseman spots prey to charge past others for (0: never).
 		"charge": stats.get("charge", 0.0),
+		# Share of its damage dealt to every other foe close by (horses, chariots).
+		"trample": stats.get("trample", 0.0),
 		# What it is hitting this tick: "unit", "tower", "main" or "" when walking;
 		# `foe` is the unit it hits when target is "unit".
 		"target": "", "foe": null,
@@ -235,6 +237,8 @@ func _unit_act(u: Dictionary, delta: float) -> void:
 	u.foe = null
 	var foe = _best_target(u)
 	var blocker = _blocker(u)
+	if u.trample > 0:
+		_trample(u, foe, delta)
 	# A charging rider with prey ahead does not stop for lesser foes.
 	var charging: bool = blocker != null and u.charge > 0 and u.bonus_vs.get(blocker.type, 1.0) > 1.0
 	if foe and charging and u.bonus_vs.get(foe.type, 1.0) <= 1.0:
@@ -287,6 +291,18 @@ func _unit_act(u: Dictionary, delta: float) -> void:
 	var before: float = u.y
 	u.y += dir * maxf(minf(step, limit), 0.0)
 	u.moving = not is_equal_approx(before, u.y)
+
+
+## Hooves and wheels: every foe in its lane right next to it (other than the
+## one it is fighting) takes a share of its damage, also while it rides past.
+const TRAMPLE_REACH := 0.04
+
+
+func _trample(u: Dictionary, target, delta: float) -> void:
+	for o in units:
+		if o.team != u.team and o.lane == u.lane and o.hp > 0 and o != target \
+				and absf(o.y - u.y) <= TRAMPLE_REACH:
+			o.hp -= u.dps * u.trample * delta
 
 
 ## The foe this unit hits now: among enemies in its lane within reach (in

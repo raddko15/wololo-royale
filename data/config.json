@@ -154,6 +154,7 @@
     },
     "cavalry": {
       "name": "Cavalry",
+      "trample": 0.3,
       "bonus_vs": {
         "archer": 1.75,
         "chariot": 1.5
@@ -172,6 +173,7 @@
     },
     "knight": {
       "name": "Knight",
+      "trample": 0.35,
       "civ": "franks",
       "bonus_vs": {
         "fighter": 2.0,
@@ -193,12 +195,12 @@
     },
     "chariot": {
       "name": "Chariot",
+      "trample": 0.4,
       "civ": "romans",
       "min_era": 2,
       "cost": {
-        "food": 100,
-        "wood": 60,
-        "gold": 60
+        "food": 110,
+        "gold": 70
       },
       "hp": 170,
       "damage_per_sec": 13,

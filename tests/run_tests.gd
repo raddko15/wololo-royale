@@ -394,6 +394,20 @@ func _init() -> void:
 		gf.tick(0.1)
 	_check(absf(g2.y - gf.rally_y(g2)) < 0.01, "retreat walks them back to the rally point")
 
+	# Trample: a rider also hurts every other foe right next to it.
+	var tr := Battlefield.new()
+	var horse2 := tr.spawn(Battlefield.PLAYER, "cavalry", 1)
+	horse2.y = 0.5
+	var f1 := tr.spawn(Battlefield.ENEMY, "fighter", 1)
+	var f2 := tr.spawn(Battlefield.ENEMY, "fighter", 1)
+	f1.y = 0.53
+	f2.y = 0.535
+	for stand in [f1, f2]:
+		stand.dps = 0.0
+		stand.speed = 0.0
+	tr.tick(1.0)
+	_check(is_equal_approx(f1.hp, 60.0 - 11.0) and is_equal_approx(f2.hp, 60.0 - 11.0 * 0.3), "cavalry trample: full damage to its target, 30% to the foe beside it")
+
 	# Idle villagers help build: +30% speed each.
 	var hb := Economy.new("romans")
 	hb.resources.wood = 60.0
