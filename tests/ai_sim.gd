@@ -10,7 +10,10 @@ func _init() -> void:
 	var wins := {a + "(A)": 0, b + "(B)": 0, "draw": 0}
 	for g in games:
 		var field := Battlefield.new()
-		var ais := [EnemyAI.new("romans", field, a, Battlefield.PLAYER), EnemyAI.new("franks", field, b, Battlefield.ENEMY)]
+		var civs := ["romans", "franks", "greeks"]
+		var ca: String = civs[g % 3]
+		var cb: String = civs[(g + 1) % 3]
+		var ais := [_make(a, ca, field, Battlefield.PLAYER), _make(b, cb, field, Battlefield.ENEMY)]
 		var eras := [[], []]
 		var t := 0.0
 		var dt := 0.1
@@ -22,6 +25,13 @@ func _init() -> void:
 					eras[k].append(int(t))
 			field.tick(dt)
 			t += dt
+			if OS.get_environment("AI_SIM_TRACE") != "" and int(round(t * 10)) % 300 == 0:
+				var line := "  %3ds" % int(t)
+				for k in 2:
+					var e: Economy = ais[k].economy
+					line += " | %s vil %d army %d res %s fort %d mil %s" % ["AB"[k], e.total_villagers(), e.army_size,
+						e.resources.values().map(func(v): return int(v)), int(field.buildings[k].main), e.military]
+				print(line)
 		var line := "game %d: %s in %ds" % [g, ["A wins", "B wins"][field.winner] if field.winner != -1 else "no winner", int(t)]
 		for k in 2:
 			var e: Economy = ais[k].economy
@@ -33,3 +43,10 @@ func _init() -> void:
 			wins[[a + "(A)", b + "(B)"][field.winner]] += 1
 	print(wins)
 	quit()
+
+
+## "old:hard" plays the saved previous AI (tests/baseline_ai.gd) for comparison.
+func _make(level: String, civ: String, field: Battlefield, side: int):
+	if level.begins_with("old:"):
+		return load("res://tests/baseline_ai.gd").new(civ, field, level.trim_prefix("old:"), side)
+	return EnemyAI.new(civ, field, level, side)

@@ -313,18 +313,23 @@
         "defend_threshold_hp": 40,
         "focus_sec": 25,
         "gather_bonus": 0.0,
-        "tactics": true
+        "tactics": true,
+        "food_floor": 0.4,
+        "gold_floor": 0.15
       },
       "hard": {
         "think_interval": 0.5,
-        "target_villagers": 28,
-        "barracks_at_villagers": 6,
-        "era_at_villagers": [13, 20],
+        "target_villagers": 30,
+        "barracks_at_villagers": 9,
+        "era_at_villagers": [12, 22],
         "min_army": [3, 5, 8],
         "defend_threshold_hp": 20,
         "focus_sec": 30,
         "gather_bonus": 0.2,
-        "tactics": true
+        "tactics": true,
+        "food_floor": 0.45,
+        "gold_floor": 0.2,
+        "waves": true
       }
     }
   },

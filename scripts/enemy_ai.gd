@@ -81,28 +81,31 @@ func _think() -> void:
 ## The first step of the build order that is open now: {"cost", "act"}, or {}.
 func _next_goal() -> Dictionary:
 	var e := economy
+	# [kind, id, era it may start in]; "barracks:2" = a second barracks.
 	var steps := [
-		["camp", "lumberjack"], ["camp", "farm"], ["military", "barracks"], ["mine", "gold"], ["era", "1"],
-		["towers", ""], ["upgrade", "lumber_camp"], ["upgrade", "mill"], ["military", "archery_range"],
-		["mine", "gold"], ["military", "stables"], ["upgrade", "barracks1"], ["upgrade", "archery_range1"],
-		["upgrade", "stables1"], ["military", "barracks:2"], ["mine", "stone"], ["era", "2"],
-		["upgrade", "stone_towers"], ["military", "archery_range:2"], ["military", "stables:2"],
-		["upgrade", "mill2"], ["upgrade", "lumber_camp2"], ["upgrade", "barracks2"], ["upgrade", "archery_range2"],
-		["upgrade", "stables2"], ["military", "barracks:3"], ["military", "stables:3"], ["upgrade", "gold_mine2"],
-		["upgrade", "stone_mine2"],
+		["camp", "lumberjack", 0], ["camp", "farm", 0], ["military", "barracks", 0], ["mine", "gold", 0],
+		["military", "barracks:2", 0], ["era", "1", 0], ["towers", "", 1], ["upgrade", "lumber_camp", 1], ["upgrade", "mill", 1],
+		["military", "archery_range", 1], ["military", "barracks:2", 1], ["military", "stables", 1],
+		["upgrade", "barracks1", 1], ["upgrade", "archery_range1", 1], ["upgrade", "stables1", 1],
+		["mine", "stone", 1], ["military", "archery_range:2", 1], ["era", "2", 1], ["upgrade", "stone_towers", 2],
+		["military", "stables:2", 2], ["upgrade", "mill2", 2], ["upgrade", "lumber_camp2", 2],
+		["upgrade", "barracks2", 2], ["upgrade", "archery_range2", 2], ["upgrade", "stables2", 2],
+		["military", "barracks:3", 2], ["military", "stables:3", 2], ["military", "archery_range:3", 2],
+		["upgrade", "gold_mine2", 2], ["upgrade", "stone_mine2", 2],
 	]
 	for step in steps:
 		var kind: String = step[0]
 		var id: String = step[1]
+		if e.era_index < step[2]:
+			continue
 		match kind:
 			"camp":
 				if e.site_open("camp", id):
 					return {"cost": _cfg.buildings[id].cost, "act": e.build_camp.bind(id)}
 			"military":
-				# "barracks:2" = a second barracks.
 				var nth := int(id.get_slice(":", 1)) if id.contains(":") else 1
 				id = id.get_slice(":", 0)
-				var enough: bool = id != "barracks" or e.total_villagers() >= _d.barracks_at_villagers
+				var enough: bool = id != "barracks" or e.total_villagers() >= _d.barracks_at_villagers * nth
 				if e.site_open("military", id) and enough and e.military.get(id, 0) < nth:
 					return {"cost": _cfg.military[id].cost, "act": e.build_military.bind(id)}
 			"era":
@@ -156,6 +159,16 @@ func _assign_workers(goal: Dictionary) -> void:
 	var total_w := 0.0
 	for r in workable:
 		total_w += weights[r]
+	# Floors, so saving up never starves the basics: food keeps villagers
+	# coming while it grows, gold keeps the army coming (every unit needs it).
+	var floors := {"food": _d.get("food_floor", 0.0) if e.total_villagers() < _d.target_villagers else 0.25,
+		"gold": _d.get("gold_floor", 0.0) if e.mines.has("gold") else 0.0}
+	for r in floors:
+		if e.resources.get(r, 0.0) > 200.0:
+			continue  # plenty in store already
+		if r in workable and weights[r] < floors[r] * total_w:
+			total_w += floors[r] * total_w - weights[r]
+			weights[r] = floors[r] * total_w
 	var people := e.total_villagers()
 	var gap := func(r: String) -> float: return weights[r] / total_w * people - e.villagers.get(r, 0)
 	# Idle villagers go where the gap is largest...
@@ -195,11 +208,46 @@ func _army(goal: Dictionary) -> void:
 		if e.total_villagers() + e.pending_count("villager") < _d.target_villagers:
 			for res in e.villager_cost():
 				reserve[res] = reserve.get(res, 0) + e.villager_cost()[res]
-	if threat != -1 or army < guard or _surplus(reserve):
-		var lane := threat if threat != -1 else _attack_lane()
-		var unit := _pick_unit(reserve)
-		if unit != "":
+	if threat != -1 or army < guard or not _d.get("waves", false):
+		if threat != -1 or army < guard or _surplus(reserve):
+			var lane := threat if threat != -1 else _attack_lane()
+			var unit := _pick_unit(reserve)
+			if unit != "":
+				e.train(unit, lane)
+		return
+	# Attack in waves: wait until it can start a unit at most of its idle
+	# military buildings at once, then send them all down the same lane.
+	var orders := _wave(reserve)
+	var free := 0
+	for b in e.military:
+		for k in e.military[b]:
+			if e.queue_length("%s#%d" % [b, k]) == 0:
+				free += 1
+	if free > 0 and orders.size() >= ceili(free * 0.6):
+		var lane := _attack_lane()
+		for unit in orders:
 			e.train(unit, lane)
+
+
+## One unit for each idle military building that it can pay for on top of
+## `reserve`, picked like _pick_unit.
+func _wave(reserve: Dictionary) -> Array:
+	var e := economy
+	var budget := e.resources.duplicate()
+	for res in reserve:
+		budget[res] = budget.get(res, 0.0) - reserve[res]
+	var orders := []
+	for b in e.military:
+		for k in e.military[b]:
+			if e.queue_length("%s#%d" % [b, k]) > 0:
+				continue
+			var unit := _pick_unit(reserve, b, budget)
+			if unit == "":
+				continue
+			for res in _cfg.units[unit].cost:
+				budget[res] -= _cfg.units[unit].cost[res]
+			orders.append(unit)
+	return orders
 
 
 ## Can it pay for a unit and still afford `reserve`?
@@ -260,7 +308,7 @@ func _attack_lane() -> int:
 ## A unit it can train now without touching `reserve`: archers are favoured
 ## against fighters, cavalry against archers, fighters against cavalry, and
 ## its civ's unique unit (Era III) most of all.
-func _pick_unit(reserve: Dictionary) -> String:
+func _pick_unit(reserve: Dictionary, building := "", budget := {}) -> String:
 	var e := economy
 	var weight := {"fighter": 1.0, "archer": 1.0, "cavalry": 1.0}
 	if _d.tactics:
@@ -277,11 +325,15 @@ func _pick_unit(reserve: Dictionary) -> String:
 	var options := []
 	var total := 0.0
 	for id in _cfg.units:
-		if not e.can_train(id):
+		if not e.can_train(id) or (building != "" and _cfg.units[id].requires != building):
 			continue
 		if not weight.has(id):
 			weight[id] = 2.5  # its civ's unique unit: a favourite once unlocked
-		if _affordable_beyond(_cfg.units[id].cost, reserve):
+		var fits := true
+		if not budget.is_empty():
+			for res in _cfg.units[id].cost:
+				fits = fits and budget.get(res, 0.0) >= _cfg.units[id].cost[res]
+		if fits and _affordable_beyond(_cfg.units[id].cost, reserve):
 			options.append(id)
 			total += weight[id]
 	if options.is_empty():
