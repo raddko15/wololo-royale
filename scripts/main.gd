@@ -47,43 +47,11 @@ func _process(delta: float) -> void:
 
 
 func _show_civ_select() -> void:
-	var box := _vbox(self, 24)
-	box.alignment = BoxContainer.ALIGNMENT_CENTER
-	# Opponent strength: one of three toggles, Normal to start with.
-	box.add_child(_label("Opponent", 32))
-	var row := HBoxContainer.new()
-	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_theme_constant_override("separation", 12)
-	var group := ButtonGroup.new()
-	for level in ["easy", "normal", "hard"]:
-		var b := Button.new()
-		b.text = level.capitalize()
-		b.toggle_mode = true
-		b.button_group = group
-		b.button_pressed = level == _difficulty
-		b.custom_minimum_size = Vector2(180, 70)
-		b.add_theme_font_size_override("font_size", 28)
-		b.focus_mode = Control.FOCUS_NONE
-		for state in ["normal", "hover", "pressed", "hover_pressed"]:
-			var on: bool = state.contains("pressed")
-			var box_style := StyleBoxFlat.new()
-			box_style.bg_color = Color("#5d4a2f") if on else Color("#3a3328")
-			box_style.border_color = Color("#f9ca24") if on else Color("#1e1e1e")
-			box_style.set_border_width_all(4)
-			box_style.set_corner_radius_all(10)
-			b.add_theme_stylebox_override(state, box_style)
-		b.pressed.connect(func(): _difficulty = level)
-		row.add_child(b)
-	box.add_child(row)
-	box.add_child(_label("Choose your civilization", 40))
-	var civs: Dictionary = GameConfig.data().civs
-	for id in civs:
-		var card := Card.new(civs[id].name)
-		card.custom_minimum_size.y = 110
-		var look := "classical: wood to marble" if civs[id].style == "classical" else "medieval: forts and castles"
-		card.set_state("%s · %s" % [civs[id].bonus, look], true, false)
-		card.pressed.connect(_start_game.bind(id, box.get_parent()))
-		box.add_child(card)
+	var screen := StartScreen.new(_difficulty)
+	screen.chosen.connect(func(civ_id: String, level: String):
+		_difficulty = level
+		_start_game(civ_id, screen))
+	add_child(screen)
 
 
 func _start_game(civ_id: String, menu: Control) -> void:
