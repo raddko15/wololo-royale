@@ -48,6 +48,18 @@ var drag_pos := Vector2.ZERO
 var active_lanes := [false, false, false]
 
 
+var _tag_style := _make_tag_style()
+## Build-plot tags collected while drawing the city, drawn last so nothing covers them.
+var _tags := []
+
+
+static func _make_tag_style() -> StyleBoxFlat:
+	var st := StyleBoxFlat.new()
+	st.bg_color = Color(0.1, 0.07, 0.04, 0.72)
+	st.set_corner_radius_all(6)
+	return st
+
+
 ## Set while the game is paused: the game clock (corpses rotting) stops.
 var paused := false
 ## Seconds of play so far, not counting pauses.
@@ -854,6 +866,9 @@ func _draw_city(team: int, now: float) -> void:
 			_draw_tower(building_pos(team, "tower", lane), color, battle.buildings[team].towers[lane], e.upgrades.has("stone_towers"), style, battle.tower_max_hp[team])
 	_draw_jobs(team, e, now)
 	_draw_helpers(team, helping, now)
+	for tag in _tags:
+		_draw_info_tag(tag[0], tag[1], tag[2], tag[3])
+	_tags.clear()
 	if team == Battlefield.PLAYER:
 		_draw_upgrade_badges(e, now)
 
@@ -929,6 +944,46 @@ func _draw_build_site(site: Array, e: Economy, now: float) -> void:
 	draw_circle(at, 11, Color("#f9ca24").lerp(Color("#ffe58a"), pulse) if affordable else Color("#8f8a80"))
 	draw_line(at + Vector2(-6, 0), at + Vector2(6, 0), OUTLINE, 3)
 	draw_line(at + Vector2(0, -6), at + Vector2(0, 6), OUTLINE, 3)
+	# Info tag under the plot: what it is and what it costs (the three tower
+	# plots share one, under the middle tower).
+	if site[2] == "tower" and not is_equal_approx(c.x, building_pos(Battlefield.PLAYER, "tower", 1).x):
+		return
+	var cfg := GameConfig.data()
+	var info: Array  # [name, cost]
+	match site[2]:
+		"military":
+			info = [cfg.military[id].name, cfg.military[id].cost]
+		"mine":
+			info = ["%s mine" % id.capitalize(), e.mine_cost()]
+		"camp":
+			info = [cfg.buildings[id].name, cfg.buildings[id].cost]
+		_:
+			info = ["Towers (all 3)", cfg.buildings.towers.cost]
+	var parts := []
+	for res in info[1]:
+		parts.append("%d %s" % [info[1][res], res])
+	# Mines and towers sit by the lanes with buildings below them: tag above.
+	var top: Vector2 = base + Vector2(0, radii.y + 4)
+	if site[2] == "mine":
+		top = c + Vector2(0, -80)
+	elif site[2] == "tower":
+		top = c + Vector2(0, -98)
+	_tags.append([top, info[0], ", ".join(parts), affordable])
+
+
+## Two-line tag (name, then cost) on a dark rounded backing, top-centered at `top`.
+func _draw_info_tag(top: Vector2, title: String, cost: String, affordable: bool) -> void:
+	var font := get_theme_default_font()
+	var w := maxf(font.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x,
+		font.get_string_size(cost, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x) + 12
+	var box := Rect2(top - Vector2(w / 2, 0), Vector2(w, 34))
+	box.position.x = clampf(box.position.x, 2, size.x - w - 2)
+	draw_style_box(_tag_style, box)
+	var cx := box.get_center().x
+	var tw := font.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
+	draw_string(font, Vector2(cx - tw / 2, top.y + 14), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color.WHITE)
+	var cw := font.get_string_size(cost, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x
+	draw_string(font, Vector2(cx - cw / 2, top.y + 29), cost, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color("#f9ca24") if affordable else Color("#c8c0b0"))
 
 
 ## Beside the fort's health bar: a shield with its armor (from Era II), and
