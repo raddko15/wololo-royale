@@ -19,8 +19,8 @@ var _menu: RadialMenu
 ## Per unit type: the next lane its AUTO units go to (they take turns), and
 ## which types are on repeat.
 var _next_lane := {}
-## Per troop type: which lanes (L, M, R) new ones are recruited to.
-var _lanes_on := {}
+## Which lanes (L, M, R) new troops are recruited to.
+var _lanes_on := [false, true, false]
 var _auto := {}
 ## Pause button: nothing moves, trains or gathers until the player resumes.
 var _paused := false
@@ -100,9 +100,13 @@ func _start_game(civ_id: String, menu: Control) -> void:
 	var bar_panel := PanelContainer.new()
 	bar_panel.add_theme_stylebox_override("panel", UiStyle.wood_bar(true))
 	box.add_child(bar_panel)
+	var bar_col := VBoxContainer.new()
+	bar_col.add_theme_constant_override("separation", 6)
+	bar_panel.add_child(bar_col)
 	var bar := HBoxContainer.new()
 	bar.add_theme_constant_override("separation", 8)
-	bar_panel.add_child(bar)
+	bar_col.add_child(bar)
+	bar_col.add_child(_recruit_lanes())
 	for id in ["villager"] + economy.available_units():
 		var title: String = "Villager" if id == "villager" else GameConfig.data().units[id].name
 		var card := Card.new(title, UnitIcon.new(id, Color(economy.civ().color)))
@@ -115,20 +119,9 @@ func _start_game(civ_id: String, menu: Control) -> void:
 					_view.villager_died(gone)
 				_refresh())
 		_cards[id] = card
-		# Troop cards get L / M / R chips underneath: where new ones are recruited to.
-		var col := VBoxContainer.new()
-		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		col.add_theme_constant_override("separation", 4)
-		col.add_child(card)
-		if id == "villager":
-			var spacer := Control.new()
-			spacer.custom_minimum_size.y = 34
-			col.add_child(spacer)
-		else:
+		if id != "villager":
 			_next_lane[id] = 0
-			_lanes_on[id] = [false, true, false]
-			col.add_child(_recruit_lanes(id))
-		bar.add_child(col)
+		bar.add_child(card)
 	_update_lane_marks()
 
 	economy.changed.connect(_refresh)
@@ -136,20 +129,24 @@ func _start_game(civ_id: String, menu: Control) -> void:
 	_refresh()
 
 
-## L / M / R chips under a troop card: which lanes its new troops go to.
-func _recruit_lanes(unit_id: String) -> Control:
+## One row of lane chips under the cards: which lanes new troops (of every
+## type) are recruited to. AUTO takes turns among the lit ones.
+func _recruit_lanes() -> Control:
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 3)
+	row.add_theme_constant_override("separation", 6)
+	var caption := _label("New troops go to:", 15)
+	caption.add_theme_font_override("font", UiStyle.cinzel(700))
+	caption.add_theme_color_override("font_color", UiStyle.CREAM)
+	row.add_child(caption)
 	for lane in Battlefield.LANES:
-		var chip := LaneChip.new(["L", "M", "R"][lane], _lanes_on[unit_id][lane])
+		var chip := LaneChip.new(["LEFT", "MIDDLE", "RIGHT"][lane], _lanes_on[lane])
 		chip.toggled.connect(func(on: bool):
-			_lanes_on[unit_id][lane] = on
+			_lanes_on[lane] = on
 			var lanes := []
 			for l in Battlefield.LANES:
-				if _lanes_on[unit_id][l]:
+				if _lanes_on[l]:
 					lanes.append(["left", "middle", "right"][l])
-			var name: String = GameConfig.data().units[unit_id].name
-			_flash_hint("New %ss go to: %s" % [name, ", ".join(lanes)] if lanes else "%ss: no lane picked, AUTO waits" % name))
+			_flash_hint("New troops go to: %s" % ", ".join(lanes) if lanes else "No lane picked: AUTO waits"))
 		row.add_child(chip)
 	return row
 
@@ -176,7 +173,7 @@ func _update_lane_marks() -> void:
 func _take_lane(unit_id: String) -> int:
 	for k in Battlefield.LANES:
 		var lane: int = (_next_lane[unit_id] + k) % Battlefield.LANES
-		if _lanes_on[unit_id][lane]:
+		if _lanes_on[lane]:
 			_next_lane[unit_id] = lane + 1
 			return lane
 	return -1
@@ -328,7 +325,7 @@ func _drop(id: String, local: Vector2) -> void:
 ## new one goes to the next of its lit lanes in turn.
 func _run_auto() -> void:
 	for id in _auto:
-		if not _lanes_on[id].has(true):
+		if not _lanes_on.has(true):
 			continue
 		# One in training per building of its kind, so 3 barracks train 3 at once.
 		var waiting := economy.jobs.filter(func(j): return j.kind == "unit" and j.id == id).size()
@@ -755,7 +752,7 @@ func _refresh() -> void:
 	var full := not economy.has_room()
 	_ui.pop.add_theme_color_override("font_color", Color("#e55039") if full else UiStyle.CREAM)
 	if Time.get_ticks_msec() > _ui.get("hint_until", 0):
-		_ui.hint.text = "Card: tap for AUTO, L/M/R picks lanes · buttons by the towers: HOLD / GO / BACK"
+		_ui.hint.text = "Tap a card for AUTO · lanes for new troops below · HOLD / GO / BACK by the towers"
 
 	var dragging: String = _press.get("card", "") if _ghost else ""
 	var vcost := economy.villager_cost()

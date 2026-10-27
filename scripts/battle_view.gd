@@ -887,16 +887,17 @@ func _draw_city(team: int, now: float) -> void:
 		_draw_upgrade_badges(e, now)
 
 
-## The order button beside each of the player's lane towers (clear of its
-## health bar): HOLD / GO / BACK for the troops in that lane.
+## The order button under each of the player's lane towers, centred on the
+## lane: HOLD / GO / BACK for the troops in that lane.
 func order_button(lane: int) -> Vector2:
-	return building_pos(Battlefield.PLAYER, "tower", lane) + Vector2(46, -22)
+	return building_pos(Battlefield.PLAYER, "tower", lane) + Vector2(0, 36)
 
 
+## Fill and rim per order: GO green ▶, HOLD amber ■, BACK blue ◀.
 const ORDER_LOOK := {
-	"march": [Color("#2f5d34"), Color("#44bd32"), "GO"],
-	"stop": [Color("#5a4a24"), Color("#f1c40f"), "HOLD"],
-	"retreat": [Color("#24435a"), Color("#3498db"), "BACK"],
+	"march": [Color("#2f5d34"), Color("#44bd32")],
+	"stop": [Color("#5a4a24"), Color("#f1c40f")],
+	"retreat": [Color("#24435a"), Color("#3498db")],
 }
 
 
@@ -907,18 +908,14 @@ func _draw_order_button(lane: int) -> void:
 	draw_circle(c, 24, OUTLINE)
 	draw_circle(c, 22, look[0])
 	draw_arc(c, 21, 0, TAU, 32, look[1], 3)
-	var ic := c + Vector2(0, -5)
+	var ic := c
 	match state:
 		"march":
-			draw_colored_polygon(PackedVector2Array([ic + Vector2(-7, -9), ic + Vector2(9, 0), ic + Vector2(-7, 9)]), Color.WHITE)
+			draw_colored_polygon(PackedVector2Array([ic + Vector2(-8, -11), ic + Vector2(11, 0), ic + Vector2(-8, 11)]), Color.WHITE)
 		"stop":
-			draw_rect(Rect2(ic + Vector2(-8, -8), Vector2(16, 16)), Color.WHITE)
+			draw_rect(Rect2(ic + Vector2(-9, -9), Vector2(18, 18)), Color.WHITE)
 		"retreat":
-			draw_colored_polygon(PackedVector2Array([ic + Vector2(7, -9), ic + Vector2(-9, 0), ic + Vector2(7, 9)]), Color.WHITE)
-	var font := UiStyle.cinzel(800)
-	var word: String = look[2]
-	var w := font.get_string_size(word, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
-	draw_string(font, c + Vector2(-w / 2, 16), word, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color.WHITE)
+			draw_colored_polygon(PackedVector2Array([ic + Vector2(8, -11), ic + Vector2(-11, 0), ic + Vector2(8, 11)]), Color.WHITE)
 	var n := battle.units_in(Battlefield.PLAYER, lane)
 	if n > 0:
 		_draw_count_tag(c + Vector2(19, -18), n)
