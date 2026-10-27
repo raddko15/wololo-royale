@@ -34,6 +34,15 @@ var arrows: Array[Dictionary] = []
 var cooldowns := [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
 var main_cooldowns := [0.0, 0.0]
 var winner := -1
+## Gather mode per side and lane: new units wait at a rally point in front of
+## their own tower until the lane charges.
+var gather := [[false, false, false], [false, false, false]]
+## A gathered unit standing within this of a foe defends itself.
+const AGGRO := 0.25
+## Rally point distance in front of the tower, and how far back archers stand.
+const RALLY := 0.2
+const RALLY_DEPTH := {"archer": 0.035, "chariot": 0.035, "cavalry": 0.015, "knight": 0.015}
+
 ## Whether each side's fort shoots: not in Era I, from Era II on.
 var fort_armed := [false, false]
 ## Share of damage each fort shrugs off (rises with each era).
@@ -132,9 +141,53 @@ func spawn(team: int, unit_id: String, lane: int, bonus := {}, tier := 0) -> Dic
 		"target": "", "foe": null,
 		# Sideways spread inside the lane (-1..1) so walking units don't overlap.
 		"side": randf_range(-1.0, 1.0),
+		# Waiting at the rally point (gather mode); `march` is the pace of the
+		# group it charged with (the slowest member) until it meets the enemy.
+		"waiting": gather[team][lane], "march": 0.0, "moving": false,
 	}
+	if unit.waiting:
+		_formation_side(unit)
 	units.append(unit)
 	return unit
+
+
+## Gathered units line up: infantry in front across the lane, archers
+## behind, horsemen on the flanks.
+func _formation_side(u: Dictionary) -> void:
+	if u.type in ["cavalry", "knight"]:
+		u.side = (0.85 + randf() * 0.15) * (1.0 if randf() < 0.5 else -1.0)
+	else:
+		u.side = randf_range(-0.7, 0.7)
+	u.rank = randf() * 0.03  # a little depth so they stand in ranks, not one pile
+
+
+## Where `u` waits while its lane gathers.
+func rally_y(u: Dictionary) -> float:
+	var forward := 1.0 if u.team == PLAYER else -1.0
+	return TOWER_Y[u.team] + forward * (RALLY - RALLY_DEPTH.get(u.type, 0.0) - u.get("rank", 0.0))
+
+
+## Turn gathering on or off for a lane; turning it off charges.
+func set_gather(team: int, lane: int, on: bool) -> void:
+	gather[team][lane] = on
+	if not on:
+		charge(team, lane)
+
+
+## Release everyone waiting in a lane at once; they march at the pace of the
+## slowest so they arrive together.
+func charge(team: int, lane: int) -> void:
+	var group := units.filter(func(u): return u.team == team and u.lane == lane and u.waiting)
+	if group.is_empty():
+		return
+	var pace: float = group.map(func(u): return u.speed).min()
+	for u in group:
+		u.waiting = false
+		u.march = pace
+
+
+func waiting_count(team: int, lane: int) -> int:
+	return units.filter(func(u): return u.team == team and u.lane == lane and u.waiting).size()
 
 
 func tick(delta: float) -> void:
@@ -167,6 +220,7 @@ func _unit_act(u: Dictionary, delta: float) -> void:
 	var charging: bool = blocker != null and u.charge > 0 and u.bonus_vs.get(blocker.type, 1.0) > 1.0
 	if foe and charging and u.bonus_vs.get(foe.type, 1.0) <= 1.0:
 		foe = null
+	u.moving = false
 	if foe:
 		foe.hp -= u.dps * u.bonus_vs.get(foe.type, 1.0) * delta
 		u.target = "unit"
@@ -187,10 +241,22 @@ func _unit_act(u: Dictionary, delta: float) -> void:
 			fort_quiet[enemy] = 0.0
 			u.target = "main"
 		return
-	var step: float = u.speed * delta
+	var pace: float = u.speed
+	if u.march > 0:
+		# Marching with its group until the enemy is near.
+		if blocker != null and absf(blocker.y - u.y) < AGGRO:
+			u.march = 0.0
+		else:
+			pace = u.march
+	var step: float = pace * delta
 	if blocker:
 		step = minf(step, absf(blocker.y - u.y) - u.range)
-	u.y += dir * maxf(minf(step, absf(target_y - u.y) - u.range), 0.0)
+	var limit: float = absf(target_y - u.y) - u.range
+	if u.waiting and (blocker == null or absf(blocker.y - u.y) > AGGRO):
+		limit = (rally_y(u) - u.y) * dir  # hold at the rally point
+	var before: float = u.y
+	u.y += dir * maxf(minf(step, limit), 0.0)
+	u.moving = not is_equal_approx(before, u.y)
 
 
 ## The foe this unit hits now: among enemies in its lane within reach (in

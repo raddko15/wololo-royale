@@ -323,7 +323,8 @@
         "gather_bonus": 0.0,
         "tactics": true,
         "food_floor": 0.4,
-        "gold_floor": 0.15
+        "gold_floor": 0.15,
+        "charge_at": [4, 6, 9]
       },
       "hard": {
         "think_interval": 0.5,
@@ -337,7 +338,8 @@
         "tactics": true,
         "food_floor": 0.45,
         "gold_floor": 0.2,
-        "waves": true
+        "waves": false,
+        "charge_at": [5, 8, 12]
       }
     }
   },

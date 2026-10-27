@@ -8,6 +8,10 @@ extends Control
 signal hut_tapped
 ## Something to tell the player in the header hint line.
 signal hint(text: String)
+## The banner beside a lane's tower was tapped (gather on/off), or its
+## Charge button (release everyone waiting there).
+signal gather_tapped(lane: int)
+signal charge_tapped(lane: int)
 ## An empty build plot was tapped: build that ("barracks", "gold", "towers", ...).
 signal site_tapped(id: String)
 ## A gold upgrade badge was tapped: buy that upgrade ("era": next era).
@@ -341,7 +345,12 @@ func _along(points: PackedVector2Array, frac: float) -> Vector2:
 ## Where a unit stands: on its lane between the tower lines, or past the
 ## enemy tower on the road to the enemy fort.
 func _unit_lane_pos(u: Dictionary) -> Vector2:
-	return _lane_pos_at(u.lane, u.y, u.side)
+	var p := _lane_pos_at(u.lane, u.y, u.side)
+	if u.get("waiting", false) and u.y >= 0.0 and u.y <= 1.0:
+		# Gathered troops use the whole width of the lane (the glide in
+		# unit_positions eases them over as they arrive).
+		p.x = LANE_X[u.lane] * size.x + u.side * size.x * 0.034
+	return p
 
 
 ## Screen point for lane coordinate `y` (beyond 1: on the enemy's road, below
@@ -448,6 +457,13 @@ func _gui_input(event: InputEvent) -> void:
 	for b in upgrade_badges(economy):
 		if pos.distance_to(b[0]) < 24:
 			upgrade_badge_tapped.emit(b[1])
+			return
+	for lane in Battlefield.LANES:
+		if battle.waiting_count(Battlefield.PLAYER, lane) > 0 and pos.distance_to(charge_button(lane)) < 26:
+			charge_tapped.emit(lane)
+			return
+		if pos.distance_to(gather_button(lane)) < 24:
+			gather_tapped.emit(lane)
 			return
 	for site in build_sites(economy):
 		if pos.distance_to(site[1]) < 34:
@@ -866,11 +882,51 @@ func _draw_city(team: int, now: float) -> void:
 			_draw_tower(building_pos(team, "tower", lane), color, battle.buildings[team].towers[lane], e.upgrades.has("stone_towers"), style, battle.tower_max_hp[team])
 	_draw_jobs(team, e, now)
 	_draw_helpers(team, helping, now)
+	if team == Battlefield.PLAYER:
+		for lane in Battlefield.LANES:
+			_draw_lane_command(lane, color, now)
 	for tag in _tags:
 		_draw_info_tag(tag[0], tag[1], tag[2], tag[3])
 	_tags.clear()
 	if team == Battlefield.PLAYER:
 		_draw_upgrade_badges(e, now)
+
+
+## Gather banner beside each of the player's lane towers (clear of its health
+## bar), with the Charge button below it while troops wait.
+func gather_button(lane: int) -> Vector2:
+	return building_pos(Battlefield.PLAYER, "tower", lane) + Vector2(44, -18)
+
+
+func charge_button(lane: int) -> Vector2:
+	return gather_button(lane) + Vector2(0, 48)
+
+
+func _draw_lane_command(lane: int, civ_color: Color, now: float) -> void:
+	var on: bool = battle.gather[Battlefield.PLAYER][lane]
+	var c := gather_button(lane)
+	draw_circle(c, 20, Color("#2b2620", 0.9 if on else 0.6))
+	draw_arc(c, 20, 0, TAU, 24, Color("#f9ca24") if on else Color(1, 1, 1, 0.45), 3)
+	# A banner on a pole: raised in the civ's color while gathering.
+	var pole_top := c + Vector2(-5, -12)
+	draw_line(c + Vector2(-5, 12), pole_top, Color("#c8a46a") if on else Color(1, 1, 1, 0.5), 2.5)
+	var cloth := PackedVector2Array([pole_top, pole_top + Vector2(15, 3), pole_top + Vector2(11, 8), pole_top + Vector2(15, 13), pole_top + Vector2(0, 13)])
+	if not on:
+		cloth = PackedVector2Array([pole_top + Vector2(0, 6), pole_top + Vector2(10, 9), pole_top + Vector2(7, 15), pole_top + Vector2(0, 18)])
+	draw_colored_polygon(cloth, civ_color if on else Color(0.6, 0.6, 0.6, 0.7))
+	var waiting := battle.waiting_count(Battlefield.PLAYER, lane)
+	if waiting > 0:
+		_draw_count_tag(c + Vector2(16, 14), waiting)
+		# Charge: crossed swords on a pulsing red disc.
+		var k := charge_button(lane)
+		var pulse := 0.5 + 0.5 * sin(now * 5.0)
+		draw_circle(k, 22, OUTLINE)
+		draw_circle(k, 20, Color("#c0392b").lerp(Color("#e74c3c"), pulse))
+		for d in [Vector2(1, 1), Vector2(-1, 1)]:
+			var a: Vector2 = k - d * 11
+			var b: Vector2 = k + d * 11
+			draw_line(a, b, Color("#ecf0f1"), 3)
+			draw_line(a + Vector2(d.y, -d.x) * 4 + d * 4, a - Vector2(d.y, -d.x) * 4 + d * 4, Color("#f1c40f"), 3)
 
 
 ## Empty plots where the player could build right now (era reached, not built
@@ -1468,7 +1524,7 @@ func _draw_weapon(name: String, tex_size: Vector2, pivot: Vector2, at: Vector2, 
 
 ## Step phase for a unit on the move, or -1 when it stands or fights.
 func _walk_phase(u: Dictionary, now: float, rate := 11.0) -> float:
-	if u.target != "" or u.speed <= 0.0:
+	if u.target != "" or u.speed <= 0.0 or not u.get("moving", true):
 		return -1.0
 	return fmod(now * rate + u.side * 5.0, TAU)
 

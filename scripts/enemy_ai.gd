@@ -34,6 +34,10 @@ func _init(civ_id: String, field: Battlefield, level := "normal", side := Battle
 	battle.fort_civ_bonus(team, economy.civ().get("fort_bonus", {}))
 	battle.unit_died.connect(func(t): if t == team: economy.army_size -= 1)
 	economy.job_done.connect(_on_job_done)
+	# Smarter levels gather their troops by the towers and charge in force.
+	if _d.has("charge_at"):
+		for lane in Battlefield.LANES:
+			battle.gather[team][lane] = true
 
 
 ## Finished jobs that touch the battlefield: units walk out, towers go up.
@@ -61,6 +65,7 @@ func tick(delta: float) -> void:
 
 
 func _think() -> void:
+	_charges()
 	var goal := _next_goal()
 	_assign_workers(goal)
 	# Houses and villagers first: they keep the economy growing.
@@ -192,6 +197,23 @@ func _assign_workers(goal: Dictionary) -> void:
 
 
 # --- Army -------------------------------------------------------------------
+
+## Seconds each lane's gathered group has been waiting.
+var _waited := [0.0, 0.0, 0.0]
+
+
+## Charge a lane once enough troops stand there (more in later eras), or when
+## a group has waited too long.
+func _charges() -> void:
+	if not _d.has("charge_at"):
+		return
+	var need: int = _d.charge_at[mini(economy.era_index, _d.charge_at.size() - 1)]
+	for lane in Battlefield.LANES:
+		var n := battle.waiting_count(team, lane)
+		_waited[lane] = _waited[lane] + _d.think_interval if n > 0 else 0.0
+		if n >= need or (n > 0 and _waited[lane] > 45.0):
+			battle.charge(team, lane)
+			_waited[lane] = 0.0
 
 func _army(goal: Dictionary) -> void:
 	var e := economy

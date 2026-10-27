@@ -85,6 +85,11 @@ func _start_game(civ_id: String, menu: Control) -> void:
 		if not economy.build_hut():
 			_flash_hint("Need %d wood for a hut" % GameConfig.data().buildings.hut.cost.wood if economy.max_population() < GameConfig.data().population.max_cap else "Population is at the maximum"))
 	_view.site_tapped.connect(_on_site_tapped)
+	_view.gather_tapped.connect(func(lane: int):
+		var on: bool = not battle.gather[Battlefield.PLAYER][lane]
+		battle.set_gather(Battlefield.PLAYER, lane, on)
+		_flash_hint("Gathering: new troops wait by the tower. Tap the swords to charge!" if on else "Gathering off: troops march straight out"))
+	_view.charge_tapped.connect(func(lane: int): battle.charge(Battlefield.PLAYER, lane))
 	_view.hint.connect(_flash_hint)
 	_view.upgrade_badge_tapped.connect(func(id: String):
 		if id == "era":

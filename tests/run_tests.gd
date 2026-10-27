@@ -365,6 +365,26 @@ func _init() -> void:
 		ch.tick(0.1)
 	_check(rider2.y > wall.y and (bow2.hp < bow2.max_hp or not ch.units.has(bow2)), "cavalry charge past fighters to reach the archers")
 
+	# Gather and charge: units wait in front of their tower, then go together.
+	var gf := Battlefield.new()
+	gf.buildings[1].main = 1e9
+	gf.set_gather(Battlefield.PLAYER, 1, true)
+	var g1 := gf.spawn(Battlefield.PLAYER, "fighter", 1)
+	var g2 := gf.spawn(Battlefield.PLAYER, "cavalry", 1)
+	var g3 := gf.spawn(Battlefield.PLAYER, "archer", 1)
+	for i in 400:
+		gf.tick(0.1)
+	_check(absf(g1.y - (0.2 - g1.rank)) < 0.001 and g3.y < g1.y + 0.03 and g2.y < g1.y + 0.03 and gf.waiting_count(Battlefield.PLAYER, 1) == 3, "gathered units wait in formation: infantry in front")
+	var raider := gf.spawn(Battlefield.ENEMY, "fighter", 1)
+	raider.y = 0.3
+	for i in 100:
+		gf.tick(0.1)
+	_check(not gf.units.has(raider) and gf.waiting_count(Battlefield.PLAYER, 1) == 3, "gathered units fight off a raider and stay gathered")
+	gf.charge(Battlefield.PLAYER, 1)
+	for i in 50:
+		gf.tick(0.1)
+	_check(g2.y > 0.2 and absf(g2.y - g1.y) < 0.03, "after the charge the group marches together at the slowest pace")
+
 	# Idle villagers help build: +30% speed each.
 	var hb := Economy.new("romans")
 	hb.resources.wood = 60.0
