@@ -19,6 +19,8 @@ var _menu: RadialMenu
 ## Per unit type: the next lane its AUTO units go to (they take turns), and
 ## which types are on repeat.
 var _next_lane := {}
+## Per troop type: which lanes (L, M, R) new ones are recruited to.
+var _lanes_on := {}
 var _auto := {}
 ## Pause button: nothing moves, trains or gathers until the player resumes.
 var _paused := false
@@ -85,6 +87,7 @@ func _start_game(civ_id: String, menu: Control) -> void:
 		if not economy.build_hut():
 			_flash_hint("Need %d wood for a hut" % GameConfig.data().buildings.hut.cost.wood if economy.max_population() < GameConfig.data().population.max_cap else "Population is at the maximum"))
 	_view.site_tapped.connect(_on_site_tapped)
+	_view.lane_order_tapped.connect(_cycle_lane_order)
 
 	_view.hint.connect(_flash_hint)
 	_view.upgrade_badge_tapped.connect(func(id: String):
@@ -97,13 +100,9 @@ func _start_game(civ_id: String, menu: Control) -> void:
 	var bar_panel := PanelContainer.new()
 	bar_panel.add_theme_stylebox_override("panel", UiStyle.wood_bar(true))
 	box.add_child(bar_panel)
-	var bar_col := VBoxContainer.new()
-	bar_col.add_theme_constant_override("separation", 6)
-	bar_panel.add_child(bar_col)
-	bar_col.add_child(_lane_orders())
 	var bar := HBoxContainer.new()
 	bar.add_theme_constant_override("separation", 8)
-	bar_col.add_child(bar)
+	bar_panel.add_child(bar)
 	for id in ["villager"] + economy.available_units():
 		var title: String = "Villager" if id == "villager" else GameConfig.data().units[id].name
 		var card := Card.new(title, UnitIcon.new(id, Color(economy.civ().color)))
@@ -116,9 +115,20 @@ func _start_game(civ_id: String, menu: Control) -> void:
 					_view.villager_died(gone)
 				_refresh())
 		_cards[id] = card
-		if id != "villager":
+		# Troop cards get L / M / R chips underneath: where new ones are recruited to.
+		var col := VBoxContainer.new()
+		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		col.add_theme_constant_override("separation", 4)
+		col.add_child(card)
+		if id == "villager":
+			var spacer := Control.new()
+			spacer.custom_minimum_size.y = 34
+			col.add_child(spacer)
+		else:
 			_next_lane[id] = 0
-		bar.add_child(card)
+			_lanes_on[id] = [false, true, false]
+			col.add_child(_recruit_lanes(id))
+		bar.add_child(col)
 	_update_lane_marks()
 
 	economy.changed.connect(_refresh)
@@ -126,22 +136,32 @@ func _start_game(civ_id: String, menu: Control) -> void:
 	_refresh()
 
 
-## The row of three lane buttons above the cards: HOLD / GO / BACK for all
-## the player's troops in that lane.
-func _lane_orders() -> Control:
+## L / M / R chips under a troop card: which lanes its new troops go to.
+func _recruit_lanes(unit_id: String) -> Control:
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 6)
+	row.add_theme_constant_override("separation", 3)
 	for lane in Battlefield.LANES:
-		var name: String = ["LEFT LANE", "MIDDLE LANE", "RIGHT LANE"][lane]
-		var t := LaneOrder.new(name, battle.lane_orders[Battlefield.PLAYER][lane], battle.units_in.bind(Battlefield.PLAYER, lane))
-		t.changed.connect(func(state: String):
-			battle.set_order(Battlefield.PLAYER, lane, state)
-			_update_lane_marks()
-			var what: String = {"stop": "HOLD – troops wait by the tower and defend", "march": "GO – the whole group marches out to attack",
-				"retreat": "BACK – troops return to the tower"}[state]
-			_flash_hint("%s lane: %s" % [["Left", "Middle", "Right"][lane], what]))
-		row.add_child(t)
+		var chip := LaneChip.new(["L", "M", "R"][lane], _lanes_on[unit_id][lane])
+		chip.toggled.connect(func(on: bool):
+			_lanes_on[unit_id][lane] = on
+			var lanes := []
+			for l in Battlefield.LANES:
+				if _lanes_on[unit_id][l]:
+					lanes.append(["left", "middle", "right"][l])
+			var name: String = GameConfig.data().units[unit_id].name
+			_flash_hint("New %ss go to: %s" % [name, ", ".join(lanes)] if lanes else "%ss: no lane picked, AUTO waits" % name))
+		row.add_child(chip)
 	return row
+
+
+## A lane's order button on the map was tapped: HOLD → GO → BACK.
+func _cycle_lane_order(lane: int) -> void:
+	var next: String = {"stop": "march", "march": "retreat", "retreat": "stop"}[battle.lane_orders[Battlefield.PLAYER][lane]]
+	battle.set_order(Battlefield.PLAYER, lane, next)
+	_update_lane_marks()
+	var what: String = {"stop": "HOLD – troops wait by the tower and defend", "march": "GO – the whole group marches out to attack",
+		"retreat": "BACK – troops return to the tower"}[next]
+	_flash_hint("%s lane: %s" % [["Left", "Middle", "Right"][lane], what])
 
 
 ## Chevrons on the map: lanes that are marching.
@@ -152,12 +172,11 @@ func _update_lane_marks() -> void:
 	_view.active_lanes = marks
 
 
-## Next lane in turn for an AUTO troop type (lanes on retreat are skipped),
-## or -1 when every lane is retreating.
+## Next lit lane in turn for a troop type, or -1 when none is lit.
 func _take_lane(unit_id: String) -> int:
 	for k in Battlefield.LANES:
 		var lane: int = (_next_lane[unit_id] + k) % Battlefield.LANES
-		if battle.lane_orders[Battlefield.PLAYER][lane] != "retreat":
+		if _lanes_on[unit_id][lane]:
 			_next_lane[unit_id] = lane + 1
 			return lane
 	return -1
@@ -306,10 +325,10 @@ func _drop(id: String, local: Vector2) -> void:
 
 
 ## Keep each AUTO troop type training at every building of its kind; each
-## new one goes to the next lane in turn (skipping lanes on retreat).
+## new one goes to the next of its lit lanes in turn.
 func _run_auto() -> void:
 	for id in _auto:
-		if not battle.lane_orders[Battlefield.PLAYER].has("stop") and not battle.lane_orders[Battlefield.PLAYER].has("march"):
+		if not _lanes_on[id].has(true):
 			continue
 		# One in training per building of its kind, so 3 barracks train 3 at once.
 		var waiting := economy.jobs.filter(func(j): return j.kind == "unit" and j.id == id).size()
@@ -736,7 +755,7 @@ func _refresh() -> void:
 	var full := not economy.has_room()
 	_ui.pop.add_theme_color_override("font_color", Color("#e55039") if full else UiStyle.CREAM)
 	if Time.get_ticks_msec() > _ui.get("hint_until", 0):
-		_ui.hint.text = "Tap a card for AUTO · lane buttons above: HOLD / GO / BACK · drag a card for one"
+		_ui.hint.text = "Card: tap for AUTO, L/M/R picks lanes · buttons by the towers: HOLD / GO / BACK"
 
 	var dragging: String = _press.get("card", "") if _ghost else ""
 	var vcost := economy.villager_cost()

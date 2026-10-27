@@ -8,6 +8,8 @@ extends Control
 signal hut_tapped
 ## Something to tell the player in the header hint line.
 signal hint(text: String)
+## The order button beside one of the player's lane towers was tapped.
+signal lane_order_tapped(lane: int)
 ## An empty build plot was tapped: build that ("barracks", "gold", "towers", ...).
 signal site_tapped(id: String)
 ## A gold upgrade badge was tapped: buy that upgrade ("era": next era).
@@ -454,6 +456,10 @@ func _gui_input(event: InputEvent) -> void:
 		if pos.distance_to(b[0]) < 24:
 			upgrade_badge_tapped.emit(b[1])
 			return
+	for lane in Battlefield.LANES:
+		if pos.distance_to(order_button(lane)) < 28:
+			lane_order_tapped.emit(lane)
+			return
 	for site in build_sites(economy):
 		if pos.distance_to(site[1]) < 34:
 			site_tapped.emit(site[0])
@@ -871,11 +877,51 @@ func _draw_city(team: int, now: float) -> void:
 			_draw_tower(building_pos(team, "tower", lane), color, battle.buildings[team].towers[lane], e.upgrades.has("stone_towers"), style, battle.tower_max_hp[team])
 	_draw_jobs(team, e, now)
 	_draw_helpers(team, helping, now)
+	if team == Battlefield.PLAYER:
+		for lane in Battlefield.LANES:
+			_draw_order_button(lane)
 	for tag in _tags:
 		_draw_info_tag(tag[0], tag[1], tag[2], tag[3])
 	_tags.clear()
 	if team == Battlefield.PLAYER:
 		_draw_upgrade_badges(e, now)
+
+
+## The order button beside each of the player's lane towers (clear of its
+## health bar): HOLD / GO / BACK for the troops in that lane.
+func order_button(lane: int) -> Vector2:
+	return building_pos(Battlefield.PLAYER, "tower", lane) + Vector2(46, -22)
+
+
+const ORDER_LOOK := {
+	"march": [Color("#2f5d34"), Color("#44bd32"), "GO"],
+	"stop": [Color("#5a4a24"), Color("#f1c40f"), "HOLD"],
+	"retreat": [Color("#24435a"), Color("#3498db"), "BACK"],
+}
+
+
+func _draw_order_button(lane: int) -> void:
+	var state: String = battle.lane_orders[Battlefield.PLAYER][lane]
+	var look: Array = ORDER_LOOK[state]
+	var c := order_button(lane)
+	draw_circle(c, 24, OUTLINE)
+	draw_circle(c, 22, look[0])
+	draw_arc(c, 21, 0, TAU, 32, look[1], 3)
+	var ic := c + Vector2(0, -5)
+	match state:
+		"march":
+			draw_colored_polygon(PackedVector2Array([ic + Vector2(-7, -9), ic + Vector2(9, 0), ic + Vector2(-7, 9)]), Color.WHITE)
+		"stop":
+			draw_rect(Rect2(ic + Vector2(-8, -8), Vector2(16, 16)), Color.WHITE)
+		"retreat":
+			draw_colored_polygon(PackedVector2Array([ic + Vector2(7, -9), ic + Vector2(-9, 0), ic + Vector2(7, 9)]), Color.WHITE)
+	var font := UiStyle.cinzel(800)
+	var word: String = look[2]
+	var w := font.get_string_size(word, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
+	draw_string(font, c + Vector2(-w / 2, 16), word, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color.WHITE)
+	var n := battle.units_in(Battlefield.PLAYER, lane)
+	if n > 0:
+		_draw_count_tag(c + Vector2(19, -18), n)
 
 
 ## Empty plots where the player could build right now (era reached, not built
