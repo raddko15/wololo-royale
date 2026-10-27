@@ -115,6 +115,11 @@
   "units": {
     "fighter": {
       "name": "Fighter",
+      "bonus_vs": {
+        "cavalry": 2.0,
+        "knight": 2.0,
+        "chariot": 2.0
+      },
       "cost": {
         "food": 40,
         "wood": 30,
@@ -150,8 +155,10 @@
     "cavalry": {
       "name": "Cavalry",
       "bonus_vs": {
-        "archer": 1.5
+        "archer": 1.75,
+        "chariot": 1.5
       },
+      "charge": 0.3,
       "cost": {
         "food": 70,
         "gold": 40
@@ -170,6 +177,7 @@
         "fighter": 2.0,
         "archer": 1.5
       },
+      "charge": 0.3,
       "min_era": 2,
       "cost": {
         "food": 120,

@@ -125,6 +125,8 @@ func spawn(team: int, unit_id: String, lane: int, bonus := {}, tier := 0) -> Dic
 		"range": stats.range * (1.0 + bonus.get("range", 0.0)), "tier": tier,
 		# Damage multipliers against unit types, e.g. spears vs horses.
 		"bonus_vs": stats.get("bonus_vs", {}),
+		# How far ahead a horseman spots prey to charge past others for (0: never).
+		"charge": stats.get("charge", 0.0),
 		# What it is hitting this tick: "unit", "tower", "main" or "" when walking;
 		# `foe` is the unit it hits when target is "unit".
 		"target": "", "foe": null,
@@ -150,12 +152,22 @@ func tick(delta: float) -> void:
 
 
 ## Fight the nearest enemy unit ahead, else the lane tower, else the main building; otherwise walk.
+## Fight the best enemy unit within reach, else the lane tower, else the main
+## building; otherwise walk on. Everyone within reach of a foe fights at once
+## (a brawl, not a queue of duels), each picking the foe it counters most.
+## Horsemen charge: with a foe they counter (archers) a short way ahead, they
+## ride past whatever stands in front instead of stopping for it.
 func _unit_act(u: Dictionary, delta: float) -> void:
 	var dir := 1.0 if u.team == PLAYER else -1.0
-	var foe = _nearest_foe_ahead(u)
 	u.target = ""
 	u.foe = null
-	if foe and absf(foe.y - u.y) <= u.range + REACH_EPS:
+	var foe = _best_target(u)
+	var blocker = _blocker(u)
+	# A charging rider with prey ahead does not stop for lesser foes.
+	var charging: bool = blocker != null and u.charge > 0 and u.bonus_vs.get(blocker.type, 1.0) > 1.0
+	if foe and charging and u.bonus_vs.get(foe.type, 1.0) <= 1.0:
+		foe = null
+	if foe:
 		foe.hp -= u.dps * u.bonus_vs.get(foe.type, 1.0) * delta
 		u.target = "unit"
 		u.foe = foe
@@ -176,21 +188,51 @@ func _unit_act(u: Dictionary, delta: float) -> void:
 			u.target = "main"
 		return
 	var step: float = u.speed * delta
-	if foe:
-		step = minf(step, absf(foe.y - u.y) - u.range)
-	u.y += dir * minf(step, absf(target_y - u.y) - u.range)
+	if blocker:
+		step = minf(step, absf(blocker.y - u.y) - u.range)
+	u.y += dir * maxf(minf(step, absf(target_y - u.y) - u.range), 0.0)
 
 
-func _nearest_foe_ahead(u: Dictionary):
+## The foe this unit hits now: among enemies in its lane within reach (in
+## front or behind, e.g. riders that charged past), the one it does most
+## damage to, then the nearest.
+func _best_target(u: Dictionary):
 	var best = null
+	var best_mult := 0.0
+	var best_dist := INF
+	for o in units:
+		if o.team == u.team or o.lane != u.lane or o.hp <= 0:
+			continue
+		var dist := absf(o.y - u.y)
+		if dist > u.range + REACH_EPS:
+			continue
+		var mult: float = u.bonus_vs.get(o.type, 1.0)
+		if mult > best_mult + 0.01 or (absf(mult - best_mult) <= 0.01 and dist < best_dist):
+			best = o
+			best_mult = mult
+			best_dist = dist
+	return best
+
+
+## What this unit stops for: the nearest foe ahead, or for a charging unit
+## the nearest foe ahead it counters, if one is within charge distance.
+func _blocker(u: Dictionary):
+	var nearest = null
+	var prey = null
 	var dir := 1.0 if u.team == PLAYER else -1.0
+	var charge: float = u.get("charge", 0.0)
 	for o in units:
 		if o.team == u.team or o.lane != u.lane or o.hp <= 0:
 			continue
 		var ahead: float = (o.y - u.y) * dir
-		if ahead >= -0.01 and (best == null or ahead < (best.y - u.y) * dir):
-			best = o
-	return best
+		if ahead < -0.01:
+			continue
+		if nearest == null or ahead < (nearest.y - u.y) * dir:
+			nearest = o
+		if charge > 0 and ahead <= charge and u.bonus_vs.get(o.type, 1.0) > 1.0:
+			if prey == null or ahead < (prey.y - u.y) * dir:
+				prey = o
+	return prey if prey != null else nearest
 
 
 ## Each living tower shoots an arrow at the closest enemy in its own lane

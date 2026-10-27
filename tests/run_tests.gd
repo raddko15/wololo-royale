@@ -347,6 +347,24 @@ func _init() -> void:
 	var gone := kv.kill_villager()
 	_check(gone.job == "food" and not gone.worker.is_empty() and kv.workers.is_empty() and kv.kill_villager().is_empty(), "then a worker; none left to delete")
 
+	# The counter triangle, at roughly equal cost, in one lane.
+	_check(_clash("cavalry", 5, "archer", 5) == 0, "cavalry beat archers")
+	_check(_clash("archer", 5, "fighter", 5) == 0, "archers beat fighters")
+	_check(_clash("fighter", 7, "cavalry", 5) == 0, "fighters beat cavalry for the same cost")
+	# Charge: cavalry ride past the fighters in front to cut down the archers.
+	var ch := Battlefield.new()
+	var rider2 := ch.spawn(Battlefield.PLAYER, "cavalry", 1)
+	rider2.y = 0.4
+	var wall := ch.spawn(Battlefield.ENEMY, "fighter", 1)
+	wall.y = 0.5
+	wall.speed = 0.0
+	var bow2 := ch.spawn(Battlefield.ENEMY, "archer", 1)
+	bow2.y = 0.65
+	bow2.speed = 0.0
+	for i in 40:
+		ch.tick(0.1)
+	_check(rider2.y > wall.y and (bow2.hp < bow2.max_hp or not ch.units.has(bow2)), "cavalry charge past fighters to reach the archers")
+
 	# Idle villagers help build: +30% speed each.
 	var hb := Economy.new("romans")
 	hb.resources.wood = 60.0
@@ -379,6 +397,23 @@ func _init() -> void:
 
 	print("FAILURES: %d" % _failures)
 	quit(1 if _failures else 0)
+
+
+## Two groups meet in the middle lane; returns the winning team (-1: none).
+func _clash(a: String, na: int, b: String, nb: int) -> int:
+	var f := Battlefield.new()
+	f.buildings[0].main = 1e9
+	f.buildings[1].main = 1e9
+	for i in na:
+		f.spawn(Battlefield.PLAYER, a, 1).y = 0.3 - i * 0.01
+	for i in nb:
+		f.spawn(Battlefield.ENEMY, b, 1).y = 0.7 + i * 0.01
+	for i in 1200:
+		f.tick(0.1)
+		var teams := f.units.map(func(u): return u.team)
+		if not teams.has(0) or not teams.has(1):
+			return 0 if teams.has(0) else (1 if teams.has(1) else -1)
+	return -1
 
 
 func _check(ok: bool, name: String) -> void:
