@@ -121,7 +121,7 @@
         "gold": 10
       },
       "hp": 60,
-      "speed": 0.06,
+      "speed": 0.05,
       "damage_per_sec": 10,
       "range": 0.04,
       "requires": "barracks",
@@ -129,19 +129,29 @@
     },
     "archer": {
       "name": "Archer",
+      "bonus_vs": {
+        "fighter": 1.5,
+        "phalanx": 1.5,
+        "cavalry": 0.5,
+        "knight": 0.5,
+        "chariot": 0.5
+      },
       "cost": {
-        "food": 30,
-        "wood": 40
+        "wood": 40,
+        "gold": 25
       },
       "hp": 40,
       "damage_per_sec": 7,
       "range": 0.15,
-      "speed": 0.06,
+      "speed": 0.05,
       "requires": "archery_range",
       "time": 7
     },
     "cavalry": {
       "name": "Cavalry",
+      "bonus_vs": {
+        "archer": 1.5
+      },
       "cost": {
         "food": 70,
         "gold": 40
@@ -157,7 +167,8 @@
       "name": "Knight",
       "civ": "franks",
       "bonus_vs": {
-        "fighter": 2.0
+        "fighter": 2.0,
+        "archer": 1.5
       },
       "min_era": 2,
       "cost": {
@@ -207,7 +218,7 @@
       "hp": 90,
       "damage_per_sec": 8,
       "range": 0.06,
-      "speed": 0.05,
+      "speed": 0.043,
       "requires": "barracks",
       "upgrades_as": "fighter",
       "time": 12

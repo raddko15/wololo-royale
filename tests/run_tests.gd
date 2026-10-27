@@ -18,7 +18,7 @@ func _init() -> void:
 	_check(f.style() == "medieval" and is_equal_approx(f.unit_bonus("cavalry").get("hp", 0.0), 0.2) and is_equal_approx(f.unit_bonus("knight").get("hp", 0.0), 0.2), "franks: medieval style, horsemen +20% HP")
 	_check(is_equal_approx(e.rate_per_villager("wood"), 1.3 * 1.05) and is_equal_approx(e.unit_bonus("fighter").get("speed", 0.0), 0.1) and e.unit_bonus("cavalry").is_empty(), "romans: +5% wood, foot soldiers +10% speed")
 	var fast := Battlefield.new().spawn(Battlefield.PLAYER, "fighter", 1, e.unit_bonus("fighter"))
-	_check(is_equal_approx(fast.speed, 0.06 * 1.1), "a Roman fighter walks 10% faster")
+	_check(is_equal_approx(fast.speed, 0.05 * 1.1), "a Roman fighter walks 10% faster")
 	_check(g.style() == "classical" and g.upgrade_name("mill") == "Olive Press" and e.upgrade_name("mill") == "Olive Press" and f.upgrade_name("mill") == "Windmill", "romans and greeks press olives; franks build a windmill")
 
 	_check(not e.reassign("idle", "food") and not e.reassign("idle", "wood"), "no gathering before the farm and lumberjack stand")
@@ -181,7 +181,7 @@ func _init() -> void:
 	_check(b.buildings[Battlefield.ENEMY].towers.size() == 3 and b.towers_built[Battlefield.ENEMY], "build_towers raises all 3 at once")
 	var u := b.spawn(Battlefield.PLAYER, "fighter", 2)
 	_check(is_equal_approx(u.y, -0.5), "fighter starts at its own fort, at the start of the L road")
-	for i in 280:
+	for i in 340:
 		b.tick(0.1)
 	_check(u.y < 1.0 and u.y > 0.9 and b.buildings[Battlefield.ENEMY].towers[2] < b.max_hp("tower"), "fighter walks up and hits the enemy tower")
 	_check(u.hp < 60, "enemy tower shoots the fighter")
@@ -247,7 +247,7 @@ func _init() -> void:
 	for i in 6:
 		b6.spawn(Battlefield.PLAYER, "fighter", 2).y = 0.8
 	smart.economy.huts += 10  # room to train
-	smart.economy.resources = {"food": 500.0, "wood": 500.0, "gold": 0.0, "stone": 0.0}
+	smart.economy.resources = {"food": 500.0, "wood": 500.0, "gold": 500.0, "stone": 0.0}
 	smart._think()
 	_check(smart.economy.jobs.any(func(j): return j.kind == "unit" and j.lane == 2), "AI sends defenders to the lane being pushed")
 
@@ -321,6 +321,22 @@ func _init() -> void:
 	var ft_hp: float = ft.hp
 	joust.tick(1.0)
 	_check(is_equal_approx(ft_hp - ft.hp, 32.0), "knights deal double damage to fighters")
+	var volley := Battlefield.new()
+	var bowman := volley.spawn(Battlefield.PLAYER, "archer", 1)
+	var swords := volley.spawn(Battlefield.ENEMY, "fighter", 0)
+	var rider := volley.spawn(Battlefield.ENEMY, "cavalry", 2)
+	bowman.y = 0.5
+	swords.y = 0.53
+	swords.lane = 1
+	var sw_hp: float = swords.hp
+	volley.tick(1.0)
+	_check(is_equal_approx(sw_hp - swords.hp, 10.5), "archers deal 1.5x damage to fighters")
+	volley.units.erase(swords)
+	rider.lane = 1
+	rider.y = 0.6
+	var rider_hp: float = rider.hp
+	volley.tick(0.5)
+	_check(rider_hp - rider.hp < 2.0, "archers deal half damage to horsemen")
 	_check(Economy.new("franks").available_units().has("knight") and Economy.new("romans").available_units().has("chariot"), "franks get knights, romans chariots")
 
 	var kv := Economy.new("romans")
