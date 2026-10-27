@@ -18,42 +18,56 @@ var _queued := 0
 var _deletable := false
 
 
-func _init(title: String) -> void:
-	custom_minimum_size = Vector2(110, 130)
+func _init(title: String, icon: Control = null) -> void:
+	custom_minimum_size = Vector2(110, 140)
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_style.set_corner_radius_all(12)
-	_style.set_border_width_all(4)
+	_style.set_corner_radius_all(10)
+	_style.set_border_width_all(3)
+	_style.content_margin_top = 4
+	_style.content_margin_bottom = 4
+	_style.shadow_color = Color(0, 0, 0, 0.35)
+	_style.shadow_size = 3
+	_style.shadow_offset = Vector2(0, 2)
 	add_theme_stylebox_override("panel", _style)
 	var box := VBoxContainer.new()
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_theme_constant_override("separation", 0)
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(box)
+	if icon:
+		box.add_child(icon)
 	for l in [_title, _cost]:
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD
+		l.add_theme_color_override("font_color", UiStyle.INK)
 		box.add_child(l)
 	_title.text = title
-	_title.add_theme_font_size_override("font_size", 28)
-	_cost.add_theme_font_size_override("font_size", 22)
+	_title.add_theme_font_override("font", UiStyle.cinzel(800))
+	_title.add_theme_font_size_override("font_size", 19)
+	_title.autowrap_mode = TextServer.AUTOWRAP_OFF
+	_title.clip_text = true
+	_title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_cost.add_theme_font_size_override("font_size", 16)
 	# Fixed text space so a longer note (e.g. "2 queued") never makes the card
 	# taller and shifts the map above it.
 	_title.max_lines_visible = 1
 	_cost.max_lines_visible = 2
-	_cost.custom_minimum_size.y = 56
+	_cost.custom_minimum_size.y = 40
 	set_state("", true, false)
 
 
 func set_state(cost_text: String, enabled: bool, selected: bool, auto := false) -> void:
 	_cost.text = ("AUTO · " if auto else "") + cost_text
 	# Three-resource costs use a smaller font so they still fit on two lines.
-	_cost.add_theme_font_size_override("font_size", 22 if _cost.text.length() <= 22 else 17)
-	# An auto card stays bright even while it waits for resources.
-	modulate.a = 1.0 if enabled or auto else 0.45
-	_style.bg_color = Color("#5d4a2f") if enabled or auto else Color("#2d2d2d")
+	_cost.add_theme_font_size_override("font_size", 16 if _cost.text.length() <= 26 else 14)
+	_cost.add_theme_color_override("font_color", Color("#1e7a34") if auto else UiStyle.INK)
+	# A parchment card; faded when it cannot be afforded (an auto card stays bright).
+	modulate.a = 1.0 if enabled or auto else 0.6
+	_style.bg_color = UiStyle.PARCHMENT if enabled or auto else Color("#b9ab8c")
 	if auto:
-		_style.border_color = Color("#44bd32")
+		_style.border_color = Color("#2ecc40")
 	else:
-		_style.border_color = Color("#f9ca24") if selected else Color("#1e1e1e")
+		_style.border_color = Color("#f1c40f") if selected else Color("#8a6a3a")
 
 
 ## Shows the cancel ✕ while anything of this card is queued.

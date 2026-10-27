@@ -94,12 +94,15 @@ func _start_game(civ_id: String, menu: Control) -> void:
 			economy.buy_upgrade(id))
 	box.add_child(_view)
 
+	var bar_panel := PanelContainer.new()
+	bar_panel.add_theme_stylebox_override("panel", UiStyle.wood_bar(true))
+	box.add_child(bar_panel)
 	var bar := HBoxContainer.new()
-	bar.add_theme_constant_override("separation", 10)
-	box.add_child(bar)
+	bar.add_theme_constant_override("separation", 8)
+	bar_panel.add_child(bar)
 	for id in ["villager"] + economy.available_units():
 		var title: String = "Villager" if id == "villager" else GameConfig.data().units[id].name
-		var card := Card.new(title)
+		var card := Card.new(title, UnitIcon.new(id, Color(economy.civ().color)))
 		card.pressed.connect(_on_card_pressed.bind(id))
 		card.cancel_pressed.connect(_on_card_cancel.bind(id))
 		if id == "villager":
@@ -166,17 +169,16 @@ func _take_lane(unit_id: String) -> int:
 
 func _header() -> Control:
 	var panel := PanelContainer.new()
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color("#2b2620")
-	style.content_margin_top = 10
-	style.content_margin_bottom = 10
-	panel.add_theme_stylebox_override("panel", style)
+	panel.add_theme_stylebox_override("panel", UiStyle.wood_bar())
 	var col := VBoxContainer.new()
 	panel.add_child(col)
 	# Title row with a restart button (testing aid) on the right.
 	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 4)
 	col.add_child(top)
-	_ui.title = _label("", 22)
+	_ui.title = _label("", 18)
+	_ui.title.add_theme_font_override("font", UiStyle.cinzel(800))
+	_ui.title.add_theme_color_override("font_color", UiStyle.CREAM)
 	_ui.title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	# Never wider than the space left by the buttons: a long title would push
 	# the whole screen wider than the phone.
@@ -185,14 +187,12 @@ func _header() -> Control:
 	top.add_child(_ui.title)
 	var restart := Button.new()
 	restart.text = "Restart"
-	restart.add_theme_font_size_override("font_size", 20)
-	restart.focus_mode = Control.FOCUS_NONE
+	UiStyle.plaque(restart)
 	restart.pressed.connect(func(): get_tree().reload_current_scene())
 	# Testing aid: makes the player's builds, training and research 10x faster.
 	_ui.fast = Button.new()
 	_ui.fast.toggle_mode = true
-	_ui.fast.add_theme_font_size_override("font_size", 20)
-	_ui.fast.focus_mode = Control.FOCUS_NONE
+	UiStyle.plaque(_ui.fast)
 	_ui.fast.toggled.connect(func(on: bool):
 		economy.job_speed = maxf(GameConfig.data().get("testing", {}).get("job_speed", 10.0), 2.0) if on else 1.0
 		_ui.fast.text = "Fast ×10 ON" if on else "Fast ×10")
@@ -201,8 +201,7 @@ func _header() -> Control:
 	var rich := Button.new()
 	var bonus: int = GameConfig.data().get("testing", {}).get("bonus_resources", 10000)
 	rich.text = "+%dk" % (bonus / 1000)
-	rich.add_theme_font_size_override("font_size", 20)
-	rich.focus_mode = Control.FOCUS_NONE
+	UiStyle.plaque(rich)
 	rich.pressed.connect(func():
 		for res in Economy.RESOURCES:
 			economy.resources[res] += bonus
@@ -210,8 +209,7 @@ func _header() -> Control:
 	top.add_child(rich)
 	var pause := Button.new()
 	pause.text = "Pause"
-	pause.add_theme_font_size_override("font_size", 20)
-	pause.focus_mode = Control.FOCUS_NONE
+	UiStyle.plaque(pause)
 	pause.pressed.connect(_set_paused.bind(true))
 	top.add_child(pause)
 	top.add_child(restart)
@@ -223,7 +221,9 @@ func _header() -> Control:
 			item.alignment = BoxContainer.ALIGNMENT_CENTER
 			item.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			item.add_child(HudIcon.new(key))
-			_ui[key] = _label("", 26)
+			_ui[key] = _label("", 22)
+			_ui[key].add_theme_font_override("font", UiStyle.cinzel(700))
+			_ui[key].add_theme_color_override("font_color", UiStyle.CREAM)
 			item.add_child(_ui[key])
 			row.add_child(item)
 	_ui.hint = _label("", 22)
@@ -738,7 +738,7 @@ func _refresh() -> void:
 	_ui.villagers.text = "%d (%d idle)" % [economy.total_villagers(), economy.villagers.get("idle", 0)]
 	_ui.pop.text = "%d/%d" % [economy.population(), economy.max_population()]
 	var full := not economy.has_room()
-	_ui.pop.add_theme_color_override("font_color", Color("#e55039") if full else Color.WHITE)
+	_ui.pop.add_theme_color_override("font_color", Color("#e55039") if full else UiStyle.CREAM)
 	if Time.get_ticks_msec() > _ui.get("hint_until", 0):
 		_ui.hint.text = "Tap a card for AUTO · L/M/R under it: ■ stop ▶ march ◀ retreat · drag for one"
 
