@@ -331,7 +331,7 @@ func _run_auto() -> void:
 		var waiting := economy.jobs.filter(func(j): return j.kind == "unit" and j.id == id).size()
 		var buildings: int = economy.military.get(GameConfig.data().units[id].requires, 0)
 		while waiting < buildings and economy.can_train(id):
-			economy.train(id, _take_lane(id))
+			economy.train(id, -1)  # the lane is picked when it comes out
 			waiting += 1
 
 
@@ -468,7 +468,13 @@ func _unit_lock(id: String) -> String:
 func _on_job_done(job: Dictionary) -> void:
 	match job.kind:
 		"unit":
-			battle.spawn_squad(Battlefield.PLAYER, job.id, job.lane, economy.squad(job.id), economy.unit_bonus(job.id), economy.unit_tier(job.id))
+			# AUTO troops take the next lit lane as they come out (so changing
+			# the lanes applies to troops already in training); a dragged one
+			# keeps the lane it was dropped on.
+			var lane: int = job.lane if job.lane >= 0 else _take_lane(job.id)
+			if lane < 0:
+				lane = 1  # no lane lit: the middle
+			battle.spawn_squad(Battlefield.PLAYER, job.id, lane, economy.squad(job.id), economy.unit_bonus(job.id), economy.unit_tier(job.id))
 		"towers":
 			battle.build_towers(Battlefield.PLAYER)
 		"era":
