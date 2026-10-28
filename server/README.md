@@ -16,7 +16,7 @@ Then open the web build with `?relay=ws://127.0.0.1:8080` added to its address
 
 1. Install flyctl: https://fly.io/docs/flyctl/install/ and sign in: `fly auth login`
 2. From this folder: `fly launch --copy-config --no-deploy`
-   (keep the settings; if the name `wololo-royale-relay` is taken, pick another)
+   (keep the settings; if the name `wololo-royale` is taken, pick another)
 3. `fly deploy`
 4. Check it: `https://<app name>.fly.dev` answers `ok`.
 5. If the app name differs, put `wss://<app name>.fly.dev` in

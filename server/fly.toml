@@ -1,8 +1,8 @@
 # Fly.io app for the multiplayer relay. Deploy from this folder:
 #   fly launch --copy-config --no-deploy   (first time; pick a unique app name)
 #   fly deploy
-app = "wololo-royale-relay"
-primary_region = "waw"
+app = "wololo-royale"
+primary_region = "ams"
 
 [build]
 
