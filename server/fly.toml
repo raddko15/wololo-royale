@@ -2,7 +2,7 @@
 #   fly launch --copy-config --no-deploy   (first time; pick a unique app name)
 #   fly deploy
 app = "wololo-royale"
-primary_region = "waw"
+primary_region = "ams"
 
 [build]
 

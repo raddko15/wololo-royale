@@ -1,6 +1,6 @@
 # Fly.io app for the multiplayer relay (see server/README.md).
 app = "wololo-royale"
-primary_region = "waw"
+primary_region = "ams"
 
 [build]
 
