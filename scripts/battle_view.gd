@@ -167,6 +167,23 @@ func worker_pos(team: int, w: Dictionary) -> Vector2:
 	return spot
 
 
+## Where a villager walking back to the campfire is: on its way to the
+## drop-off with its load, then from there (or from where it was) to the fire.
+func leaver_pos(team: int, l: Dictionary) -> Vector2:
+	if l.phase == "to_drop":
+		return worker_pos(team, l)
+	var start: Vector2
+	match l.from:
+		"drop":
+			start = drop_off(team, l.job)
+		"walk":
+			start = worker_pos(team, {"job": l.job, "spot": l.spot, "phase": "to_work", "t": l.t0})
+		_:
+			start = worker_pos(team, {"job": l.job, "spot": l.spot, "phase": "gather", "t": 0.0})
+	var fire := campfire_pos(team) + Vector2(0, 22)
+	return start.lerp(fire, smoothstep(0.0, 1.0, l.t))
+
+
 ## The "send a worker back to the town center" icon, in the outer corner
 ## beside the road (player only).
 func unassign_icon(job: String) -> Vector2:
@@ -679,8 +696,10 @@ func villager_died(gone: Dictionary) -> void:
 	var pos: Vector2
 	if gone.has("worker") and not gone.worker.is_empty():
 		pos = worker_pos(p, gone.worker)
+	elif gone.has("leaver"):
+		pos = leaver_pos(p, gone.leaver)
 	else:
-		var idle: int = economy.villagers.get("idle", 0)
+		var idle: int = economy.idle_at_fire()
 		pos = idle_spot(p, idle, idle + 1) + Vector2(0, 6)
 	var h := randi()
 	corpses.append({"pos": pos, "type": "villager", "tier": 0, "color": VILLAGER_TUNIC,
@@ -873,11 +892,13 @@ func _draw_city(team: int, now: float) -> void:
 	_draw_fort_status(team, tc + Vector2(0, bar_y), now)
 	# Idle villagers sit at the campfire, except those helping on a building site.
 	var helping := _helper_spots(team, e)
-	var at_fire: int = e.villagers.get("idle", 0) - helping.size()
+	var at_fire: int = maxi(e.idle_at_fire() - helping.size(), 0)
 	for i in at_fire:
 		_draw_figure(idle_spot(team, i, at_fire) + Vector2(0, 6), VILLAGER_TUNIC, [], 0.6)
 	for w in e.workers:
 		_draw_worker(worker_pos(team, w), w, now, olives)
+	for l in e.leaving:
+		_draw_worker(leaver_pos(team, l), l, now, olives)
 	# Towers last so their health bars stay visible over the fields.
 	if battle.towers_built[team]:
 		for lane in Battlefield.LANES:
@@ -1749,7 +1770,7 @@ func _draw_worker(p: Vector2, w: Dictionary, now: float, olives := false) -> voi
 	var phase: float = w.spot * 1.7
 	if w.phase == "gather" and w.job == "food":
 		p.y += sin(now * 6.0 + phase) * 2.0
-	var walking: bool = w.phase == "to_drop" or w.phase == "to_work"
+	var walking: bool = w.phase == "to_drop" or w.phase == "to_work" or w.phase == "home"
 	_draw_figure(p, VILLAGER_TUNIC, [], 0.6, fmod(now * 12.0 + phase, TAU) if walking else -1.0)
 	var hand := _figure_origin(p, 0.6) + Vector2(26, 27) * 0.6
 	if w.phase == "gather":

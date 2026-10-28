@@ -35,12 +35,19 @@ func is_human(_team: int) -> bool:
 
 
 ## The host runs the game; between its snapshots (10 a second) units glide
-## from where the last one had them to where the new one has them.
+## from where the last one had them to where the new one has them, and
+## villagers walk on.
 func tick(delta: float) -> void:
 	_blend = minf(_blend + delta / SNAPSHOT_GAP, 1.0)
 	for u in battle.units:
 		if u.has("y_to"):
 			u.y = lerpf(u.y_from, u.y_to, _blend)
+	# Walking villagers keep walking until the next snapshot says where they are.
+	var step: float = delta / GameConfig.data().gathering.walk_time_sec
+	for e in economies:
+		for w in e.workers + e.leaving:
+			if w.phase != "gather":
+				w.t = minf(w.t + step, 1.0)
 
 
 ## Send the command to the host. The answer only predicts whether it will go

@@ -51,6 +51,7 @@ static func _economy(e: Economy) -> Dictionary:
 		"mines": e.mines, "camps": e.camps, "military": e.military, "upgrades": e.upgrades,
 		"has_towers": e.has_towers, "era_index": e.era_index, "job_speed": e.job_speed,
 		"workers": e.workers.map(func(w): return [w.job, w.phase, w.t, w.carry, w.spot]),
+		"leaving": e.leaving.map(func(l): return [l.job, l.phase, l.t, l.carry, l.spot, l.from, l.t0]),
 		"jobs": e.jobs.map(func(j): return [j.queue, j.kind, j.id, j.lane, j.t, j.total]),
 	}
 
@@ -97,6 +98,10 @@ static func restore(snap: Dictionary, battle: Battlefield, economies: Array) -> 
 		for w in s.workers:
 			workers.append({"job": w[0], "phase": w[1], "t": w[2], "carry": w[3], "spot": w[4]})
 		e.workers = workers
+		var leaving: Array[Dictionary] = []
+		for l in s.get("leaving", []):
+			leaving.append({"job": l[0], "phase": l[1], "t": l[2], "carry": l[3], "spot": l[4], "from": l[5], "t0": l[6]})
+		e.leaving = leaving
 		var jobs: Array[Dictionary] = []
 		for j in s.jobs:
 			jobs.append({"queue": j[0], "kind": j[1], "id": j[2], "lane": j[3], "t": j[4], "total": j[5]})

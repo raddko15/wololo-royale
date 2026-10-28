@@ -425,6 +425,31 @@ func _init() -> void:
 	_check(theirs.size() >= 1 and theirs.all(func(u): return u.lane == 2), "their AUTO fighters come out in the lane they lit")
 	_check(duo.battle.lane_orders[Battlefield.ENEMY] == ["stop", "stop", "stop"] and theirs[0].waiting, "and hold by their tower until sent")
 
+	# A worker called back first drops off what it carries, then walks home.
+	var home := Economy.new("franks")
+	home.camps = {"farm": true}
+	home.reassign("idle", "food")
+	for i in 40:
+		home.tick(0.1)  # out to the field and gathering
+	var carried: float = home.workers[0].carry
+	var stock_before: float = home.resources.food
+	home.reassign("food", "idle")
+	_check(home.workers.is_empty() and home.leaving.size() == 1 and home.villagers.idle == 5, "a called-back worker counts as idle at once")
+	_check(home.idle_at_fire() == 4, "but isn't at the campfire yet")
+	for i in 15:
+		home.tick(0.1)
+	_check(carried > 0.0 and is_equal_approx(home.resources.food, stock_before + carried), "its load reaches the stockpile first")
+	for i in 15:
+		home.tick(0.1)
+	_check(home.leaving.is_empty() and home.idle_at_fire() == 5, "then it joins the campfire")
+	home.reassign("idle", "food")
+	home.reassign("food", "idle")
+	home.reassign("idle", "food")
+	_check(home.villagers.idle == 4 and home.leaving.size() == 1 and home.workers.size() == 1, "a villager at the campfire goes out before one still walking back")
+	home.villagers.idle = 1  # only the one walking back is left idle
+	home.reassign("idle", "food")
+	_check(home.villagers.idle == 0 and home.leaving.is_empty() and home.workers.size() == 2, "with none at the fire, the one walking back is taken")
+
 	# Network game, in one process: the host's match, the guest's mirror fed by
 	# flipped snapshots (through bytes, as on the wire), the guest's commands
 	# going back to the host for team ENEMY.

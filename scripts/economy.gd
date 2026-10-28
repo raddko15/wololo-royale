@@ -36,6 +36,12 @@ var upgrades := {}
 ## phase: "gather" (filling up), "to_drop" (walking to mill/camp), "to_work" (walking back).
 ## t: 0..1 walk progress. spot: which crop plot / tree it works at.
 var workers: Array[Dictionary] = []
+## Villagers taken off a job, on their way back to the campfire (already
+## counted as idle): one with a load first takes it to the drop-off.
+## {"job", "phase": "to_drop" | "home", "t", "carry", "spot", "from", "t0"};
+## a "home" walk starts at the work spot, the drop-off, or part way out
+## ("from": "spot" | "drop" | "walk", at fraction t0 of the walk out).
+var leaving: Array[Dictionary] = []
 ## Lane towers finished (they are built through a job like everything else).
 var has_towers := false
 ## Everything ordered but not finished: {"queue", "kind", "id", "lane", "t", "total"}.
@@ -86,6 +92,19 @@ func tick(delta: float) -> void:
 				w.t += delta / g.walk_time_sec
 				if w.t >= 1.0:
 					w.phase = "gather"
+	for i in range(leaving.size() - 1, -1, -1):
+		var l: Dictionary = leaving[i]
+		l.t += delta / g.walk_time_sec
+		if l.t < 1.0:
+			continue
+		if l.phase == "to_drop":
+			resources[l.job] = resources.get(l.job, 0.0) + l.carry
+			l.carry = 0.0
+			l.phase = "home"
+			l.from = "drop"
+			l.t = 0.0
+		else:
+			leaving.remove_at(i)  # at the campfire
 	changed.emit()
 
 
@@ -131,7 +150,7 @@ func builders() -> Dictionary:
 	var counts := {}
 	if sites.is_empty():
 		return counts
-	for i in villagers.get("idle", 0):
+	for i in idle_at_fire():  # not those still walking back
 		var q: String = sites[i % sites.size()].queue
 		counts[q] = counts.get(q, 0) + 1
 	return counts
@@ -208,6 +227,40 @@ func _remove_worker(job: String) -> Dictionary:
 	return {}
 
 
+## A worker taken off its job walks back to the campfire, dropping off its
+## load on the way (a full one, or one already on its way to the drop-off).
+func _send_home(w: Dictionary) -> void:
+	if w.is_empty():
+		return
+	var l := {"job": w.job, "phase": "home", "t": 0.0, "carry": w.carry, "spot": w.spot, "from": "spot", "t0": 0.0}
+	match w.phase:
+		"to_drop":
+			l.phase = "to_drop"
+			l.t = w.t
+		"to_work":
+			l.from = "walk"
+			l.t0 = w.t
+		_:
+			if w.carry > 0.0:
+				l.phase = "to_drop"
+	leaving.append(l)
+
+
+## Idle villagers at the campfire (not still walking back to it).
+func idle_at_fire() -> int:
+	return maxi(villagers.get("idle", 0) - leaving.size(), 0)
+
+
+## An idle villager is put to use: one at the campfire, or else the one last
+## sent home (its load still reaches the stockpile).
+func _take_idle() -> Dictionary:
+	if idle_at_fire() > 0 or leaving.is_empty():
+		return {}
+	var l: Dictionary = leaving.pop_back()
+	resources[l.job] = resources.get(l.job, 0.0) + l.carry
+	return l
+
+
 ## Deletes a villager to free population: an idle one if any, else one from
 ## the busiest job. Returns {"job"} plus "worker" (its state, for where it
 ## stood) when it was working; {} when there are none.
@@ -223,6 +276,10 @@ func kill_villager() -> Dictionary:
 	var result := {"job": job}
 	if job != "idle":
 		result.worker = _remove_worker(job)
+	else:
+		var l := _take_idle()
+		if not l.is_empty():
+			result.leaver = l
 	changed.emit()
 	return result
 
@@ -332,8 +389,10 @@ func reassign(from: String, to: String) -> bool:
 		return false
 	villagers[from] -= 1
 	villagers[to] = villagers.get(to, 0) + 1
-	if from != "idle":
-		_remove_worker(from)
+	if from == "idle":
+		_take_idle()
+	else:
+		_send_home(_remove_worker(from))
 	if to != "idle":
 		_add_worker(to)
 	changed.emit()
