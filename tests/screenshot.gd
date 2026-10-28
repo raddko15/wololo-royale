@@ -1,6 +1,6 @@
 extends SceneTree
 ## Renders game screens to PNGs (needs a display, e.g. xvfb-run).
-## Args: <out.png> <era1|era2|era2up|era3|window|mill|mine|jobs|sites|sites0|corpses|start|menu|victory|unique|paused|gather> [player_civ] [enemy_civ] [huts]
+## Args: <out.png> <era1|era2|era2up|era3|window|mill|mine|jobs|sites|sites0|corpses|start|menu|victory|unique|paused|gather|lobby> [player_civ] [enemy_civ] [huts]
 ## era2up buys the mill and lumber upgrades, era3 every upgrade (both sides);
 ## window / mill open that building's ring menu.
 
@@ -10,6 +10,17 @@ func _init() -> void:
 	var main = load("res://scenes/main.tscn").instantiate()
 	root.add_child(main)
 	await process_frame
+	if mode == "lobby":
+		main.net = Net.new()
+		main.add_child(main.net)
+		main._show_lobby("franks", main.get_child(0))
+		await process_frame
+		main.get_child(-1)._on_room("KXRT")
+		await process_frame
+		await RenderingServer.frame_post_draw
+		root.get_texture().get_image().save_png(args[0])
+		quit()
+		return
 	if mode == "menu":
 		await RenderingServer.frame_post_draw
 		root.get_texture().get_image().save_png(args[0])
@@ -17,14 +28,14 @@ func _init() -> void:
 		return
 	main._start_game(args[2] if args.size() > 2 else "romans", main.get_child(0))
 	if args.size() > 3:
-		main.ai.economy = Economy.new(args[3])
-		main.game.economies[Battlefield.ENEMY] = main.ai.economy
-		main._view.enemy_economy = main.ai.economy
+		main.game.ai.economy = Economy.new(args[3])
+		main.game.economies[Battlefield.ENEMY] = main.game.ai.economy
+		main._view.enemy_economy = main.game.ai.economy
 	var era: int = {"era1": 0, "era2": 1, "era2up": 1, "era3": 2, "window": 1, "mill": 1, "mine": 2, "jobs": 1, "sites": 1, "sites0": 0, "corpses": 1, "start": 0, "victory": 0, "unique": 2, "walkstrip": 2, "fightstrip": 0, "paused": 1, "gather": 1}[mode]
 	if mode == "start":
 		# A real opening: the AI plays its first 30 seconds, the player nothing.
 		for i in 600:
-			main.ai.tick(0.05)
+			main.game.ai.tick(0.05)
 		await process_frame
 		for i in 5:
 			await process_frame
@@ -32,7 +43,7 @@ func _init() -> void:
 		root.get_texture().get_image().save_png(args[0])
 		quit()
 		return
-	for e in [main.economy, main.ai.economy]:
+	for e in [main.economy, main.game.ai.economy]:
 		e.camps = {"farm": true, "lumberjack": true}
 		e.era_index = era
 		e.huts = int(args[4]) if args.size() > 4 else 10
@@ -58,8 +69,8 @@ func _init() -> void:
 		main.economy.villagers.idle += 1
 		main.economy.reassign("idle", job)
 	for job in ["food", "food", "wood", "wood"]:
-		main.ai.economy.villagers.idle += 1
-		main.ai.economy.reassign("idle", job)
+		main.game.ai.economy.villagers.idle += 1
+		main.game.ai.economy.reassign("idle", job)
 	var mix := ["fighter", "archer", "cavalry", "fighter"] if era >= 1 else ["fighter", "fighter", "fighter", "fighter"]
 	if mode == "walkstrip" or mode == "fightstrip":
 		main.battle.units.clear()
@@ -102,7 +113,7 @@ func _init() -> void:
 	for i in 300:
 		main.battle.tick(0.05)
 		main.economy.tick(0.05)
-		main.ai.economy.tick(0.05)
+		main.game.ai.economy.tick(0.05)
 	if mode == "jobs":
 		# Something of every kind under way on the player's side.
 		var e = main.economy

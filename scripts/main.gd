@@ -6,11 +6,17 @@ extends Control
 ## Finger travel (px) below which a press counts as a tap, not a drag.
 const TAP_SLOP := 20.0
 
-## The game being played; economy / battle / ai are short names for its parts.
-var game: Match
+## The game being played (a Match, or a Mirror of the host's match when
+## joined to a friend's game); economy / battle are short names for its parts.
+var game
 var economy: Economy
 var battle: Battlefield
-var ai: EnemyAI
+## Connection to a friend's device, or null against the computer.
+var net: Net
+var _snap_timer := 0.0
+## Events for the guest's screen, sent with the next snapshot.
+var _outbox := []
+var _over := false
 ## Which side this screen plays.
 var my_team := Battlefield.PLAYER
 var _view: BattleView
@@ -38,11 +44,19 @@ func _process(delta: float) -> void:
 	if game:
 		_show_training()
 		game.tick(delta)
+		if game.paused != _paused and not _over:
+			_show_paused(game.paused)  # the other player paused or resumed
+		if net and net.role == "host" and not _over:
+			_snap_timer -= delta
+			if _snap_timer <= 0.0:
+				_snap_timer = 0.1
+				net.send_snapshot(Snapshot.capture(game, Battlefield.ENEMY, _outbox))
+				_outbox.clear()
 
 
 ## Every player action goes through here as a command for the match.
 func _do(cmd: Dictionary) -> Dictionary:
-	var result := game.apply(my_team, cmd)
+	var result: Dictionary = game.apply(my_team, cmd)
 	_refresh()
 	return result
 
@@ -51,24 +65,52 @@ func _show_civ_select() -> void:
 	var screen := StartScreen.new(_difficulty)
 	screen.chosen.connect(func(civ_id: String, level: String):
 		_difficulty = level
-		_start_game(civ_id, screen))
+		if level == "friend":
+			_show_lobby(civ_id, screen)
+		else:
+			_start_game(civ_id, screen))
 	add_child(screen)
 
 
-func _start_game(civ_id: String, menu: Control) -> void:
+## Host or join a game with a friend; it starts once both are in.
+func _show_lobby(civ_id: String, screen: Control) -> void:
+	if net == null:
+		net = Net.new()
+		add_child(net)
+	var lobby := Lobby.new(net, civ_id)
+	lobby.back.connect(lobby.queue_free)
+	lobby.ready_to_play.connect(func(role: String, their_civ: String):
+		lobby.queue_free()
+		_start_game(civ_id, screen, their_civ, role))
+	add_child(lobby)
+
+
+## `role`: "" against the computer, or "host" / "guest" with a friend. The
+## host's device runs the match; the guest's shows the host's snapshots.
+func _start_game(civ_id: String, menu: Control, their_civ := "", role := "") -> void:
 	menu.queue_free()
-	var others: Array = GameConfig.data().civs.keys().filter(func(id): return id != civ_id)
-	game = Match.new(civ_id, others.pick_random(), "ai:" + _difficulty)
+	if role == "guest":
+		game = Mirror.new(civ_id, their_civ, net.send_command)
+		net.snapshot_received.connect(game.receive)
+	elif role == "host":
+		game = Match.new(civ_id, their_civ, "human")
+		net.command_received.connect(func(cmd: Dictionary): game.apply(Battlefield.ENEMY, cmd))
+	else:
+		var others: Array = GameConfig.data().civs.keys().filter(func(id): return id != civ_id)
+		game = Match.new(civ_id, others.pick_random(), "ai:" + _difficulty)
+	if net:
+		net.left.connect(_on_friend_left)
 	economy = game.economies[my_team]
 	battle = game.battle
-	ai = game.ai
 	game.game_over.connect(_on_game_over)
 	game.event.connect(func(e: Dictionary):
-		if e.type == "villager_died" and e.team == my_team:
+		if e.team != my_team:
+			_outbox.append(e)  # the guest's: sent to them
+		elif e.type == "villager_died":
 			_view.villager_died(e.gone))
 	# Testing: "fast_at_start" starts with the Fast ×10 button on.
 	var testing: Dictionary = GameConfig.data().get("testing", {})
-	if testing.get("fast_at_start", false):
+	if testing.get("fast_at_start", false) and net == null:
 		game.apply(my_team, {"op": "fast", "speed": float(testing.get("job_speed", 10.0))})
 	var box := _vbox(self, 0)
 
@@ -78,7 +120,7 @@ func _start_game(civ_id: String, menu: Control) -> void:
 
 	_view = BattleView.new()
 	_view.economy = economy
-	_view.enemy_economy = ai.economy
+	_view.enemy_economy = game.economies[1 - my_team]
 	_view.battle = battle
 	_view.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_view.building_tapped.connect(_open_menu)
@@ -180,6 +222,7 @@ func _header() -> Control:
 	var restart := Button.new()
 	restart.text = "Restart"
 	UiStyle.plaque(restart)
+	restart.text = "Leave" if net else "Restart"
 	restart.pressed.connect(func(): get_tree().reload_current_scene())
 	# Testing aid: makes the player's builds, training and research 10x faster.
 	_ui.fast = Button.new()
@@ -188,6 +231,7 @@ func _header() -> Control:
 	_ui.fast.toggled.connect(func(on: bool):
 		_do({"op": "fast", "speed": maxf(GameConfig.data().get("testing", {}).get("job_speed", 10.0), 2.0) if on else 1.0})
 		_ui.fast.text = "Fast ×10 ON" if on else "Fast ×10")
+	_ui.fast.visible = net == null  # testing aids: not with a friend
 	top.add_child(_ui.fast)
 	# Testing aid: tap for +10k of every resource.
 	var rich := Button.new()
@@ -195,6 +239,7 @@ func _header() -> Control:
 	rich.text = "+%dk" % (bonus / 1000)
 	UiStyle.plaque(rich)
 	rich.pressed.connect(func(): _do({"op": "bonus", "amount": bonus}))
+	rich.visible = net == null
 	top.add_child(rich)
 	var pause := Button.new()
 	pause.text = "Pause"
@@ -296,14 +341,18 @@ func _drop(id: String, local: Vector2) -> void:
 				_do({"op": "train", "unit": id, "lane": lane})  # walks out when its building finishes it
 
 
-## Freeze or resume the whole game. While paused a dark screen says so;
-## tapping anywhere resumes.
+## Freeze or resume the whole game (for both players with a friend).
+## While paused a dark screen says so; tapping anywhere resumes.
 func _set_paused(on: bool) -> void:
 	if on == _paused or battle == null or battle.winner != -1:
 		return
+	_do({"op": "pause", "on": on})
+	_show_paused(on)
+
+
+func _show_paused(on: bool) -> void:
 	_paused = on
 	_view.paused = on
-	_do({"op": "pause", "on": on})
 	if on:
 		_end_drag()
 		_close_menu()
@@ -675,7 +724,18 @@ func _upgrade_option(id: String) -> Dictionary:
 
 # --- Display ------------------------------------------------------------
 
-func _on_game_over(winner: int) -> void:
+## The friend disconnected: the game ends.
+func _on_friend_left() -> void:
+	if not _over:
+		_on_game_over(my_team, "Your friend left the game")
+
+
+func _on_game_over(winner: int, note := "") -> void:
+	_over = true
+	if _paused:
+		_show_paused(false)
+	if net and net.role == "host":
+		net.send_snapshot(Snapshot.capture(game, Battlefield.ENEMY, _outbox))  # the guest sees the end too
 	_end_drag()
 	_close_menu()
 	var overlay := ColorRect.new()
@@ -694,6 +754,12 @@ func _on_game_over(winner: int) -> void:
 	again.offset_top = -260
 	again.offset_bottom = -200
 	overlay.add_child(again)
+	if note != "":
+		var why := _label(note, 32)
+		why.set_anchors_and_offsets_preset(Control.PRESET_HCENTER_WIDE)
+		why.offset_top = 70
+		why.offset_bottom = 120
+		overlay.add_child(why)
 	overlay.gui_input.connect(func(e):
 		if e is InputEventMouseButton and e.pressed:
 			get_tree().reload_current_scene())
@@ -701,7 +767,9 @@ func _on_game_over(winner: int) -> void:
 
 func _refresh() -> void:
 	var r := economy.resources
-	_ui.title.text = "%s · %s  vs  %s (%s) · %s" % [economy.civ().name, economy.era().name, ai.economy.civ().name, ai.difficulty.capitalize(), ai.economy.era().name]
+	var them: Economy = game.economies[1 - my_team]
+	var who: String = game.ai.difficulty.capitalize() if game.ai else "Friend"
+	_ui.title.text = "%s · %s  vs  %s (%s) · %s" % [economy.civ().name, economy.era().name, them.civ().name, who, them.era().name]
 	for res in Economy.RESOURCES:
 		_ui[res].text = "%d" % r[res]
 	_ui.villagers.text = "%d (%d idle)" % [economy.total_villagers(), economy.villagers.get("idle", 0)]

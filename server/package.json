@@ -1,0 +1,13 @@
+{
+  "name": "wololo-royale-relay",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Pairs two Wololo Royale players by room code and forwards their messages.",
+  "main": "relay.js",
+  "scripts": {
+    "start": "node relay.js"
+  },
+  "dependencies": {
+    "ws": "8.18.0"
+  }
+}

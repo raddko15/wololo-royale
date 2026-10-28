@@ -5,7 +5,7 @@ var _failures := 0
 
 
 func _init() -> void:
-	for path in ["res://scripts/main.gd", "res://scripts/battle_view.gd", "res://scripts/card.gd", "res://scripts/hud_icon.gd", "res://scripts/radial_menu.gd", "res://scripts/lane_chip.gd", "res://scripts/unit_icon.gd", "res://scripts/ui_style.gd", "res://scripts/start_screen.gd", "res://scripts/match.gd", "res://scripts/snapshot.gd", "res://scripts/mirror.gd"]:
+	for path in ["res://scripts/main.gd", "res://scripts/battle_view.gd", "res://scripts/card.gd", "res://scripts/hud_icon.gd", "res://scripts/radial_menu.gd", "res://scripts/lane_chip.gd", "res://scripts/unit_icon.gd", "res://scripts/ui_style.gd", "res://scripts/start_screen.gd", "res://scripts/match.gd", "res://scripts/snapshot.gd", "res://scripts/mirror.gd", "res://scripts/net.gd", "res://scripts/lobby.gd"]:
 		var script: GDScript = load(path)
 		_check(script != null and script.can_instantiate(), "script compiles: " + path.get_file())
 
@@ -432,6 +432,7 @@ func _init() -> void:
 	var guest := Mirror.new("franks", "romans", func(cmd): host.apply(Battlefield.ENEMY, cmd))
 	var sync := func():
 		guest.receive(bytes_to_var(var_to_bytes(Snapshot.capture(host, Battlefield.ENEMY, []))))
+		guest.tick(Mirror.SNAPSHOT_GAP)  # glides to the snapshot's positions
 	var their: Economy = host.economies[Battlefield.ENEMY]
 	their.resources.wood = 777.0
 	var scout := host.battle.spawn(Battlefield.ENEMY, "archer", 2)

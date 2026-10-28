@@ -23,7 +23,7 @@ static func capture(game: Match, viewer: int, events: Array) -> Dictionary:
 		arrows.append([_t(a.team, flip), a.lane, a.get("from", "tower"), a.target.id, a.t])
 	var snap := {
 		"units": units, "arrows": arrows,
-		"winner": b.winner if b.winner == -1 else _t(b.winner, flip),
+		"winner": b.winner if b.winner == -1 else _t(b.winner, flip), "paused": game.paused,
 		"economies": [], "sides": [],
 		"events": events.filter(func(e): return e.team == viewer),
 	}

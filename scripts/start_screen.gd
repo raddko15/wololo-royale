@@ -83,19 +83,20 @@ func _heading(text: String) -> Label:
 	return l
 
 
-## Easy / Normal / Hard as wooden plaques; the chosen one has a gold rim.
+## Easy / Normal / Hard computer opponents, or a Friend online, as wooden
+## plaques; the chosen one has a gold rim.
 func _difficulty_row() -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 12)
 	var group := ButtonGroup.new()
-	for level in ["easy", "normal", "hard"]:
+	for level in ["easy", "normal", "hard", "friend"]:
 		var b := Button.new()
 		b.text = level.capitalize()
 		b.toggle_mode = true
 		b.button_group = group
 		b.button_pressed = level == difficulty
-		b.custom_minimum_size = Vector2(176, 66)
+		b.custom_minimum_size = Vector2(142, 66)
 		b.focus_mode = Control.FOCUS_NONE
 		b.add_theme_font_override("font", _bold_font)
 		b.add_theme_font_size_override("font_size", 26)

@@ -353,6 +353,7 @@
     "max_cap": 120,
     "starting_huts": 1
   },
+  "network": {"relay_url": "wss://wololo-royale-relay.fly.dev"},
   "testing": {
     "job_speed": 10,
     "fast_at_start": false,

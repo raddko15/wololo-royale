@@ -16,7 +16,12 @@ var ai = null
 var paused := false
 ## Sends a command to the host: send.call(cmd).
 var send: Callable
+const SNAPSHOT_GAP := 0.1
 var _over := false
+var _blend := 1.0
+## When this player last paused or resumed: snapshots sent before the host
+## heard about it don't undo it on the screen.
+var _paused_at := -10000
 
 
 func _init(my_civ: String, their_civ: String, sender: Callable) -> void:
@@ -29,8 +34,13 @@ func is_human(_team: int) -> bool:
 	return true
 
 
-func tick(_delta: float) -> void:
-	pass  # the host runs the game
+## The host runs the game; between its snapshots (10 a second) units glide
+## from where the last one had them to where the new one has them.
+func tick(delta: float) -> void:
+	_blend = minf(_blend + delta / SNAPSHOT_GAP, 1.0)
+	for u in battle.units:
+		if u.has("y_to"):
+			u.y = lerpf(u.y_from, u.y_to, _blend)
 
 
 ## Send the command to the host. The answer only predicts whether it will go
@@ -58,6 +68,9 @@ func apply(_team: int, cmd: Dictionary) -> Dictionary:
 			ok = e.can_build_camp(cmd.id)
 		"towers":
 			ok = e.can_build_towers()
+		"pause":
+			paused = cmd.on
+			_paused_at = Time.get_ticks_msec()
 		"lanes_on":
 			sides[Battlefield.PLAYER].lanes_on[cmd.lane] = cmd.on  # show it at once
 		"auto":
@@ -70,7 +83,17 @@ func apply(_team: int, cmd: Dictionary) -> Dictionary:
 
 ## A snapshot arrived from the host.
 func receive(snap: Dictionary) -> void:
+	var was := {}
+	for u in battle.units:
+		was[u.id] = u.y
 	Snapshot.restore(snap, battle, economies)
+	for u in battle.units:
+		u.y_from = was.get(u.id, u.y)
+		u.y_to = u.y
+		u.y = u.y_from
+	_blend = 0.0
+	if Time.get_ticks_msec() - _paused_at > 600:
+		paused = snap.get("paused", false)
 	for local in 2:
 		sides[local].lanes_on = snap.sides[local].lanes_on
 		var auto := {}
