@@ -926,6 +926,10 @@ func _draw_order_button(lane: int) -> void:
 		_draw_count_tag(c + Vector2(19, -18), n)
 
 
+## A hut plot shows when this many or fewer places are left in the population.
+const HUT_SITE_ROOM := 3
+
+
 ## Empty plots where the player could build right now (era reached, not built
 ## or under way): [option id, position, kind].
 func build_sites(e: Economy) -> Array:
@@ -941,6 +945,10 @@ func build_sites(e: Economy) -> Array:
 	for res in Economy.MINED:
 		if e.site_open("mine", res):
 			sites.append([res, mine_pos(p, res), "mine"])
+	# The next hut's plot, once the population is close to its limit.
+	if e.pending_count("hut") == 0 and e.max_population() < GameConfig.data().population.max_cap \
+			and e.max_population() - e.population() <= HUT_SITE_ROOM:
+		sites.append(["hut", hut_pos(p, e.huts), "hut"])
 	if e.site_open("towers", "towers") and not battle.towers_built[p]:
 		for lane in Battlefield.LANES:
 			sites.append(["towers", building_pos(p, "tower", lane), "tower"])
@@ -977,6 +985,10 @@ func _draw_build_site(site: Array, e: Economy, now: float) -> void:
 			else:
 				art = ["lean_to", Vector2(0, -8), Vector2(62, 46), Vector2(0, 10), Vector2(28, 11)]
 			affordable = e.can_build_camp(id)
+		"hut":
+			var look := "era0" if e.era_index == 0 else e.style()
+			art = ["hut_" + look, Vector2(0, -6), Vector2(39, 35), Vector2(0, 8), Vector2(20, 8)]
+			affordable = e.can_build_hut()
 		_:
 			art = ["tower_wood", Vector2(0, -10), Vector2(56, 84), Vector2(0, 26), Vector2(22, 9)]
 			affordable = e.can_build_towers()
@@ -1010,15 +1022,20 @@ func _draw_build_site(site: Array, e: Economy, now: float) -> void:
 			info = ["%s mine" % id.capitalize(), e.mine_cost()]
 		"camp":
 			info = [cfg.buildings[id].name, cfg.buildings[id].cost]
+		"hut":
+			info = ["%s +%d pop" % [cfg.buildings.hut.name, cfg.buildings.hut.population], cfg.buildings.hut.cost]
 		_:
 			info = ["Towers (all 3)", cfg.buildings.towers.cost]
 	var parts := []
 	for res in info[1]:
 		parts.append("%d %s" % [info[1][res], res])
-	# Mines and towers sit by the lanes with buildings below them: tag above.
+	# Mines and towers sit by the lanes with buildings below them, and huts by
+	# the map's edge: tag above.
 	var top: Vector2 = base + Vector2(0, radii.y + 4)
 	if site[2] == "mine":
 		top = c + Vector2(0, -80)
+	elif site[2] == "hut":
+		top = c + Vector2(0, -66)
 	elif site[2] == "tower":
 		top = c + Vector2(0, -98)
 	_tags.append([top, info[0], ", ".join(parts), affordable])

@@ -1,6 +1,6 @@
 extends SceneTree
 ## Renders game screens to PNGs (needs a display, e.g. xvfb-run).
-## Args: <out.png> <era1|era2|era2up|era3|window|mill|mine|jobs|sites|sites0|corpses|start|menu|victory|unique|paused|gather|lobby> [player_civ] [enemy_civ] [huts]
+## Args: <out.png> <era1|era2|era2up|era3|window|mill|mine|jobs|sites|sites0|corpses|start|menu|victory|unique|paused|gather|lobby|hutsite> [player_civ] [enemy_civ] [huts]
 ## era2up buys the mill and lumber upgrades, era3 every upgrade (both sides);
 ## window / mill open that building's ring menu.
 
@@ -31,9 +31,12 @@ func _init() -> void:
 		main.game.ai.economy = Economy.new(args[3])
 		main.game.economies[Battlefield.ENEMY] = main.game.ai.economy
 		main._view.enemy_economy = main.game.ai.economy
-	var era: int = {"era1": 0, "era2": 1, "era2up": 1, "era3": 2, "window": 1, "mill": 1, "mine": 2, "jobs": 1, "sites": 1, "sites0": 0, "corpses": 1, "start": 0, "victory": 0, "unique": 2, "walkstrip": 2, "fightstrip": 0, "paused": 1, "gather": 1}[mode]
-	if mode == "start":
-		# A real opening: the AI plays its first 30 seconds, the player nothing.
+	var era: int = {"era1": 0, "era2": 1, "era2up": 1, "era3": 2, "window": 1, "mill": 1, "mine": 2, "jobs": 1, "sites": 1, "sites0": 0, "corpses": 1, "start": 0, "hutsite": 0, "victory": 0, "unique": 2, "walkstrip": 2, "fightstrip": 0, "paused": 1, "gather": 1}[mode]
+	if mode == "start" or mode == "hutsite":
+		# A real opening: the AI plays its first 30 seconds, the player nothing
+		# (hutsite: two more villagers, so the next hut's plot shows).
+		if mode == "hutsite":
+			main.economy.villagers.idle += 2
 		for i in 600:
 			main.game.ai.tick(0.05)
 		await process_frame

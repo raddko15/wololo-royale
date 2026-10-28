@@ -413,7 +413,7 @@ func _close_menu() -> void:
 		_menu = null
 
 
-func _on_menu_choice(id: String) -> void:
+func _on_menu_choice(id: String) -> bool:
 	var cfg := GameConfig.data()
 	var cmd := {}
 	var closes := true  # most choices close the menu when they go through
@@ -439,8 +439,10 @@ func _on_menu_choice(id: String) -> void:
 		"unworker_gold", "unworker_stone":
 			cmd = {"op": "reassign", "from": id.trim_prefix("unworker_"), "to": "idle"}
 			closes = false
-	if not cmd.is_empty() and _do(cmd).ok and closes:
+	var ok: bool = not cmd.is_empty() and _do(cmd).ok
+	if ok and closes:
 		_close_menu()
+	return ok
 
 
 ## An empty plot on the map was tapped: build it, or say what's missing.
@@ -454,15 +456,16 @@ func _on_site_tapped(id: String) -> void:
 	elif id in Economy.CAMP_FOR.values():
 		cost = cfg.buildings[id].cost
 		name = cfg.buildings[id].name
+	elif id == "hut":
+		cost = cfg.buildings.hut.cost
+		name = cfg.buildings.hut.name
 	elif id in Economy.MINED:
 		cost = economy.mine_cost()
 		name = "%s mine" % id.capitalize()
 	else:
 		cost = cfg.buildings.towers.cost
 		name = "Towers"
-	var before := economy.jobs.size()
-	_on_menu_choice(id)
-	if economy.jobs.size() == before:
+	if not _on_menu_choice(id):
 		_flash_hint("%s needs %s" % [name, _cost_text(cost).replace("\n", " ")])
 
 
