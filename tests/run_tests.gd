@@ -5,7 +5,7 @@ var _failures := 0
 
 
 func _init() -> void:
-	for path in ["res://scripts/main.gd", "res://scripts/battle_view.gd", "res://scripts/card.gd", "res://scripts/hud_icon.gd", "res://scripts/radial_menu.gd", "res://scripts/lane_chip.gd", "res://scripts/unit_icon.gd", "res://scripts/ui_style.gd", "res://scripts/start_screen.gd"]:
+	for path in ["res://scripts/main.gd", "res://scripts/battle_view.gd", "res://scripts/card.gd", "res://scripts/hud_icon.gd", "res://scripts/radial_menu.gd", "res://scripts/lane_chip.gd", "res://scripts/unit_icon.gd", "res://scripts/ui_style.gd", "res://scripts/start_screen.gd", "res://scripts/match.gd"]:
 		var script: GDScript = load(path)
 		_check(script != null and script.can_instantiate(), "script compiles: " + path.get_file())
 
@@ -407,6 +407,23 @@ func _init() -> void:
 		stand.speed = 0.0
 	tr.tick(1.0)
 	_check(is_equal_approx(f1.hp, 60.0 - 11.0) and is_equal_approx(f2.hp, 60.0 - 11.0 * 0.3), "cavalry trample: full damage to its target, 30% to the foe beside it")
+
+	# A two-player match: both sides play through commands.
+	var duo := Match.new("romans", "franks", "human")
+	_check(duo.ai == null and duo.is_human(Battlefield.ENEMY), "two-player match has no AI")
+	var e2: Economy = duo.economies[Battlefield.ENEMY]
+	e2.resources = {"food": 900.0, "wood": 900.0, "gold": 900.0, "stone": 0.0}
+	e2.camps = {"farm": true, "lumberjack": true}
+	_check(duo.apply(Battlefield.ENEMY, {"op": "military", "id": "barracks"}).ok, "the second player builds a barracks by command")
+	e2.finish_jobs()
+	duo.apply(Battlefield.ENEMY, {"op": "lanes_on", "lane": 1, "on": false})
+	duo.apply(Battlefield.ENEMY, {"op": "lanes_on", "lane": 2, "on": true})
+	duo.apply(Battlefield.ENEMY, {"op": "auto", "unit": "fighter", "on": true})
+	for i in 110:
+		duo.tick(0.1)
+	var theirs := duo.battle.units.filter(func(u): return u.team == Battlefield.ENEMY)
+	_check(theirs.size() >= 1 and theirs.all(func(u): return u.lane == 2), "their AUTO fighters come out in the lane they lit")
+	_check(duo.battle.lane_orders[Battlefield.ENEMY] == ["stop", "stop", "stop"] and theirs[0].waiting, "and hold by their tower until sent")
 
 	# Idle villagers help build: +30% speed each.
 	var hb := Economy.new("romans")

@@ -18,6 +18,7 @@ func _init() -> void:
 	main._start_game(args[2] if args.size() > 2 else "romans", main.get_child(0))
 	if args.size() > 3:
 		main.ai.economy = Economy.new(args[3])
+		main.game.economies[Battlefield.ENEMY] = main.ai.economy
 		main._view.enemy_economy = main.ai.economy
 	var era: int = {"era1": 0, "era2": 1, "era2up": 1, "era3": 2, "window": 1, "mill": 1, "mine": 2, "jobs": 1, "sites": 1, "sites0": 0, "corpses": 1, "start": 0, "victory": 0, "unique": 2, "walkstrip": 2, "fightstrip": 0, "paused": 1, "gather": 1}[mode]
 	if mode == "start":

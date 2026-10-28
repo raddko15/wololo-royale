@@ -8,6 +8,8 @@ extends Control
 signal hut_tapped
 ## Something to tell the player in the header hint line.
 signal hint(text: String)
+## Move a villager between jobs (a field tapped, or a call-back icon).
+signal reassign_requested(from: String, to: String)
 ## The order button beside one of the player's lane towers was tapped.
 signal lane_order_tapped(lane: int)
 ## An empty build plot was tapped: build that ("barracks", "gold", "towers", ...).
@@ -466,7 +468,7 @@ func _gui_input(event: InputEvent) -> void:
 			return
 	for job in ["food", "wood"]:
 		if pos.distance_to(unassign_icon(job)) < 34:
-			economy.reassign(job, "idle")
+			reassign_requested.emit(job, "idle")
 			return
 	for res in Economy.MINED:
 		if economy.mines.has(res) and pos.distance_to(mine_pos(Battlefield.PLAYER, res)) < 36:
@@ -482,8 +484,10 @@ func _gui_input(event: InputEvent) -> void:
 		# is; the ↩ icon beside it calls one back.
 		if not economy.can_work(job):
 			hint.emit("Build the %s first" % GameConfig.data().buildings[Economy.CAMP_FOR[job]].name)
-		elif not economy.reassign("idle", job):
+		elif economy.villagers.get("idle", 0) <= 0:
 			hint.emit("No idle villagers: recruit one, or tap ↩ to call a worker back")
+		else:
+			reassign_requested.emit("idle", job)
 		return
 	if pos.distance_to(town_center()) < size.x * 0.12:
 		building_tapped.emit("town_center", town_center())

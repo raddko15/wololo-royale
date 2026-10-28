@@ -6,9 +6,13 @@ extends Control
 ## Finger travel (px) below which a press counts as a tap, not a drag.
 const TAP_SLOP := 20.0
 
+## The game being played; economy / battle / ai are short names for its parts.
+var game: Match
 var economy: Economy
 var battle: Battlefield
 var ai: EnemyAI
+## Which side this screen plays.
+var my_team := Battlefield.PLAYER
 var _view: BattleView
 var _ui := {}
 var _cards := {}
@@ -16,12 +20,6 @@ var _cards := {}
 var _press := {}
 var _ghost: Card
 var _menu: RadialMenu
-## Per unit type: the next lane its AUTO units go to (they take turns), and
-## which types are on repeat.
-var _next_lane := {}
-## Which lanes (L, M, R) new troops are recruited to.
-var _lanes_on := [false, true, false]
-var _auto := {}
 ## Pause button: nothing moves, trains or gathers until the player resumes.
 var _paused := false
 var _pause_overlay: Control
@@ -37,16 +35,16 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	if economy:
+	if game:
 		_show_training()
-	if _paused:
-		return
-	if economy and battle.winner == -1:
-		_run_auto()
-	if economy and battle.winner == -1:
-		economy.tick(delta)
-		ai.tick(delta)
-		battle.tick(delta)
+		game.tick(delta)
+
+
+## Every player action goes through here as a command for the match.
+func _do(cmd: Dictionary) -> Dictionary:
+	var result := game.apply(my_team, cmd)
+	_refresh()
+	return result
 
 
 func _show_civ_select() -> void:
@@ -59,20 +57,19 @@ func _show_civ_select() -> void:
 
 func _start_game(civ_id: String, menu: Control) -> void:
 	menu.queue_free()
-	economy = Economy.new(civ_id)
+	var others: Array = GameConfig.data().civs.keys().filter(func(id): return id != civ_id)
+	game = Match.new(civ_id, others.pick_random(), "ai:" + _difficulty)
+	economy = game.economies[my_team]
+	battle = game.battle
+	ai = game.ai
+	game.game_over.connect(_on_game_over)
+	game.event.connect(func(e: Dictionary):
+		if e.type == "villager_died" and e.team == my_team:
+			_view.villager_died(e.gone))
 	# Testing: "fast_at_start" starts with the Fast ×10 button on.
 	var testing: Dictionary = GameConfig.data().get("testing", {})
-	if testing.has("player_starting_resources"):
-		economy.resources = testing.player_starting_resources.duplicate()
-	economy.job_speed = testing.get("job_speed", 1.0) if testing.get("fast_at_start", false) else 1.0
-	battle = Battlefield.new()
-	battle.lane_orders[Battlefield.PLAYER] = ["stop", "stop", "stop"]  # troops wait by the towers until sent
-	var others: Array = GameConfig.data().civs.keys().filter(func(id): return id != civ_id)
-	var enemy_civ: String = others.pick_random()
-	ai = EnemyAI.new(enemy_civ, battle, _difficulty)
-	battle.fort_civ_bonus(Battlefield.PLAYER, economy.civ().get("fort_bonus", {}))
-	battle.unit_died.connect(func(team): if team == Battlefield.PLAYER: economy.army_size -= 1)
-	battle.game_over.connect(_on_game_over)
+	if testing.get("fast_at_start", false):
+		game.apply(my_team, {"op": "fast", "speed": float(testing.get("job_speed", 10.0))})
 	var box := _vbox(self, 0)
 
 	box.add_child(_header())
@@ -86,17 +83,15 @@ func _start_game(civ_id: String, menu: Control) -> void:
 	_view.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_view.building_tapped.connect(_open_menu)
 	_view.hut_tapped.connect(func():
-		if not economy.build_hut():
+		if not _do({"op": "hut"}).ok:
 			_flash_hint("Need %d wood for a hut" % GameConfig.data().buildings.hut.cost.wood if economy.max_population() < GameConfig.data().population.max_cap else "Population is at the maximum"))
 	_view.site_tapped.connect(_on_site_tapped)
 	_view.lane_order_tapped.connect(_cycle_lane_order)
 
 	_view.hint.connect(_flash_hint)
+	_view.reassign_requested.connect(func(from: String, to: String): _do({"op": "reassign", "from": from, "to": to}))
 	_view.upgrade_badge_tapped.connect(func(id: String):
-		if id == "era":
-			economy.advance()
-		else:
-			economy.buy_upgrade(id))
+		_do({"op": "advance"} if id == "era" else {"op": "upgrade", "id": id}))
 	box.add_child(_view)
 
 	var bar_panel := PanelContainer.new()
@@ -115,19 +110,12 @@ func _start_game(civ_id: String, menu: Control) -> void:
 		card.pressed.connect(_on_card_pressed.bind(id))
 		card.cancel_pressed.connect(_on_card_cancel.bind(id))
 		if id == "villager":
-			card.delete_pressed.connect(func():
-				var gone := economy.kill_villager()
-				if not gone.is_empty():
-					_view.villager_died(gone)
-				_refresh())
+			card.delete_pressed.connect(func(): _do({"op": "kill_villager"}))
 		_cards[id] = card
-		if id != "villager":
-			_next_lane[id] = 0
 		bar.add_child(card)
 	_update_lane_marks()
 
 	economy.changed.connect(_refresh)
-	economy.job_done.connect(_on_job_done)
 	_refresh()
 
 
@@ -141,12 +129,12 @@ func _recruit_lanes() -> Control:
 	caption.add_theme_color_override("font_color", UiStyle.CREAM)
 	row.add_child(caption)
 	for lane in Battlefield.LANES:
-		var chip := LaneChip.new(["LEFT", "MIDDLE", "RIGHT"][lane], _lanes_on[lane])
+		var chip := LaneChip.new(["LEFT", "MIDDLE", "RIGHT"][lane], game.sides[my_team].lanes_on[lane])
 		chip.toggled.connect(func(on: bool):
-			_lanes_on[lane] = on
+			_do({"op": "lanes_on", "lane": lane, "on": on})
 			var lanes := []
 			for l in Battlefield.LANES:
-				if _lanes_on[l]:
+				if game.sides[my_team].lanes_on[l]:
 					lanes.append(["left", "middle", "right"][l])
 			_flash_hint("New troops go to: %s" % ", ".join(lanes) if lanes else "No lane picked: AUTO waits"))
 		row.add_child(chip)
@@ -155,8 +143,8 @@ func _recruit_lanes() -> Control:
 
 ## A lane's order button on the map was tapped: HOLD → GO → BACK.
 func _cycle_lane_order(lane: int) -> void:
-	var next: String = {"stop": "march", "march": "retreat", "retreat": "stop"}[battle.lane_orders[Battlefield.PLAYER][lane]]
-	battle.set_order(Battlefield.PLAYER, lane, next)
+	var next: String = {"stop": "march", "march": "retreat", "retreat": "stop"}[battle.lane_orders[my_team][lane]]
+	_do({"op": "lane_order", "lane": lane, "order": next})
 	_update_lane_marks()
 	var what: String = {"stop": "HOLD – troops wait by the tower and defend", "march": "GO – the whole group marches out to attack",
 		"retreat": "BACK – troops return to the tower"}[next]
@@ -167,18 +155,8 @@ func _cycle_lane_order(lane: int) -> void:
 func _update_lane_marks() -> void:
 	var marks := [false, false, false]
 	for lane in Battlefield.LANES:
-		marks[lane] = battle.lane_orders[Battlefield.PLAYER][lane] == "march"
+		marks[lane] = battle.lane_orders[my_team][lane] == "march"
 	_view.active_lanes = marks
-
-
-## Next lit lane in turn for a troop type, or -1 when none is lit.
-func _take_lane(unit_id: String) -> int:
-	for k in Battlefield.LANES:
-		var lane: int = (_next_lane[unit_id] + k) % Battlefield.LANES
-		if _lanes_on[lane]:
-			_next_lane[unit_id] = lane + 1
-			return lane
-	return -1
 
 
 func _header() -> Control:
@@ -208,7 +186,7 @@ func _header() -> Control:
 	_ui.fast.toggle_mode = true
 	UiStyle.plaque(_ui.fast)
 	_ui.fast.toggled.connect(func(on: bool):
-		economy.job_speed = maxf(GameConfig.data().get("testing", {}).get("job_speed", 10.0), 2.0) if on else 1.0
+		_do({"op": "fast", "speed": maxf(GameConfig.data().get("testing", {}).get("job_speed", 10.0), 2.0) if on else 1.0})
 		_ui.fast.text = "Fast ×10 ON" if on else "Fast ×10")
 	top.add_child(_ui.fast)
 	# Testing aid: tap for +10k of every resource.
@@ -216,10 +194,7 @@ func _header() -> Control:
 	var bonus: int = GameConfig.data().get("testing", {}).get("bonus_resources", 10000)
 	rich.text = "+%dk" % (bonus / 1000)
 	UiStyle.plaque(rich)
-	rich.pressed.connect(func():
-		for res in Economy.RESOURCES:
-			economy.resources[res] += bonus
-		_refresh())
+	rich.pressed.connect(func(): _do({"op": "bonus", "amount": bonus}))
 	top.add_child(rich)
 	var pause := Button.new()
 	pause.text = "Pause"
@@ -298,16 +273,14 @@ func _end_drag() -> void:
 func _tap(id: String) -> void:
 	match id:
 		"villager":
-			economy.recruit()
+			_do({"op": "recruit"})
 		_:
-			# Tap toggles training on repeat into this unit's active lanes.
-			if _auto.has(id):
-				_auto.erase(id)
-			elif economy.unit_unlocked(id):
-				_auto[id] = true
-				_run_auto()
-			else:
+			# Tap toggles training on repeat into the lit lanes.
+			var on: bool = not game.sides[my_team].auto.has(id)
+			if on and not economy.unit_unlocked(id):
 				_flash_hint(_unit_lock(id))
+			else:
+				_do({"op": "auto", "unit": id, "on": on})
 			_update_lane_marks()
 
 
@@ -315,26 +288,12 @@ func _drop(id: String, local: Vector2) -> void:
 	match id:
 		"villager":
 			var job := _view.job_at(local)
-			if job != "" and economy.recruit():
-				economy.reassign("idle", job)
+			if job != "":
+				_do({"op": "recruit_to", "job": job})
 		_:
 			var lane := _view.lane_at(local)
 			if lane != -1:
-				economy.train(id, lane)  # walks out when its building finishes it
-
-
-## Keep each AUTO troop type training at every building of its kind; each
-## new one goes to the next of its lit lanes in turn.
-func _run_auto() -> void:
-	for id in _auto:
-		if not _lanes_on.has(true):
-			continue
-		# One in training per building of its kind, so 3 barracks train 3 at once.
-		var waiting := economy.jobs.filter(func(j): return j.kind == "unit" and j.id == id).size()
-		var buildings: int = economy.military.get(GameConfig.data().units[id].requires, 0)
-		while waiting < buildings and economy.can_train(id):
-			economy.train(id, -1)  # the lane is picked when it comes out
-			waiting += 1
+				_do({"op": "train", "unit": id, "lane": lane})  # walks out when its building finishes it
 
 
 ## Freeze or resume the whole game. While paused a dark screen says so;
@@ -344,6 +303,7 @@ func _set_paused(on: bool) -> void:
 		return
 	_paused = on
 	_view.paused = on
+	_do({"op": "pause", "on": on})
 	if on:
 		_end_drag()
 		_close_menu()
@@ -406,32 +366,32 @@ func _close_menu() -> void:
 
 func _on_menu_choice(id: String) -> void:
 	var cfg := GameConfig.data()
+	var cmd := {}
+	var closes := true  # most choices close the menu when they go through
 	match id:
 		"era":
-			if economy.advance():
-				_close_menu()
+			cmd = {"op": "advance"}
 		"hut":
-			economy.build_hut()
+			cmd = {"op": "hut"}
+			closes = false
 		"towers":
-			if economy.build_towers():
-				_close_menu()
+			cmd = {"op": "towers"}
 		"gold", "stone":
-			if economy.build_mine(id):
-				_close_menu()
+			cmd = {"op": "mine", "id": id}
 		"farm", "lumberjack":
-			if economy.build_camp(id):
-				_close_menu()
+			cmd = {"op": "camp", "id": id}
 		"barracks", "archery_range", "stables":
-			if economy.build_military(id):
-				_close_menu()
+			cmd = {"op": "military", "id": id}
 		_ when cfg.upgrades.has(id):
-			if economy.buy_upgrade(id):
-				_close_menu()
+			cmd = {"op": "upgrade", "id": id}
 		"worker_gold", "worker_stone":
-			economy.reassign("idle", id.trim_prefix("worker_"))
+			cmd = {"op": "reassign", "from": "idle", "to": id.trim_prefix("worker_")}
+			closes = false
 		"unworker_gold", "unworker_stone":
-			economy.reassign(id.trim_prefix("unworker_"), "idle")
-	_refresh()
+			cmd = {"op": "reassign", "from": id.trim_prefix("unworker_"), "to": "idle"}
+			closes = false
+	if not cmd.is_empty() and _do(cmd).ok and closes:
+		_close_menu()
 
 
 ## An empty plot on the map was tapped: build it, or say what's missing.
@@ -461,11 +421,9 @@ func _on_site_tapped(id: String) -> void:
 ## unit also stops its AUTO, or AUTO would queue it straight back.
 func _on_card_cancel(id: String) -> void:
 	if id == "villager":
-		economy.cancel("villager", "villager")
+		_do({"op": "cancel", "kind": "villager", "id": "villager"})
 	else:
-		_auto.erase(id)
-		economy.cancel("unit", id)
-	_refresh()
+		_do({"op": "cancel", "kind": "unit", "id": id})
 
 
 ## Why a unit card is locked: "needs Stables" or "needs Era III".
@@ -475,26 +433,6 @@ func _unit_lock(id: String) -> String:
 	if not economy.military.has(unit.requires):
 		return "needs %s" % cfg.military[unit.requires].name
 	return "needs %s" % cfg.eras[unit.get("min_era", 0)].name
-
-
-## Finished jobs that touch the battlefield: units walk out, towers go up.
-func _on_job_done(job: Dictionary) -> void:
-	match job.kind:
-		"unit":
-			# AUTO troops take the next lit lane as they come out (so changing
-			# the lanes applies to troops already in training); a dragged one
-			# keeps the lane it was dropped on.
-			var lane: int = job.lane if job.lane >= 0 else _take_lane(job.id)
-			if lane < 0:
-				lane = 1  # no lane lit: the middle
-			battle.spawn_squad(Battlefield.PLAYER, job.id, lane, economy.squad(job.id), economy.unit_bonus(job.id), economy.unit_tier(job.id))
-		"towers":
-			battle.build_towers(Battlefield.PLAYER)
-		"era":
-			battle.fort_new_era(Battlefield.PLAYER, economy.era_index)
-		"upgrade":
-			if job.id == "stone_towers":
-				battle.upgrade_towers(Battlefield.PLAYER, GameConfig.data().upgrades.stone_towers.tower_hp_bonus)
 
 
 ## Ring note for something that may be done, under way, locked by era, or buyable.
@@ -789,7 +727,7 @@ func _refresh() -> void:
 			note += " · %d queued" % queued
 		if full and economy.unit_unlocked(id):
 			note = "pop full: build huts"
-		_cards[id].set_state(note, economy.can_train(id), dragging == id, _auto.has(id))
+		_cards[id].set_state(note, economy.can_train(id), dragging == id, game.sides[my_team].auto.has(id))
 		_cards[id].set_queued(queued)
 		var tier := economy.unit_tier(id)
 		_cards[id]._title.text = unit.name + (" Lv%d" % (tier + 1) if tier else "")
