@@ -34,6 +34,8 @@ var arrows: Array[Dictionary] = []
 var cooldowns := [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
 var main_cooldowns := [0.0, 0.0]
 var winner := -1
+## Every unit gets a number of its own (network snapshots refer to units by it).
+var _next_id := 0
 ## Standing orders per side and lane: "march" (walk on and fight), "stop"
 ## (halt where they are; new ones wait at the rally point in front of their
 ## tower) or "retreat" (walk back to the rally point and wait).
@@ -129,8 +131,9 @@ func spawn(team: int, unit_id: String, lane: int, bonus := {}, tier := 0) -> Dic
 	var stats: Dictionary = _cfg.units[unit_id]
 	var hp: float = stats.hp * (1.0 + bonus.get("hp", 0.0))
 	var behind := -1.0 if team == PLAYER else 1.0
+	_next_id += 1
 	var unit := {
-		"team": team, "type": unit_id, "lane": lane, "y": TOWER_Y[team] + behind * MAIN_DIST[lane], "hp": hp,
+		"id": _next_id, "team": team, "type": unit_id, "lane": lane, "y": TOWER_Y[team] + behind * MAIN_DIST[lane], "hp": hp,
 		"max_hp": hp, "speed": stats.speed * (1.0 + bonus.get("speed", 0.0)), "dps": stats.damage_per_sec * (1.0 + bonus.get("damage", 0.0)),
 		"range": stats.range * (1.0 + bonus.get("range", 0.0)), "tier": tier,
 		# Damage multipliers against unit types, e.g. spears vs horses.

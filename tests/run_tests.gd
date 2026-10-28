@@ -5,7 +5,7 @@ var _failures := 0
 
 
 func _init() -> void:
-	for path in ["res://scripts/main.gd", "res://scripts/battle_view.gd", "res://scripts/card.gd", "res://scripts/hud_icon.gd", "res://scripts/radial_menu.gd", "res://scripts/lane_chip.gd", "res://scripts/unit_icon.gd", "res://scripts/ui_style.gd", "res://scripts/start_screen.gd", "res://scripts/match.gd"]:
+	for path in ["res://scripts/main.gd", "res://scripts/battle_view.gd", "res://scripts/card.gd", "res://scripts/hud_icon.gd", "res://scripts/radial_menu.gd", "res://scripts/lane_chip.gd", "res://scripts/unit_icon.gd", "res://scripts/ui_style.gd", "res://scripts/start_screen.gd", "res://scripts/match.gd", "res://scripts/snapshot.gd", "res://scripts/mirror.gd"]:
 		var script: GDScript = load(path)
 		_check(script != null and script.can_instantiate(), "script compiles: " + path.get_file())
 
@@ -424,6 +424,31 @@ func _init() -> void:
 	var theirs := duo.battle.units.filter(func(u): return u.team == Battlefield.ENEMY)
 	_check(theirs.size() >= 1 and theirs.all(func(u): return u.lane == 2), "their AUTO fighters come out in the lane they lit")
 	_check(duo.battle.lane_orders[Battlefield.ENEMY] == ["stop", "stop", "stop"] and theirs[0].waiting, "and hold by their tower until sent")
+
+	# Network game, in one process: the host's match, the guest's mirror fed by
+	# flipped snapshots (through bytes, as on the wire), the guest's commands
+	# going back to the host for team ENEMY.
+	var host := Match.new("romans", "franks", "human")
+	var guest := Mirror.new("franks", "romans", func(cmd): host.apply(Battlefield.ENEMY, cmd))
+	var sync := func():
+		guest.receive(bytes_to_var(var_to_bytes(Snapshot.capture(host, Battlefield.ENEMY, []))))
+	var their: Economy = host.economies[Battlefield.ENEMY]
+	their.resources.wood = 777.0
+	var scout := host.battle.spawn(Battlefield.ENEMY, "archer", 2)
+	scout.y = 0.8
+	sync.call()
+	_check(guest.economies[Battlefield.PLAYER].resources.wood == 777.0 and guest.economies[Battlefield.ENEMY].resources.wood == 100.0, "the guest sees its own economy as the bottom side")
+	var mine_view: Dictionary = guest.battle.units[0]
+	_check(mine_view.team == Battlefield.PLAYER and is_equal_approx(mine_view.y, 0.2) and mine_view.lane == 2, "the guest's own units are flipped to the bottom")
+	guest.apply(Battlefield.PLAYER, {"op": "lane_order", "lane": 2, "order": "march"})
+	_check(host.battle.lane_orders[Battlefield.ENEMY][2] == "march", "the guest's command runs on the host for its side")
+	for i in 20:
+		host.tick(0.1)
+		sync.call()
+	_check(guest.battle.units[0] == mine_view and guest.battle.units[0].y > 0.2, "units keep their identity and march up the guest's screen")
+	host.battle.units.clear()
+	sync.call()
+	_check(guest.battle.units.is_empty() and guest.battle.fallen.has(mine_view), "a unit gone on the host falls on the guest's screen")
 
 	# Idle villagers help build: +30% speed each.
 	var hb := Economy.new("romans")
