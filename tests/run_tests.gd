@@ -429,6 +429,7 @@ func _init() -> void:
 	var home := Economy.new("franks")
 	home.camps = {"farm": true}
 	home.reassign("idle", "food")
+	_check(home.workers[0].phase == "from_fire", "a villager sent to work walks there from the campfire")
 	for i in 40:
 		home.tick(0.1)  # out to the field and gathering
 	var carried: float = home.workers[0].carry

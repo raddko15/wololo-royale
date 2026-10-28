@@ -164,6 +164,8 @@ func worker_pos(team: int, w: Dictionary) -> Vector2:
 			return spot.lerp(drop_off(team, w.job), w.t)
 		"to_work":
 			return drop_off(team, w.job).lerp(spot, w.t)
+		"from_fire":
+			return (campfire_pos(team) + Vector2(0, 22)).lerp(spot, smoothstep(0.0, 1.0, w.t))
 	return spot
 
 
@@ -176,8 +178,9 @@ func leaver_pos(team: int, l: Dictionary) -> Vector2:
 	match l.from:
 		"drop":
 			start = drop_off(team, l.job)
-		"walk":
-			start = worker_pos(team, {"job": l.job, "spot": l.spot, "phase": "to_work", "t": l.t0})
+		"walk", "walk_fire":
+			var out := "to_work" if l.from == "walk" else "from_fire"
+			start = worker_pos(team, {"job": l.job, "spot": l.spot, "phase": out, "t": l.t0})
 		_:
 			start = worker_pos(team, {"job": l.job, "spot": l.spot, "phase": "gather", "t": 0.0})
 	var fire := campfire_pos(team) + Vector2(0, 22)
@@ -1770,7 +1773,7 @@ func _draw_worker(p: Vector2, w: Dictionary, now: float, olives := false) -> voi
 	var phase: float = w.spot * 1.7
 	if w.phase == "gather" and w.job == "food":
 		p.y += sin(now * 6.0 + phase) * 2.0
-	var walking: bool = w.phase == "to_drop" or w.phase == "to_work" or w.phase == "home"
+	var walking: bool = w.phase != "gather"
 	_draw_figure(p, VILLAGER_TUNIC, [], 0.6, fmod(now * 12.0 + phase, TAU) if walking else -1.0)
 	var hand := _figure_origin(p, 0.6) + Vector2(26, 27) * 0.6
 	if w.phase == "gather":

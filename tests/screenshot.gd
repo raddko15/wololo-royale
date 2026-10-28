@@ -50,6 +50,9 @@ func _init() -> void:
 			e.reassign("wood", "idle")
 			for i in 5:
 				e.tick(0.1)
+			for job in ["food", "wood"]:
+				e.reassign("idle", job)  # and two more on their way out
+			e.tick(0.4)
 		for i in 600:
 			main.game.ai.tick(0.05)
 		await process_frame

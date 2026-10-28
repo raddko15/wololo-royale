@@ -33,14 +33,16 @@ var military := {}
 ## center changes with the era; everything else changes through these.
 var upgrades := {}
 ## One entry per working villager: {"job", "phase", "t", "carry", "spot"}.
-## phase: "gather" (filling up), "to_drop" (walking to mill/camp), "to_work" (walking back).
+## phase: "gather" (filling up), "to_drop" (walking to mill/camp), "to_work"
+## (walking back), "from_fire" (sent out from the campfire, walking to work).
 ## t: 0..1 walk progress. spot: which crop plot / tree it works at.
 var workers: Array[Dictionary] = []
 ## Villagers taken off a job, on their way back to the campfire (already
 ## counted as idle): one with a load first takes it to the drop-off.
 ## {"job", "phase": "to_drop" | "home", "t", "carry", "spot", "from", "t0"};
 ## a "home" walk starts at the work spot, the drop-off, or part way out
-## ("from": "spot" | "drop" | "walk", at fraction t0 of the walk out).
+## ("from": "spot" | "drop" | "walk" from the drop-off | "walk_fire" from the
+## campfire, at fraction t0 of the walk out).
 var leaving: Array[Dictionary] = []
 ## Lane towers finished (they are built through a job like everything else).
 var has_towers := false
@@ -88,7 +90,7 @@ func tick(delta: float) -> void:
 					w.carry = 0.0
 					w.phase = "to_work"
 					w.t = 0.0
-			"to_work":
+			"to_work", "from_fire":
 				w.t += delta / g.walk_time_sec
 				if w.t >= 1.0:
 					w.phase = "gather"
@@ -205,8 +207,9 @@ func rate_per_villager(res: String) -> float:
 	return base * civ().get("gather_multiplier", {}).get(res, 1.0) * (1.0 + bonus + gather_bonus)
 
 
-## New workers walk out from the drop-off to the first free plot/tree.
-func _add_worker(job: String) -> void:
+## New workers walk out to the first free plot/tree: from the campfire when
+## an idle villager is sent, else from the drop-off.
+func _add_worker(job: String, phase := "to_work") -> void:
 	var used := {}
 	for w in workers:
 		if w.job == job:
@@ -214,7 +217,7 @@ func _add_worker(job: String) -> void:
 	var spot := 0
 	while used.has(spot):
 		spot += 1
-	workers.append({"job": job, "phase": "to_work", "t": 0.0, "carry": 0.0, "spot": spot})
+	workers.append({"job": job, "phase": phase, "t": 0.0, "carry": 0.0, "spot": spot})
 
 
 ## Removes the newest worker on `job`; whatever it carried is lost.
@@ -237,8 +240,8 @@ func _send_home(w: Dictionary) -> void:
 		"to_drop":
 			l.phase = "to_drop"
 			l.t = w.t
-		"to_work":
-			l.from = "walk"
+		"to_work", "from_fire":
+			l.from = "walk" if w.phase == "to_work" else "walk_fire"
 			l.t0 = w.t
 		_:
 			if w.carry > 0.0:
@@ -394,7 +397,7 @@ func reassign(from: String, to: String) -> bool:
 	else:
 		_send_home(_remove_worker(from))
 	if to != "idle":
-		_add_worker(to)
+		_add_worker(to, "from_fire" if from == "idle" else "to_work")
 	changed.emit()
 	return true
 
