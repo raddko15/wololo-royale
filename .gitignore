@@ -2,3 +2,5 @@
 .godot/
 # Web/Android export output lives outside the project (../build)
 *.tmp
+
+data/build.json

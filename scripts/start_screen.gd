@@ -51,6 +51,15 @@ func _init(level := "normal") -> void:
 	var civs: Dictionary = GameConfig.data().civs
 	for id in civs:
 		_body.add_child(_civ_card(id, civs[id]))
+	# Which build this is (written by the web build), to tell if a phone
+	# still shows an older one.
+	if FileAccess.file_exists("res://data/build.json"):
+		var info = JSON.parse_string(FileAccess.get_file_as_string("res://data/build.json"))
+		if info is Dictionary:
+			var tag := _heading("build " + str(info.get("build", "")))
+			tag.add_theme_font_size_override("font_size", 16)
+			tag.add_theme_color_override("font_color", Color("#7a5230"))
+			_body.add_child(tag)
 
 
 ## A thin rule with a gold diamond in the middle.
