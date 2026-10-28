@@ -37,6 +37,8 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	if economy:
+		_show_training()
 	if _paused:
 		return
 	if economy and battle.winner == -1:
@@ -364,6 +366,17 @@ func _set_paused(on: bool) -> void:
 	elif _pause_overlay:
 		_pause_overlay.queue_free()
 		_pause_overlay = null
+
+
+## Each card shows the training of its troop (the one furthest along).
+func _show_training() -> void:
+	var best := {}
+	for j in economy.active_jobs():
+		if j.kind == "villager" or j.kind == "unit":
+			var key: String = "villager" if j.kind == "villager" else j.id
+			best[key] = maxf(best.get(key, -1.0), j.t / j.total)
+	for id in _cards:
+		_cards[id].set_training(best.get(id, -1.0))
 
 
 func _flash_hint(text: String) -> void:

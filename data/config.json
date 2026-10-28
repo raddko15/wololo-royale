@@ -350,7 +350,7 @@
 
   "population": {
     "starting_cap": 5,
-    "max_cap": 100,
+    "max_cap": 120,
     "starting_huts": 1
   },
   "testing": {
@@ -362,7 +362,7 @@
     "mill": {
       "name": "Windmill",
       "cost": {
-        "wood": 150
+        "wood": 200
       },
       "min_era": 1,
       "gather_bonus": {
@@ -373,7 +373,7 @@
     "lumber_camp": {
       "name": "Lumber Camp",
       "cost": {
-        "wood": 150
+        "food": 200
       },
       "min_era": 1,
       "gather_bonus": {
@@ -393,7 +393,7 @@
     "mill2": {
       "name": "Grand Mill",
       "cost": {
-        "wood": 300,
+        "wood": 200,
         "gold": 100
       },
       "min_era": 2,
@@ -408,7 +408,7 @@
     "lumber_camp2": {
       "name": "Sawmill",
       "cost": {
-        "wood": 300,
+        "food": 200,
         "gold": 100
       },
       "min_era": 2,
@@ -426,7 +426,7 @@
         "wood": 200,
         "stone": 100
       },
-      "min_era": 2,
+      "min_era": 1,
       "requires": {
         "mine": "gold"
       },
@@ -441,7 +441,7 @@
         "wood": 200,
         "gold": 100
       },
-      "min_era": 2,
+      "min_era": 1,
       "requires": {
         "mine": "stone"
       },

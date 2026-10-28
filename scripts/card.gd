@@ -16,6 +16,9 @@ var _cost := Label.new()
 var _style := StyleBoxFlat.new()
 var _queued := 0
 var _deletable := false
+## Training progress of the one furthest along (0..1), or -1 when none trains.
+var _training := -1.0
+var _shade := Control.new()
 
 
 func _init(title: String, icon: Control = null) -> void:
@@ -54,6 +57,34 @@ func _init(title: String, icon: Control = null) -> void:
 	_cost.max_lines_visible = 2
 	_cost.custom_minimum_size.y = 40
 	set_state("", true, false)
+	# On top of everything: the training shadow.
+	_shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_shade.draw.connect(_draw_shade)
+	add_child(_shade)
+
+
+## Show a troop of this card in training: a shadow over the card that pulls
+## back from the bottom as it trains, with a glowing edge.
+func set_training(frac: float) -> void:
+	if not is_equal_approx(frac, _training):
+		_training = frac
+		_shade.queue_redraw()
+
+
+func _draw_shade() -> void:
+	if _training < 0:
+		return
+	var sz := _shade.size
+	var top := sz.y * (1.0 - clampf(_training, 0.0, 1.0))
+	var rect := Rect2(Vector2(3, 3), Vector2(sz.x - 6, maxf(top - 3, 0)))
+	var box := StyleBoxFlat.new()
+	box.bg_color = Color(0.1, 0.06, 0.02, 0.45)
+	box.set_corner_radius_all(8)
+	box.corner_radius_bottom_left = 0
+	box.corner_radius_bottom_right = 0
+	_shade.draw_style_box(box, rect)
+	var glow := 0.6 + 0.4 * sin(Time.get_ticks_msec() / 1000.0 * 6.0)
+	_shade.draw_line(Vector2(5, top), Vector2(sz.x - 5, top), Color(1.0, 0.85, 0.2, glow), 3)
 
 
 func set_state(cost_text: String, enabled: bool, selected: bool, auto := false) -> void:
