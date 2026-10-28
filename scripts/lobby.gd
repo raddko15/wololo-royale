@@ -70,6 +70,15 @@ func _init(connection: Net, my_civ: String) -> void:
 		_input.text = t.to_upper()
 		_input.caret_column = at)
 	_input.text_submitted.connect(func(_t): _join())
+	if _is_phone_browser():
+		# Phone browsers often show no keyboard for the game's own text
+		# field: ask with the browser's own box instead.
+		_input.editable = false
+		_input.placeholder_text = "TAP HERE"
+		_input.add_theme_color_override("font_uneditable_color", _input.get_theme_color("font_color"))
+		_input.gui_input.connect(func(e):
+			if e is InputEventMouseButton and e.pressed and not _buttons[0].disabled:
+				_ask_code())
 	row.add_child(_input)
 	var join := _button("Join")
 	join.custom_minimum_size.x = 170
@@ -87,6 +96,17 @@ func _init(connection: Net, my_civ: String) -> void:
 	net.started.connect(func(role: String, their_civ: String): ready_to_play.emit(role, their_civ))
 	net.failed.connect(_on_failed)
 	net.left.connect(func(): _on_failed("Lost the connection"))
+
+
+static func _is_phone_browser() -> bool:
+	return OS.has_feature("web") and bool(JavaScriptBridge.eval("navigator.maxTouchPoints > 0"))
+
+
+func _ask_code() -> void:
+	var typed = JavaScriptBridge.eval("prompt('The 4-letter code from your friend:', '') || ''")
+	if typed is String and typed.strip_edges() != "":
+		_input.text = typed.strip_edges().to_upper().left(4)
+		_join()
 
 
 func _host() -> void:
@@ -123,7 +143,7 @@ func _on_failed(message: String) -> void:
 func _set_busy(on: bool) -> void:
 	for b in _buttons:
 		b.disabled = on
-	_input.editable = not on
+	_input.editable = not on and not _is_phone_browser()
 
 
 func _text(t: String, font_size: int, weight: int) -> Label:

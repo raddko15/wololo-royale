@@ -895,7 +895,7 @@ func _draw_city(team: int, now: float) -> void:
 	_draw_fort_status(team, tc + Vector2(0, bar_y), now)
 	# Idle villagers sit at the campfire, except those helping on a building site.
 	var helping := _helper_spots(team, e)
-	var at_fire: int = maxi(e.idle_at_fire() - helping.size(), 0)
+	var at_fire: int = maxi(e.idle_at_fire() - helping.size() - _helper_back[team].size(), 0)
 	for i in at_fire:
 		_draw_figure(idle_spot(team, i, at_fire) + Vector2(0, 6), VILLAGER_TUNIC, [], 0.6)
 	for w in e.workers:
@@ -1240,13 +1240,26 @@ func _helper_spots(team: int, e: Economy) -> Array[Vector2]:
 
 ## Helpers walk over from the campfire, then swing a hammer at the scaffold.
 var _helper_pos := [[], []]
+## Helpers walking back to the campfire once their building is done.
+var _helper_back := [[], []]
 
 
 func _draw_helpers(team: int, spots: Array[Vector2], now: float) -> void:
 	var pos: Array = _helper_pos[team]
-	pos.resize(mini(pos.size(), spots.size()))
+	var back: Array = _helper_back[team]
+	while pos.size() > spots.size():
+		back.append(pos.pop_back())
 	while pos.size() < spots.size():
-		pos.append(campfire_pos(team))
+		# A new site: those still walking back turn round first.
+		pos.append(back.pop_back() if not back.is_empty() else campfire_pos(team))
+	var fire := campfire_pos(team) + Vector2(0, 6)
+	for k in range(back.size() - 1, -1, -1):
+		var b: Vector2 = back[k].move_toward(fire, 2.5)
+		if b.distance_to(fire) < 1.0:
+			back.remove_at(k)  # sits down at the fire
+			continue
+		back[k] = b
+		_draw_figure(b, VILLAGER_TUNIC, [], 0.6, fmod(now * 12.0 + k * 1.3, TAU))
 	for k in spots.size():
 		var p: Vector2 = pos[k]
 		var arrived := p.distance_to(spots[k]) < 1.0
