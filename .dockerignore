@@ -1,0 +1,9 @@
+.git
+build
+.godot
+assets
+scenes
+scripts
+tests
+tools
+server/node_modules
