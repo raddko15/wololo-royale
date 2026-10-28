@@ -71,14 +71,13 @@ func _init(connection: Net, my_civ: String) -> void:
 		_input.caret_column = at)
 	_input.text_submitted.connect(func(_t): _join())
 	if _is_phone_browser():
-		# Phone browsers often show no keyboard for the game's own text
-		# field: ask with the browser's own box instead.
+		# Phone browsers show no keyboard for the game's own text field, so
+		# an invisible web page text box lies over it: tapping that brings up
+		# the phone's keyboard, and what is typed shows in the field.
 		_input.editable = false
-		_input.placeholder_text = "TAP HERE"
 		_input.add_theme_color_override("font_uneditable_color", _input.get_theme_color("font_color"))
-		_input.gui_input.connect(func(e):
-			if e is InputEventMouseButton and e.pressed and not _buttons[0].disabled:
-				_ask_code())
+		JavaScriptBridge.eval(PAGE_BOX_JS)
+		_seed = _input.text
 	row.add_child(_input)
 	var join := _button("Join")
 	join.custom_minimum_size.x = 170
@@ -98,15 +97,71 @@ func _init(connection: Net, my_civ: String) -> void:
 	net.left.connect(func(): _on_failed("Lost the connection"))
 
 
+static var _phone := -1
+
+
 static func _is_phone_browser() -> bool:
-	return OS.has_feature("web") and bool(JavaScriptBridge.eval("navigator.maxTouchPoints > 0"))
+	if _phone == -1:
+		_phone = int(OS.has_feature("web") and bool(JavaScriptBridge.eval("navigator.maxTouchPoints > 0")))
+	return _phone == 1
 
 
-func _ask_code() -> void:
-	var typed = JavaScriptBridge.eval("prompt('The 4-letter code from your friend:', '') || ''")
-	if typed is String and typed.strip_edges() != "":
-		_input.text = typed.strip_edges().to_upper().left(4)
-		_join()
+## The page's text box over the code field (phone browsers): 16px text so
+## the phone doesn't zoom in, see-through, uppercase letters only.
+const PAGE_BOX_JS := """
+(function () {
+  if (document.getElementById('wr-code')) return;
+  var i = document.createElement('input');
+  i.id = 'wr-code';
+  i.type = 'text';
+  i.maxLength = 4;
+  i.autocomplete = 'off';
+  i.autocapitalize = 'characters';
+  i.spellcheck = false;
+  i.enterKeyHint = 'go';
+  i.style.cssText = 'position:fixed;z-index:10;font-size:16px;color:transparent;caret-color:transparent;' +
+    'background:transparent;border:none;outline:none;padding:0;margin:0;-webkit-tap-highlight-color:transparent;';
+  i.addEventListener('input', function () {
+    i.value = i.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 4);
+  });
+  i.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { window.wrCodeGo = true; i.blur(); }
+  });
+  document.body.appendChild(i);
+})();
+"""
+
+
+## Keep the page's box over the field and copy its letters in (each frame).
+func _process(_delta: float) -> void:
+	if not _is_phone_browser():
+		return
+	# The field in window pixels (after the stretch to the screen); the
+	# canvas fills the window.
+	var xf := get_viewport().get_final_transform() * _input.get_global_transform_with_canvas()
+	var r := Rect2(xf * Vector2.ZERO, xf.basis_xform(_input.size))
+	var view := Vector2(DisplayServer.window_get_size())
+	var shown := not _input.editable and not _buttons[0].disabled and is_visible_in_tree()
+	var js := "(function(){var i=document.getElementById('wr-code');if(!i)return '';var c=document.querySelector('canvas').getBoundingClientRect();" \
+		+ "var k=c.width/%f;i.style.left=(c.left+%f*k)+'px';i.style.top=(c.top+%f*k)+'px';i.style.width=(%f*k)+'px';i.style.height=(%f*k)+'px';" % [view.x, r.position.x, r.position.y, r.size.x, r.size.y] \
+		+ "i.style.display='%s';if(%s)i.value=%s;var go=window.wrCodeGo;window.wrCodeGo=false;return (go?'!':'')+i.value;})()" % [
+			"block" if shown else "none", "true" if _seed != "" else "false", JSON.stringify(_seed)]
+	_seed = ""
+	var typed = JavaScriptBridge.eval(js)
+	if typed is String:
+		var go: bool = typed.begins_with("!")
+		_input.text = typed.trim_prefix("!")
+		if go:
+			_join()
+
+
+## Code from a shared link, put into the page's box on the next frame.
+var _seed := ""
+
+
+func _exit_tree() -> void:
+	if _is_phone_browser():
+		JavaScriptBridge.eval("var i=document.getElementById('wr-code');if(i)i.remove();")
 
 
 func _host() -> void:
