@@ -1,5 +1,5 @@
-# The multiplayer relay (server/), for Fly.io. The game itself is built
-# separately (GitHub Pages).
+# The multiplayer relay (server/), deployed on Render as a Docker web
+# service. The game itself is built separately (GitHub Pages).
 FROM node:22-alpine
 WORKDIR /app
 COPY server/package.json server/package-lock.json ./

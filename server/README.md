@@ -12,15 +12,15 @@ their messages on. The host's device runs the game; the relay only forwards.
 Then open the web build with `?relay=ws://127.0.0.1:8080` added to its address
 (or set `network.relay_url` in `data/config.json`).
 
-## Deploy on Fly.io
+## Deploy on Render
 
-1. Install flyctl: https://fly.io/docs/flyctl/install/ and sign in: `fly auth login`
-2. From this folder: `fly launch --copy-config --no-deploy`
-   (keep the settings; if the name `wololo-royale` is taken, pick another)
-3. `fly deploy`
-4. Check it: `https://<app name>.fly.dev` answers `ok`.
-5. If the app name differs, put `wss://<app name>.fly.dev` in
-   `network.relay_url` in `data/config.json`.
+The relay runs on Render's free plan as a Docker web service, from the
+`Dockerfile` at the top of the repo (Root Directory empty, Dockerfile Path
+`./Dockerfile`, no environment variables: Render sets `PORT`). It redeploys on
+every commit to main; Build Filters with Included Paths `server/**` and
+`Dockerfile` keep game-only commits from restarting it.
 
-It stops when nobody plays (no cost) and wakes on the first connection, which
-takes a couple of seconds.
+`https://<service name>.onrender.com` answers `ok`; the game connects to
+`wss://<service name>.onrender.com` (`network.relay_url` in `data/config.json`).
+Free services sleep after about 15 minutes without players; the first one to
+connect then waits up to a minute while it wakes.
