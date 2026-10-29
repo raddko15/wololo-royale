@@ -499,8 +499,16 @@ func _fly_arrows(flights: Array) -> void:
 			a.look_at(ahead, Vector3.UP, true)
 
 
-## Small health bars over the figures (red for the enemy, green for yours).
+## Small health bars over the figures (red for the enemy, green for yours),
+## then the map's buttons, labels and bars at their places in the 3D view.
 func _draw_bars() -> void:
+	if not view.in_3d:
+		return  # not laid out yet
+	_draw_unit_bars()
+	view.draw_overlay(_overlay, map_to_screen)
+
+
+func _draw_unit_bars() -> void:
 	for b in _bars:
 		var at: Vector2 = b[0]
 		var frac := clampf(b[1] / maxf(b[2], 1.0), 0.0, 1.0)

@@ -546,6 +546,60 @@ var in_3d := false
 ## In 3D, what the people on the map do this frame instead of drawing them:
 ## {"kind": "unit" | "villager" | "arrow", ...} (read by WorldView).
 var figures_3d: Array[Dictionary] = []
+## Where buttons, labels and bars are drawn: this map, or (3D) the layer
+## over the 3D view, with map points moved to it by _xf.
+var _c: CanvasItem = self
+var _xf := Callable()
+var _ui_pass := false
+
+
+func _sp(p: Vector2) -> Vector2:
+	return _xf.call(p) if _xf.is_valid() else p
+
+
+## In 3D the map itself leaves out buttons, labels and bars: draw_overlay()
+## draws them over the 3D view instead.
+func _ui_skip() -> bool:
+	return in_3d and not _ui_pass
+
+
+## Buttons, labels and bars, drawn on `canvas` over the 3D view; `to_screen`
+## gives a map point's place on it.
+func draw_overlay(canvas: CanvasItem, to_screen: Callable) -> void:
+	_c = canvas
+	_xf = to_screen
+	_ui_pass = true
+	var now := Time.get_ticks_msec() / 1000.0
+	for team in [Battlefield.ENEMY, Battlefield.PLAYER]:
+		var e := econ(team)
+		var tc := town_center(team)
+		_draw_hp(tc + Vector2(0, 50), battle.buildings[team].main, battle.fort_max_hp[team], 110)
+		_draw_fort_status(team, tc + Vector2(0, 50), now)
+		for lane in Battlefield.LANES:
+			var hp: float = battle.buildings[team].towers[lane]
+			if hp > 0:
+				var pos := building_pos(team, "tower", lane)
+				_draw_hp(pos + Vector2(0, 40 if pos.y < size.y / 2 else -60), hp, battle.tower_max_hp[team])
+		for id in e.military:
+			if e.military[id] > 1:
+				_draw_mil_count(military_pos(team, id) + Vector2(30, 10), e.military[id])
+			if team == Battlefield.PLAYER and not e.has_room():
+				_draw_pop_full(military_pos(team, id) + Vector2(0, -52), now)
+		if team == Battlefield.PLAYER:
+			for res in e.mines:
+				if e.villagers.get(res, 0) > 0:
+					_draw_count_tag(mine_pos(team, res) + Vector2(-30, 6), e.villagers[res])
+		_draw_jobs(team, e, now)
+	for site in build_sites(economy):
+		_draw_build_site(site, economy, now)
+	for job in ["food", "wood"]:
+		_draw_unassign_icon(unassign_icon(job), economy.villagers.get(job, 0))
+	_draw_upgrade_badges(economy, now)
+	for lane in Battlefield.LANES:
+		_draw_order_button(lane)
+	_c = self
+	_xf = Callable()
+	_ui_pass = false
 const ROAD := Color("#b8a074")
 const ROAD_EDGE := Color("#8a7552")
 ## Scattered grass detail, generated once per screen size so it never flickers.
@@ -984,23 +1038,25 @@ const ORDER_LOOK := {
 
 
 func _draw_order_button(lane: int) -> void:
+	if _ui_skip():
+		return
 	var state: String = battle.lane_orders[Battlefield.PLAYER][lane]
 	var look: Array = ORDER_LOOK[state]
-	var c := order_button(lane)
-	draw_circle(c, 24, OUTLINE)
-	draw_circle(c, 22, look[0])
-	draw_arc(c, 21, 0, TAU, 32, look[1], 3)
+	var c := _sp(order_button(lane))
+	_c.draw_circle(c, 24, OUTLINE)
+	_c.draw_circle(c, 22, look[0])
+	_c.draw_arc(c, 21, 0, TAU, 32, look[1], 3)
 	var ic := c
 	match state:
 		"march":
-			draw_colored_polygon(PackedVector2Array([ic + Vector2(-8, -11), ic + Vector2(11, 0), ic + Vector2(-8, 11)]), Color.WHITE)
+			_c.draw_colored_polygon(PackedVector2Array([ic + Vector2(-8, -11), ic + Vector2(11, 0), ic + Vector2(-8, 11)]), Color.WHITE)
 		"stop":
-			draw_rect(Rect2(ic + Vector2(-9, -9), Vector2(18, 18)), Color.WHITE)
+			_c.draw_rect(Rect2(ic + Vector2(-9, -9), Vector2(18, 18)), Color.WHITE)
 		"retreat":
-			draw_colored_polygon(PackedVector2Array([ic + Vector2(8, -11), ic + Vector2(-11, 0), ic + Vector2(8, 11)]), Color.WHITE)
+			_c.draw_colored_polygon(PackedVector2Array([ic + Vector2(8, -11), ic + Vector2(-11, 0), ic + Vector2(8, 11)]), Color.WHITE)
 	var n := battle.units_in(Battlefield.PLAYER, lane)
 	if n > 0:
-		_draw_count_tag(c + Vector2(19, -18), n)
+		_draw_count_tag(c + Vector2(19, -18), n, true)
 
 
 ## A hut plot shows when this many or fewer places are left in the population.
@@ -1033,12 +1089,17 @@ func build_sites(e: Economy) -> Array:
 
 
 ## Small round tag with a number (workers at a mine).
-func _draw_count_tag(c: Vector2, n: int) -> void:
-	draw_circle(c, 11, OUTLINE)
-	draw_circle(c, 9, Color("#f9ca24"))
+## `placed`: `c` is already where it goes (beside another overlay item).
+func _draw_count_tag(c: Vector2, n: int, placed := false) -> void:
+	if _ui_skip():
+		return
+	if not placed:
+		c = _sp(c)
+	_c.draw_circle(c, 11, OUTLINE)
+	_c.draw_circle(c, 9, Color("#f9ca24"))
 	var font := get_theme_default_font()
 	var w := font.get_string_size(str(n), HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
-	draw_string(font, c + Vector2(-w / 2, 5), str(n), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, OUTLINE)
+	_c.draw_string(font, c + Vector2(-w / 2, 5), str(n), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, OUTLINE)
 
 
 ## A free plot: grey ground shadow under a faint outline of the building, with
@@ -1058,7 +1119,8 @@ func _draw_build_site(site: Array, e: Economy, now: float) -> void:
 		"camp":
 			if id == "farm":
 				art = ["granary", Vector2(0, -6), Vector2(84, 67), Vector2(0, 14), Vector2(32, 12)]
-				_draw_dashed_rect(farm_rect(), Color(1, 1, 1, 0.45))  # where the fields will go
+				if not _ui_pass:
+					_draw_dashed_rect(farm_rect(), Color(1, 1, 1, 0.45))  # where the fields will go
 			else:
 				art = ["lean_to", Vector2(0, -8), Vector2(62, 46), Vector2(0, 10), Vector2(28, 11)]
 			affordable = e.can_build_camp(id)
@@ -1074,18 +1136,28 @@ func _draw_build_site(site: Array, e: Economy, now: float) -> void:
 	var ring := PackedVector2Array()
 	for k in 33:
 		ring.append(base + Vector2(cos(k * TAU / 32) * radii.x, sin(k * TAU / 32) * radii.y))
-	draw_colored_polygon(ring, Color(0, 0, 0, 0.22))
-	for k in range(0, 32, 2):  # dashed rim
-		draw_line(ring[k], ring[k + 1], Color(1, 1, 1, 0.5), 2)
+	if not _ui_pass:  # the ground under the plot stays on the map
+		draw_colored_polygon(ring, Color(0, 0, 0, 0.22))
+		for k in range(0, 32, 2):  # dashed rim
+			draw_line(ring[k], ring[k + 1], Color(1, 1, 1, 0.5), 2)
 	var tex := _tex(art[0])
 	if tex and not in_3d:  # the 3D world stands a see-through model here
 		draw_texture_rect(tex, Rect2(c + art[1] - art[2] / 2, art[2]), false, Color(0.15, 0.15, 0.15, 0.25))
+	_draw_site_marker(site, e, now, art, affordable, base, radii)
+
+
+## A plot's "+" button and its name-and-cost tag.
+func _draw_site_marker(site: Array, e: Economy, now: float, art: Array, affordable: bool, base: Vector2, radii: Vector2) -> void:
+	if _ui_skip():
+		return
+	var c: Vector2 = site[1]
+	var id: String = site[0]
 	var pulse := 0.5 + 0.5 * sin(now * 4.0)
-	var at: Vector2 = c + art[1]
-	draw_circle(at, 13, OUTLINE)
-	draw_circle(at, 11, Color("#f9ca24").lerp(Color("#ffe58a"), pulse) if affordable else Color("#8f8a80"))
-	draw_line(at + Vector2(-6, 0), at + Vector2(6, 0), OUTLINE, 3)
-	draw_line(at + Vector2(0, -6), at + Vector2(0, 6), OUTLINE, 3)
+	var at: Vector2 = _sp(c + art[1])
+	_c.draw_circle(at, 13, OUTLINE)
+	_c.draw_circle(at, 11, Color("#f9ca24").lerp(Color("#ffe58a"), pulse) if affordable else Color("#8f8a80"))
+	_c.draw_line(at + Vector2(-6, 0), at + Vector2(6, 0), OUTLINE, 3)
+	_c.draw_line(at + Vector2(0, -6), at + Vector2(0, 6), OUTLINE, 3)
 	# Info tag under the plot: what it is and what it costs (the three tower
 	# plots share one, under the middle tower).
 	var cfg := GameConfig.data()
@@ -1113,43 +1185,52 @@ func _draw_build_site(site: Array, e: Economy, now: float) -> void:
 		top = c + Vector2(0, -66)
 	elif site[2] == "tower":
 		top = c + Vector2(0, -98)
-	_tags.append([top, info[0], ", ".join(parts), affordable])
+	if _ui_pass:
+		_draw_info_tag(top, info[0], ", ".join(parts), affordable)
+	else:
+		_tags.append([top, info[0], ", ".join(parts), affordable])
 
 
 ## Two-line tag (name, then cost) on a dark rounded backing, top-centered at `top`.
 func _draw_info_tag(top: Vector2, title: String, cost: String, affordable: bool) -> void:
+	if _ui_skip():
+		return
+	top = _sp(top)
 	var font := get_theme_default_font()
 	var w := maxf(font.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x,
 		font.get_string_size(cost, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x) + 12
 	var box := Rect2(top - Vector2(w / 2, 0), Vector2(w, 34))
 	box.position.x = clampf(box.position.x, 2, size.x - w - 2)
-	draw_style_box(_tag_style, box)
+	_c.draw_style_box(_tag_style, box)
 	var cx := box.get_center().x
 	var tw := font.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
-	draw_string(font, Vector2(cx - tw / 2, top.y + 14), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color.WHITE)
+	_c.draw_string(font, Vector2(cx - tw / 2, top.y + 14), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color.WHITE)
 	var cw := font.get_string_size(cost, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x
-	draw_string(font, Vector2(cx - cw / 2, top.y + 29), cost, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color("#f9ca24") if affordable else Color("#c8c0b0"))
+	_c.draw_string(font, Vector2(cx - cw / 2, top.y + 29), cost, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color("#f9ca24") if affordable else Color("#c8c0b0"))
 
 
 ## Beside the fort's health bar: a shield with its armor (from Era II), and
 ## a pulsing green + while it repairs itself.
 func _draw_fort_status(team: int, bar: Vector2, now: float) -> void:
+	if _ui_skip():
+		return
+	bar = _sp(bar)
 	var armor: float = battle.fort_armor[team]
 	if armor > 0:
 		var c := bar + Vector2(-72, 0)
 		var shield := PackedVector2Array([c + Vector2(-9, -9), c + Vector2(9, -9), c + Vector2(9, 1), c + Vector2(0, 10), c + Vector2(-9, 1)])
-		draw_colored_polygon(shield, Color("#c9d0d4"))
-		draw_polyline(shield + PackedVector2Array([shield[0]]), OUTLINE, 1.6)
+		_c.draw_colored_polygon(shield, Color("#c9d0d4"))
+		_c.draw_polyline(shield + PackedVector2Array([shield[0]]), OUTLINE, 1.6)
 		var font := get_theme_default_font()
 		var text := "%d" % roundi(armor * 100)
 		var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
-		draw_string(font, c + Vector2(-w / 2, 3), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, OUTLINE)
+		_c.draw_string(font, c + Vector2(-w / 2, 3), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, OUTLINE)
 	if battle.fort_repairing(team):
 		var c := bar + Vector2(72, 0)
 		var a := 0.5 + 0.5 * sin(now * 4.0)
-		draw_circle(c, 9, Color(0.15, 0.6, 0.25, 0.4 + 0.5 * a))
-		draw_line(c + Vector2(-5, 0), c + Vector2(5, 0), Color.WHITE, 3)
-		draw_line(c + Vector2(0, -5), c + Vector2(0, 5), Color.WHITE, 3)
+		_c.draw_circle(c, 9, Color(0.15, 0.6, 0.25, 0.4 + 0.5 * a))
+		_c.draw_line(c + Vector2(-5, 0), c + Vector2(5, 0), Color.WHITE, 3)
+		_c.draw_line(c + Vector2(0, -5), c + Vector2(0, 5), Color.WHITE, 3)
 
 
 ## Gold arrow badges: one over every building with an upgrade the player can
@@ -1178,16 +1259,18 @@ func upgrade_badges(e: Economy) -> Array:
 
 
 func _draw_upgrade_badges(e: Economy, now: float) -> void:
+	if _ui_skip():
+		return
 	var spots := []
 	for b in upgrade_badges(e):
 		spots.append(b[0])
 	var bob := sin(now * 4.0) * 3.0
 	for p in spots:
-		var c: Vector2 = p + Vector2(0, bob)
-		draw_circle(c, 13, Color("#2b2620"))
-		draw_arc(c, 13, 0, TAU, 20, Color("#f9ca24"), 2.5)
-		draw_colored_polygon(PackedVector2Array([c + Vector2(0, -8), c + Vector2(-7, 0), c + Vector2(7, 0)]), Color("#f9ca24"))
-		draw_rect(Rect2(c + Vector2(-3, 0), Vector2(6, 7)), Color("#f9ca24"))
+		var c: Vector2 = _sp(p) + Vector2(0, bob)
+		_c.draw_circle(c, 13, Color("#2b2620"))
+		_c.draw_arc(c, 13, 0, TAU, 20, Color("#f9ca24"), 2.5)
+		_c.draw_colored_polygon(PackedVector2Array([c + Vector2(0, -8), c + Vector2(-7, 0), c + Vector2(7, 0)]), Color("#f9ca24"))
+		_c.draw_rect(Rect2(c + Vector2(-3, 0), Vector2(6, 7)), Color("#f9ca24"))
 
 
 ## Everything under way: scaffolding with a hammering builder for buildings,
@@ -1370,6 +1453,9 @@ func _queue_label(e: Economy, job: Dictionary) -> String:
 
 ## Red "POP FULL" sign that pulses above a building that can't train.
 func _draw_pop_full(c: Vector2, now: float) -> void:
+	if _ui_skip():
+		return
+	c = _sp(c)
 	var font := get_theme_default_font()
 	var text := "POP FULL"
 	var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
@@ -1378,23 +1464,30 @@ func _draw_pop_full(c: Vector2, now: float) -> void:
 	var box := StyleBoxFlat.new()
 	box.bg_color = Color("#c0392b", pulse)
 	box.set_corner_radius_all(8)
-	draw_style_box(box, r)
-	draw_colored_polygon(PackedVector2Array([c + Vector2(-6, 12), c + Vector2(6, 12), c + Vector2(0, 19)]), Color("#c0392b", pulse))
-	draw_string(font, c + Vector2(-w / 2, 6), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color.WHITE)
+	_c.draw_style_box(box, r)
+	_c.draw_colored_polygon(PackedVector2Array([c + Vector2(-6, 12), c + Vector2(6, 12), c + Vector2(0, 19)]), Color("#c0392b", pulse))
+	_c.draw_string(font, c + Vector2(-w / 2, 6), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color.WHITE)
 
 
 func _draw_progress(center: Vector2, width: float, frac: float, color: Color, label := "") -> void:
+	if _ui_skip():
+		return
+	center = _sp(center)
 	var r := Rect2(center - Vector2(width / 2, 5), Vector2(width, 10))
-	draw_rect(r.grow(2), Color(0, 0, 0, 0.6))
-	draw_rect(Rect2(r.position, Vector2(r.size.x * clampf(frac, 0, 1), r.size.y)), color)
+	_c.draw_rect(r.grow(2), Color(0, 0, 0, 0.6))
+	_c.draw_rect(Rect2(r.position, Vector2(r.size.x * clampf(frac, 0, 1), r.size.y)), color)
 	if label != "":
-		draw_string(get_theme_default_font(), r.end + Vector2(6, 2), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 16)
+		_c.draw_string(get_theme_default_font(), r.end + Vector2(6, 2), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 16)
 
 
 ## Wooden scaffolding over a site (with a dirt patch for new buildings), a
 ## villager swinging a hammer beside it, and a progress bar underneath.
 func _draw_scaffold(c: Vector2, sz: Vector2, frac: float, now: float, new_site: bool, show_bar := true, label := "") -> void:
 	var r := Rect2(c - sz / 2, sz)
+	if _ui_pass:  # over the 3D view: only its progress bar
+		if show_bar:
+			_draw_progress(Vector2(c.x, r.end.y + 12), sz.x, frac, Color("#f9ca24"), label)
+		return
 	if new_site:
 		draw_rect(r.grow(4), Color("#8a6d45"))
 		# The building rises: a pale outline filling up from the bottom.
@@ -1504,34 +1597,40 @@ func _draw_arrow(a: Dictionary, target: Vector2) -> void:
 
 
 func _draw_hp(center: Vector2, hp: float, max_hp: float, width := 70.0) -> void:
+	if _ui_skip():
+		return
+	center = _sp(center)
 	var r := Rect2(center - Vector2(width / 2, 5), Vector2(width, 10))
-	draw_rect(r, Color("#2d3436"))
+	_c.draw_rect(r, Color("#2d3436"))
 	if hp > 0:
-		draw_rect(Rect2(r.position, Vector2(r.size.x * hp / max_hp, r.size.y)), Color("#44bd32"))
+		_c.draw_rect(Rect2(r.position, Vector2(r.size.x * hp / max_hp, r.size.y)), Color("#44bd32"))
 
 
 ## A villager dot with a "back" arrow; faded when nobody works there.
 ## "Call a worker back" button: a villager's head with a red minus (the same
 ## look as "− Worker" at the mines), with how many work there on a small tag.
 func _draw_unassign_icon(c: Vector2, workers: int) -> void:
+	if _ui_skip():
+		return
+	c = _sp(c)
 	var alpha := 1.0 if workers > 0 else 0.35
-	draw_circle(c, 26, Color("#2b2620", alpha))
-	draw_arc(c, 26, 0, TAU, 24, Color("#f9ca24", alpha), 3)
+	_c.draw_circle(c, 26, Color("#2b2620", alpha))
+	_c.draw_arc(c, 26, 0, TAU, 24, Color("#f9ca24", alpha), 3)
 	# The head sits at (16, 12) in its 32x40 art: scale it up around that point.
 	var k := 1.7
-	draw_texture_rect(_tex("head"), Rect2(c + Vector2(-3, -2) - Vector2(16, 12) * k, Vector2(32, 40) * k), false, Color(1, 1, 1, alpha))
+	_c.draw_texture_rect(_tex("head"), Rect2(c + Vector2(-3, -2) - Vector2(16, 12) * k, Vector2(32, 40) * k), false, Color(1, 1, 1, alpha))
 	var badge := c + Vector2(12, 11)
-	draw_circle(badge, 9, Color(OUTLINE, alpha))
-	draw_circle(badge, 7.5, Color("#c0392b", alpha))
-	draw_line(badge + Vector2(-4, 0), badge + Vector2(4, 0), Color(1, 1, 1, alpha), 2.5)
+	_c.draw_circle(badge, 9, Color(OUTLINE, alpha))
+	_c.draw_circle(badge, 7.5, Color("#c0392b", alpha))
+	_c.draw_line(badge + Vector2(-4, 0), badge + Vector2(4, 0), Color(1, 1, 1, alpha), 2.5)
 	if workers > 0:
 		var tag := c + Vector2(0, 34)
-		draw_circle(tag, 13, OUTLINE)
-		draw_circle(tag, 11, Color("#f9ca24"))
+		_c.draw_circle(tag, 13, OUTLINE)
+		_c.draw_circle(tag, 11, Color("#f9ca24"))
 		var font := get_theme_default_font()
 		var text := str(workers)
 		var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
-		draw_string(font, tag + Vector2(-w / 2, 6), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, OUTLINE)
+		_c.draw_string(font, tag + Vector2(-w / 2, 6), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, OUTLINE)
 
 
 func _draw_ball(p: Vector2, r: float, color: Color) -> void:
@@ -2046,13 +2145,20 @@ func _draw_military(id: String, c: Vector2, civ_color: Color, _era: int, style: 
 		if tier >= 1:
 			_draw_art("mil_tier1", at, sz, civ_color)
 	if count > 1:
-		var tag := c + Vector2(30, 10)
-		draw_circle(tag, 13, OUTLINE)
-		draw_circle(tag, 11, Color("#f5f1e6"))
-		var font := get_theme_default_font()
-		var text := "×%d" % count
-		var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x
-		draw_string(font, tag + Vector2(-w / 2, 5), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, OUTLINE)
+		_draw_mil_count(c + Vector2(30, 10), count)
+
+
+## "×n" on a military building with more than one of its kind.
+func _draw_mil_count(tag: Vector2, count: int) -> void:
+	if _ui_skip():
+		return
+	tag = _sp(tag)
+	_c.draw_circle(tag, 13, OUTLINE)
+	_c.draw_circle(tag, 11, Color("#f5f1e6"))
+	var font := get_theme_default_font()
+	var text := "×%d" % count
+	var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x
+	_c.draw_string(font, tag + Vector2(-w / 2, 5), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, OUTLINE)
 
 
 ## Windmill: stone base from the art, four sails turning slowly.
