@@ -533,6 +533,9 @@ const GRASS := Color("#4f8a3c")
 ## Drawn as the 3D battlefield's ground (WorldView): things the 3D world
 ## shows as models are left out here.
 var in_3d := false
+## In 3D, what the people on the map do this frame instead of drawing them:
+## {"kind": "unit" | "villager" | "arrow", ...} (read by WorldView).
+var figures_3d: Array[Dictionary] = []
 const ROAD := Color("#b8a074")
 const ROAD_EDGE := Color("#8a7552")
 ## Scattered grass detail, generated once per screen size so it never flickers.
@@ -609,8 +612,8 @@ func _tex(name: String) -> Texture2D:
 ## Draws an art asset centered on `center` at `size`; its `_tint` layer (if
 ## any) is drawn on top in `tint` (the civ color).
 func _draw_art(name: String, center: Vector2, size_px: Vector2, tint := Color.WHITE) -> void:
-	if in_3d and name != "olive_tree":
-		return  # buildings are 3D models there
+	if in_3d:
+		return  # buildings and olive trees are 3D models there
 	var rect := Rect2(center - size_px / 2, size_px)
 	var base := _tex(name)
 	if base:
@@ -621,6 +624,7 @@ func _draw_art(name: String, center: Vector2, size_px: Vector2, tint := Color.WH
 
 func _draw() -> void:
 	var now := Time.get_ticks_msec() / 1000.0
+	figures_3d.clear()
 	_draw_ground()
 	var unit_drag: bool = GameConfig.data().units.has(drag_card)
 	var hover_lane := lane_at(drag_pos) if unit_drag else -1
@@ -664,6 +668,15 @@ func _draw() -> void:
 	for i in battle.units.size():
 		var u: Dictionary = battle.units[i]
 		var color := Color(econ(u.team).civ().color)
+		if in_3d:
+			var target := _target_pos(u, positions)
+			var fight := -1.0
+			if u.target != "":
+				var rate: float = {"fighter": 1.8, "phalanx": 1.27, "chariot": 1.4}.get(u.type, 1.2)
+				fight = fmod(now * rate + u.side * (3.0 if u.type == "fighter" else 1.0) + 10.0, 1.0)
+			figures_3d.append({"kind": "unit", "u": u, "pos": positions[i], "target": target, "color": color,
+				"heading": _heading(u, target), "walk": _walk_phase(u, now, 12.0 if u.type in MOUNTED else 11.0), "fight": fight})
+			continue
 		match u.type:
 			"archer":
 				_draw_archer(u, positions[i], color, now, _target_pos(u, positions))
@@ -680,7 +693,11 @@ func _draw() -> void:
 	for a in battle.arrows:
 		var idx := battle.units.find(a.target)
 		if idx != -1:
-			_draw_arrow(a, positions[idx])
+			if in_3d:
+				var start := building_pos(a.team, "tower" if a.from == "tower" else "main", a.lane)
+				figures_3d.append({"kind": "arrow", "from": start, "to": positions[idx], "t": a.t, "high": true})
+			else:
+				_draw_arrow(a, positions[idx])
 	# Lane order buttons last, on top of the troops.
 	for lane in Battlefield.LANES:
 		_draw_order_button(lane)
@@ -1272,6 +1289,10 @@ func _draw_helpers(team: int, spots: Array[Vector2], now: float) -> void:
 		pos[k] = p
 		var phase := float(k) * 1.3
 		_draw_villager(p, k, 0.6, -1.0 if arrived else fmod(now * 12.0 + phase, TAU), true)
+		if in_3d:
+			figures_3d[-1]["hammer"] = arrived
+			figures_3d[-1]["work_at"] = spots[k] + Vector2(0, -20)
+			continue
 		if arrived:
 			# Hammer: handle and head, knocking up and down.
 			var hand := p + Vector2(5, -8)
@@ -1526,6 +1547,9 @@ const SKIN := Color("#e8b98a")
 ## A villager: a man in a tunic with short hair, or a woman in a dress with
 ## long hair. `seed` picks which, so the same villager keeps its look.
 func _draw_villager(p: Vector2, seed: int, scale: float, walk := -1.0, back := false) -> void:
+	if in_3d:
+		figures_3d.append({"kind": "villager", "pos": p, "seed": seed, "walk": walk})
+		return
 	if posmod(seed, 2) == 1:
 		_draw_figure(p, VILLAGER_DRESS, [], scale, walk, back, false, WOMAN_LOOK)
 	else:
@@ -1888,6 +1912,15 @@ func _draw_fighter(u: Dictionary, p: Vector2, color: Color, now: float) -> void:
 ## Villager: a small figure in a plain tunic. Farmers bob with a hoe,
 ## lumberjacks and miners swing a tool, walkers carry their load.
 func _draw_worker(p: Vector2, w: Dictionary, now: float, olives := false) -> void:
+	if in_3d:
+		var carry: Color = Color(0, 0, 0, 0)
+		if w.phase == "to_drop":
+			carry = {"food": COLORS.olive if olives else COLORS.crop, "wood": COLORS.wood, "gold": Color("#f1c40f"), "stone": Color("#d5d8dc")}[w.job]
+		var walking: bool = w.phase != "gather"
+		figures_3d.append({"kind": "villager", "pos": p, "seed": w.spot + w.job.length(),
+			"walk": fmod(now * 12.0 + w.spot * 1.7, TAU) if walking else -1.0,
+			"tool": w.job if w.phase == "gather" else "", "carry": "load" if carry.a > 0 else "", "carry_color": carry})
+		return
 	var phase: float = w.spot * 1.7
 	if w.phase == "gather" and w.job == "food":
 		p.y += sin(now * 6.0 + phase) * 2.0

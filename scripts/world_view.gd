@@ -37,6 +37,13 @@ var _scenery: Node3D
 ## Building models by slot ("fort0", "hut1_4", ...), kept in step with the game.
 var _buildings := {}
 var _building_root: Node3D
+## Troops ("u<id>") and villagers ("vm<n>" men, "vw<n>" women) as 3D figures.
+var _figures := {}
+var _figure_root: Node3D
+var _arrows: Array[Node3D] = []
+## Health bars drawn over the 3D view: [screen point, hp, max hp, team].
+var _bars := []
+var _overlay: Control
 var _map_size := Vector2.ZERO
 ## Whole-battlefield camera, and the testing zoom on top of it.
 var _home := Transform3D.IDENTITY
@@ -75,6 +82,12 @@ func _init(battle_view: BattleView) -> void:
 	# Inside the 3D viewport, not this container (which would show it flat).
 	_world_vp.add_child(_map_vp)
 	_build_world()
+	# Health bars float over the 3D figures, drawn flat on top of the view.
+	_overlay = Control.new()
+	_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_overlay.draw.connect(_draw_bars)
+	add_child(_overlay)
 
 
 ## Frame the map once the 3D viewport has taken this view's size (the
@@ -85,6 +98,8 @@ func _process(delta: float) -> void:
 	if _map_size != Vector2.ZERO and view.battle != null:
 		_sync_buildings()
 		_animate(delta)
+		_sync_figures()
+		_overlay.queue_redraw()
 	_watch_speed(delta)
 
 
@@ -107,6 +122,13 @@ func _wanted_buildings() -> Dictionary:
 		for i in e.huts:
 			want["hut%d_%d" % [team, i]] = [hut, view.hut_pos(team, i), color]
 		want["fire%d" % team] = ["campfire", view.campfire_pos(team), color]
+		if e.camps.has("farm") and classical:
+			# The olive grove's trees (wheat fields stay flat on the ground).
+			var area := view.farm_rect(team)
+			var cell := area.size / Vector2(BattleView.FARM_COLS, BattleView.FARM_ROWS)
+			for i in BattleView.FARM_COLS * BattleView.FARM_ROWS:
+				var c := area.position + cell * Vector2(i % BattleView.FARM_COLS + 0.5, i / BattleView.FARM_COLS + 0.5)
+				want["olive%d_%d" % [team, i]] = ["olive_tree", c, color, 1.0, false, i]
 		if e.camps.has("farm"):
 			var food := "granary"
 			if e.upgrades.has("mill2"):
@@ -156,7 +178,7 @@ func _sync_buildings() -> void:
 		if _buildings.has(slot):
 			continue
 		var spec: Array = want[slot]
-		var model := Models.make(spec[0], spec[2])
+		var model: Node3D = Figures.olive_tree(spec[5]) if spec[0] == "olive_tree" else Models.make(spec[0], spec[2])
 		if spec.size() > 4 and spec[4]:
 			Models.military_tier2(model, spec[2])
 		model.position = map_to_world(spec[1])
@@ -167,13 +189,149 @@ func _sync_buildings() -> void:
 		_buildings[slot] = model
 
 
+# --- Troops, villagers and arrows -------------------------------------------------
+
+## Troop figures are drawn a little larger than life, to read at a distance.
+const FIGURE_SCALE := 1.25
+
+
+## Place and pose a 3D figure for everyone the map recorded this frame
+## (BattleView.figures_3d), and fly the arrows.
+func _sync_figures() -> void:
+	if _figure_root == null:
+		_figure_root = Node3D.new()
+		_root.add_child(_figure_root)
+	var now := Time.get_ticks_msec() / 1000.0
+	var seen := {}
+	var count := {"vm": 0, "vw": 0}
+	var flights := []  # [from, to, t, high arc]
+	_bars.clear()
+	for f in view.figures_3d:
+		match f.kind:
+			"unit":
+				var u: Dictionary = f.u
+				var key := "u%d" % u.id
+				var spec := "%s:%d:%s" % [u.type, u.get("tier", 0), (f.color as Color).to_html()]
+				var fig: Node3D = _figure(key, spec, func(): return _make_troop(u.type, u.get("tier", 0), f.color))
+				fig.position = map_to_world(f.pos)
+				var d := Vector2.from_angle(f.heading)
+				fig.rotation.y = atan2(d.x, d.y)
+				Figures.animate(fig, {"walk": f.walk, "fight": f.fight, "type": u.type}, now)
+				seen[key] = true
+				var tall := 0.5 if u.type in BattleView.MOUNTED else 0.45
+				_bars.append([camera.unproject_position(fig.position + Vector3(0, tall, 0)), u.hp, u.max_hp, u.team])
+				if f.fight >= 0.0 and u.type in ["archer", "chariot"] and f.target != Vector2.INF:
+					var from := fig.position + Vector3(0, 0.25, 0)
+					var to := map_to_world(f.target) + Vector3(0, 0.15, 0)
+					flights.append([from, to, f.fight, false])
+					if u.type == "chariot":
+						flights.append([from, to, fmod(f.fight + 0.5, 1.0), false])
+			"villager":
+				var kind := "vw" if posmod(f.seed, 2) == 1 else "vm"
+				var key := "%s%d" % [kind, count[kind]]
+				count[kind] += 1
+				var fig: Node3D = _figure(key, kind, func(): return Figures.villager(kind == "vw"))
+				var at := map_to_world(f.pos)
+				var was: Vector3 = fig.get_meta("was", at)
+				var move := at - was
+				if f.has("work_at"):
+					var w: Vector3 = map_to_world(f.work_at) - at
+					if w.length() > 0.01:
+						fig.rotation.y = atan2(w.x, w.z)
+				elif move.length() > 0.004:
+					fig.rotation.y = lerp_angle(fig.rotation.y, atan2(move.x, move.z), 0.35)
+				elif f.walk < 0.0 and f.get("tool", "") == "":
+					# Resting: face the nearest campfire.
+					var fire := map_to_world(view.campfire_pos(0 if f.pos.y > _map_size.y / 2.0 else 1))
+					fig.rotation.y = atan2(fire.x - at.x, fire.z - at.z)
+				fig.position = at
+				fig.set_meta("was", at)
+				Figures.animate(fig, {"walk": f.walk, "type": "villager", "tool": f.get("tool", ""), "seed": f.seed,
+					"carry": f.get("carry", ""), "carry_color": f.get("carry_color", Color.WHITE), "hammer": f.get("hammer", false)}, now)
+				seen[key] = true
+			"arrow":
+				flights.append([map_to_world(f.from) + Vector3(0, 0.45, 0), map_to_world(f.to) + Vector3(0, 0.15, 0), f.t, true])
+	for key in _figures.keys():
+		if not seen.has(key):
+			_figures[key].queue_free()
+			_figures.erase(key)
+	_fly_arrows(flights)
+
+
+## The figure for `key`, made anew when it doesn't exist or its look changed.
+func _figure(key: String, spec: String, make: Callable) -> Node3D:
+	var fig: Node3D = _figures.get(key)
+	if fig == null or fig.get_meta("spec") != spec:
+		if fig:
+			fig.queue_free()
+		fig = make.call()
+		fig.set_meta("spec", spec)
+		if not key.begins_with("v"):
+			fig.scale = Vector3.ONE * FIGURE_SCALE
+		_figure_root.add_child(fig)
+		_figures[key] = fig
+	return fig
+
+
+func _make_troop(type: String, tier: int, color: Color) -> Node3D:
+	match type:
+		"cavalry", "knight":
+			return Figures.rider(type, tier, color)
+		"chariot":
+			return Figures.chariot(tier, color)
+	return Figures.soldier(type, tier, color)
+
+
+## Arrows in flight: each rises and falls along an arc from `from` to `to`.
+func _fly_arrows(flights: Array) -> void:
+	while _arrows.size() < flights.size():
+		var a := Node3D.new()
+		var shaft := MeshInstance3D.new()
+		shaft.mesh = LowPoly.box(Vector3(0.008, 0.008, 0.11))
+		shaft.material_override = LowPoly.material(Color("#3b2614"))
+		a.add_child(shaft)
+		var tip := MeshInstance3D.new()
+		tip.mesh = LowPoly.box(Vector3(0.016, 0.016, 0.02))
+		tip.material_override = LowPoly.material(Color("#d0d0d0"))
+		tip.position.z = 0.06
+		a.add_child(tip)
+		_figure_root.add_child(a)
+		_arrows.append(a)
+	for i in _arrows.size():
+		var a := _arrows[i]
+		a.visible = i < flights.size()
+		if not a.visible:
+			continue
+		var fl: Array = flights[i]
+		var from: Vector3 = fl[0]
+		var to: Vector3 = fl[1]
+		var t: float = fl[2]
+		var lift := from.distance_to(to) * (0.3 if fl[3] else 0.2)
+		var at := from.lerp(to, t) + Vector3(0, sin(PI * t) * lift, 0)
+		var ahead := from.lerp(to, minf(t + 0.03, 1.0)) + Vector3(0, sin(PI * minf(t + 0.03, 1.0)) * lift, 0)
+		a.position = at
+		if ahead.distance_to(at) > 0.0001:
+			a.look_at(ahead, Vector3.UP, true)
+
+
+## Small health bars over the figures (red for the enemy, green for yours).
+func _draw_bars() -> void:
+	for b in _bars:
+		var at: Vector2 = b[0]
+		var frac := clampf(b[1] / maxf(b[2], 1.0), 0.0, 1.0)
+		var w := 28.0
+		var r := Rect2(at - Vector2(w / 2.0, 3.0), Vector2(w, 5.0))
+		_overlay.draw_rect(r.grow(1.0), Color("#2b1d10"))
+		_overlay.draw_rect(Rect2(r.position, Vector2(w * frac, r.size.y)), Color("#44bd32") if b[3] == Battlefield.PLAYER else Color("#e84118"))
+
+
 ## The map pixel of the front-most building whose outline on screen holds
 ## `local`, or Vector2.INF. Huts and campfires are too small to need it.
 func _building_under(local: Vector2) -> Vector2:
 	var best := Vector2.INF
 	var best_y := -INF
 	for slot in _buildings:
-		if slot.begins_with("hut") or slot.begins_with("fire"):
+		if slot.begins_with("hut") or slot.begins_with("fire") or slot.begins_with("olive"):
 			continue
 		var model: Node3D = _buildings[slot]
 		var box: AABB = model.get_meta("box")
