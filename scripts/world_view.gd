@@ -13,8 +13,11 @@ extends SubViewportContainer
 ## World units per map pixel: the map is laid out 1 unit per 100 pixels.
 const PX := 0.01
 ## Camera pitch below the horizon, and field of view (degrees).
-const PITCH := 66.0
+const PITCH := 54.0
 const FOV := 32.0
+## Buildings are modeled a little small; this brings them to the size the
+## flat map drew them.
+const BUILDING_SCALE := 1.3
 ## Map rendered at this many times its size, so the tilted ground stays sharp.
 const MAP_SUPERSAMPLE := 2.0
 ## Below this frame rate (over a few seconds) quality steps down: a less
@@ -29,6 +32,9 @@ var _ground: MeshInstance3D
 var _root: Node3D
 ## Trees and rocks, rebuilt when the map changes size.
 var _scenery: Node3D
+## Building models by slot ("fort0", "hut1_4", ...), kept in step with the game.
+var _buildings := {}
+var _building_root: Node3D
 var _map_size := Vector2.ZERO
 ## Whole-battlefield camera, and the testing zoom on top of it.
 var _home := Transform3D.IDENTITY
@@ -72,7 +78,134 @@ func _init(battle_view: BattleView) -> void:
 func _process(delta: float) -> void:
 	if size.x >= 2 and Vector2(_world_vp.size) == size.floor() and _map_size != size:
 		_fit()
+	if _map_size != Vector2.ZERO and view.battle != null:
+		_sync_buildings()
+		_animate(delta)
 	_watch_speed(delta)
+
+
+# --- Buildings ------------------------------------------------------------------
+
+## What should stand where: {slot: [model id, map pixel, civ color, scale, tier 2]}.
+## Mirrors what the flat map used to draw (BattleView._draw_city).
+func _wanted_buildings() -> Dictionary:
+	var want := {}
+	for team in 2:
+		var e := view.econ(team)
+		var color := Color(e.civ().color)
+		var classical := e.style() == "classical"
+		var era := e.era_index
+		var fort := "fort_era0"
+		if era >= 1:
+			fort = ("timber_hall" if era == 1 else "marble_palace") if classical else ("fort_wood" if era == 1 else "castle_stone")
+		want["fort%d" % team] = [fort, view.town_center(team) + Vector2(0, -12), color]
+		var hut := "hut_era0" if era == 0 else ("hut_classical" if classical else "hut_medieval")
+		for i in e.huts:
+			want["hut%d_%d" % [team, i]] = [hut, view.hut_pos(team, i), color]
+		want["fire%d" % team] = ["campfire", view.campfire_pos(team), color]
+		if e.camps.has("farm"):
+			var food := "granary"
+			if e.upgrades.has("mill2"):
+				food = "oil_workshop" if classical else "grand_mill"
+			elif e.upgrades.has("mill"):
+				food = "olive_press" if classical else "windmill"
+			want["food%d" % team] = [food, view.drop_off(team, "food"), color]
+		if e.camps.has("lumberjack"):
+			var wood := "lean_to"
+			if e.upgrades.has("lumber_camp2"):
+				wood = "carpentry" if classical else "sawmill"
+			elif e.upgrades.has("lumber_camp"):
+				wood = "timber_yard" if classical else "lumber_camp"
+			want["wood%d" % team] = [wood, view.drop_off(team, "wood"), color]
+		for res in e.mines:
+			want["mine%d_%s" % [team, res]] = [res + ("_mine2" if e.upgrades.has(res + "_mine2") else "_mine"), view.mine_pos(team, res), color]
+		for id in e.military:
+			var tier := int(e.upgrades.has(id + "1")) + int(e.upgrades.has(id + "2"))
+			var look := "era0" if tier == 0 else ("classical" if classical else "medieval")
+			# Second and third ones stand behind, smaller.
+			var behind := [Vector2.ZERO, Vector2(24, -22), Vector2(-24, -22)]
+			for k in mini(e.military[id], 3):
+				want["mil%d_%s_%d" % [team, id, k]] = ["%s_%s" % [id, look], view.military_pos(team, id) + behind[k],
+					color, 1.0 if k == 0 else 0.78, tier >= 2]
+		for lane in Battlefield.LANES:
+			var hp: float = view.battle.buildings[team].towers[lane]
+			var ruin: bool = view.battle.towers_built[team][lane] and not e.is_pending("towers", str(lane)) \
+				and not (team == Battlefield.PLAYER and e.site_open("towers", str(lane)))
+			if hp > 0:
+				var look := "tower_wood" if not e.upgrades.has("stone_towers") else ("tower_marble" if classical else "tower_stone")
+				want["tower%d_%d" % [team, lane]] = [look, view.building_pos(team, "tower", lane), color]
+			elif ruin:
+				want["tower%d_%d" % [team, lane]] = ["tower_ruin", view.building_pos(team, "tower", lane), color]
+	return want
+
+
+func _sync_buildings() -> void:
+	if _building_root == null:
+		_building_root = Node3D.new()
+		_root.add_child(_building_root)
+	var want := _wanted_buildings()
+	for slot in _buildings.keys():
+		if not want.has(slot) or _buildings[slot].get_meta("spec") != want[slot]:
+			_buildings[slot].queue_free()
+			_buildings.erase(slot)
+	for slot in want:
+		if _buildings.has(slot):
+			continue
+		var spec: Array = want[slot]
+		var model := Models.make(spec[0], spec[2])
+		if spec.size() > 4 and spec[4]:
+			Models.military_tier2(model, spec[2])
+		model.position = map_to_world(spec[1])
+		model.scale = Vector3.ONE * BUILDING_SCALE * (spec[3] if spec.size() > 3 else 1.0)
+		model.set_meta("spec", spec)
+		_building_root.add_child(model)
+		model.set_meta("box", _bounds(model))
+		_buildings[slot] = model
+
+
+## The map pixel of the front-most building whose outline on screen holds
+## `local`, or Vector2.INF. Huts and campfires are too small to need it.
+func _building_under(local: Vector2) -> Vector2:
+	var best := Vector2.INF
+	var best_y := -INF
+	for slot in _buildings:
+		if slot.begins_with("hut") or slot.begins_with("fire"):
+			continue
+		var model: Node3D = _buildings[slot]
+		var box: AABB = model.get_meta("box")
+		var shown := Rect2(camera.unproject_position(model.global_transform * box.position), Vector2.ZERO)
+		for i in 8:
+			shown = shown.expand(camera.unproject_position(model.global_transform * box.get_endpoint(i)))
+		var foot := camera.unproject_position(model.global_position)
+		if shown.has_point(local) and foot.y > best_y:
+			best_y = foot.y
+			best = model.get_meta("spec")[1]
+	return best
+
+
+## The bounds of a model's parts, in its own space.
+static func _bounds(model: Node3D) -> AABB:
+	var box := AABB()
+	var first := true
+	for mi in model.find_children("*", "MeshInstance3D", true, false):
+		var part: AABB = model.global_transform.affine_inverse() * mi.global_transform * mi.get_aabb() if model.is_inside_tree() else mi.transform * mi.get_aabb()
+		box = part if first else box.merge(part)
+		first = false
+	return box
+
+
+## Windmill sails and water wheels turn; campfires flicker.
+func _animate(delta: float) -> void:
+	var now := Time.get_ticks_msec() / 1000.0
+	for n in get_tree().get_nodes_in_group("spin"):
+		if n.is_inside_tree() and n.get_viewport() == _world_vp:
+			n.rotation.z += delta * 1.5
+	for slot in _buildings:
+		if slot.begins_with("fire"):
+			var flame: Node3D = _buildings[slot].get_node_or_null("Flame")
+			if flame:
+				var f := 1.0 + sin(now * 9.0) * 0.15 + sin(now * 13.7) * 0.1
+				flame.scale = Vector3(1.0, f, 1.0)
 
 
 ## Step quality down while the game runs slowly (checked every 4 seconds).
@@ -112,14 +245,15 @@ func _build_world() -> void:
 	e.tonemap_mode = Environment.TONE_MAPPER_LINEAR
 	env.environment = e
 	root.add_child(env)
-	# Late-afternoon sun from the left, behind the player: long soft shadows.
+	# Late-afternoon sun from the front left: lit fronts, shadows falling to
+	# the right where they show.
 	var sun := DirectionalLight3D.new()
 	_sun = sun
 	sun.light_color = Color("#fff1d6")
 	sun.light_energy = 0.4
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = 40.0
-	sun.rotation_degrees = Vector3(-50, -35, 0)
+	sun.rotation_degrees = Vector3(-42, -60, 0)
 	root.add_child(sun)
 	# Grass reaching past the map's edges, so the tilted view has no void.
 	var field := MeshInstance3D.new()
@@ -328,9 +462,13 @@ func _gui_input(event: InputEvent) -> void:
 			_pan_by(event.relative)
 
 
-## Hand a mouse button event to the map, at the map pixel under it.
+## Hand a mouse button event to the map, at the map pixel under it; a tap
+## anywhere on a building (its roof stands up above the ground behind it)
+## counts as a tap at its foot.
 func _forward(event: InputEventMouseButton) -> void:
-	var at := screen_to_map(event.position)
+	var at := _building_under(event.position)
+	if at == Vector2.INF:
+		at = screen_to_map(event.position)
 	if at == Vector2.INF:
 		return
 	var ev: InputEventMouseButton = event.duplicate()

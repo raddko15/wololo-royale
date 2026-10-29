@@ -609,6 +609,8 @@ func _tex(name: String) -> Texture2D:
 ## Draws an art asset centered on `center` at `size`; its `_tint` layer (if
 ## any) is drawn on top in `tint` (the civ color).
 func _draw_art(name: String, center: Vector2, size_px: Vector2, tint := Color.WHITE) -> void:
+	if in_3d and name != "olive_tree":
+		return  # buildings are 3D models there
 	var rect := Rect2(center - size_px / 2, size_px)
 	var base := _tex(name)
 	if base:
@@ -1415,6 +1417,8 @@ func _draw_hut(c: Vector2, era: int, style: String) -> void:
 
 ## Village campfire: crossed logs, a flickering flame and a warm glow.
 func _draw_campfire(c: Vector2, now: float) -> void:
+	if in_3d:
+		return
 	draw_circle(c, 15, Color(1.0, 0.6, 0.2, 0.12))
 	draw_circle(c + Vector2(0, 3), 7, Color(0.3, 0.3, 0.3, 0.6))
 	for a in [0.4, -0.4]:
@@ -1950,6 +1954,8 @@ func _draw_oil_workshop(c: Vector2) -> void:
 
 ## Era III medieval wood: sawmill with a turning water wheel.
 func _draw_sawmill(c: Vector2, now: float) -> void:
+	if in_3d:
+		return
 	var rect := Rect2(c + Vector2(-31, -31), Vector2(62, 46))
 	draw_texture_rect(_tex("sawmill"), rect, false)
 	var k := rect.size.x / 64.0
@@ -1998,6 +2004,8 @@ func _draw_mill(c: Vector2, now: float, _scale := 1.0) -> void:
 
 
 func _draw_windmill(base: String, c: Vector2, now: float, hub_px: Vector2, blade: float) -> void:
+	if in_3d:
+		return
 	var rect := Rect2(c + Vector2(-32, -38), Vector2(64, 56))
 	draw_texture_rect(_tex(base), rect, false)
 	var hub := rect.position + hub_px

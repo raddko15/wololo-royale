@@ -137,3 +137,66 @@ static func _repeat(c: Color, n: int) -> Array[Color]:
 	for i in n:
 		out.append(c)
 	return out
+
+
+## A closed solid from convex faces (each a list of corners); every face is
+## turned to point away from `inside`, so corner order doesn't matter.
+static func solid(faces: Array, inside: Vector3) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	st.set_smooth_group(-1)
+	for face in faces:
+		var mid := Vector3.ZERO
+		for p in face:
+			mid += p
+		mid /= face.size()
+		for i in range(1, face.size() - 1):
+			var a: Vector3 = face[0]
+			var b: Vector3 = face[i]
+			var c: Vector3 = face[i + 1]
+			# Godot's face normal is (c - a) x (b - a): make it point outward.
+			if (c - a).cross(b - a).dot(mid - inside) < 0.0:
+				var t := b
+				b = c
+				c = t
+			st.add_vertex(a)
+			st.add_vertex(b)
+			st.add_vertex(c)
+	st.generate_normals()
+	return st.commit()
+
+
+## A gable roof: `w` along x (the ridge), `d` deep, `h` high, base at y 0.
+static func gable(w: float, d: float, h: float) -> ArrayMesh:
+	var x := w / 2.0
+	var z := d / 2.0
+	var a := Vector3(-x, 0, -z)
+	var b := Vector3(x, 0, -z)
+	var c := Vector3(x, 0, z)
+	var e := Vector3(-x, 0, z)
+	var r1 := Vector3(-x, h, 0)
+	var r2 := Vector3(x, h, 0)
+	return solid([[e, c, r2, r1], [a, b, r2, r1], [a, e, r1], [b, c, r2], [a, b, c, e]], Vector3(0, h / 3.0, 0))
+
+
+## A pyramid roof over a `w` x `d` base, `h` high.
+static func pyramid(w: float, d: float, h: float) -> ArrayMesh:
+	var x := w / 2.0
+	var z := d / 2.0
+	var a := Vector3(-x, 0, -z)
+	var b := Vector3(x, 0, -z)
+	var c := Vector3(x, 0, z)
+	var e := Vector3(-x, 0, z)
+	var top := Vector3(0, h, 0)
+	return solid([[a, b, top], [b, c, top], [c, e, top], [e, a, top], [a, b, c, e]], Vector3(0, h / 4.0, 0))
+
+
+## A lean-to roof: high at the back (-z), low at the front.
+static func shed(w: float, d: float, back: float, front: float) -> ArrayMesh:
+	var x := w / 2.0
+	var z := d / 2.0
+	var pts := [Vector3(-x, 0, -z), Vector3(x, 0, -z), Vector3(x, 0, z), Vector3(-x, 0, z),
+		Vector3(-x, back, -z), Vector3(x, back, -z), Vector3(x, front, z), Vector3(-x, front, z)]
+	return solid([[pts[0], pts[1], pts[2], pts[3]], [pts[4], pts[5], pts[6], pts[7]], [pts[0], pts[1], pts[5], pts[4]],
+		[pts[3], pts[2], pts[6], pts[7]], [pts[0], pts[3], pts[7], pts[4]], [pts[1], pts[2], pts[6], pts[5]]],
+		Vector3(0, (back + front) / 4.0, 0))
