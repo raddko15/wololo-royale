@@ -26,7 +26,9 @@ const HAY := Color("#e2c35a")
 const RED := Color("#c0392b")
 
 
-static func make(id: String, tint: Color) -> Node3D:
+## `variant` varies houses (roof colors, chimney side) so a village isn't
+## rows of the same box.
+static func make(id: String, tint: Color, variant := 0) -> Node3D:
 	var m := Node3D.new()
 	match id:
 		"fort_era0":
@@ -48,11 +50,11 @@ static func make(id: String, tint: Color) -> Node3D:
 		"tower_ruin":
 			_tower_ruin(m)
 		"hut_era0":
-			_round_hut(m, 0.11)
+			_round_hut(m, 0.11, variant)
 		"hut_medieval":
-			_house(m, PLASTER, ROOF_BROWN, true)
+			_timber_house(m, variant)
 		"hut_classical":
-			_house(m, Color("#f4efe4"), TERRACOTTA, false)
+			_villa(m, variant)
 		"granary":
 			_granary(m)
 		"windmill", "grand_mill":
@@ -170,8 +172,8 @@ static func _fort_wood(m: Node3D, tint: Color) -> void:
 
 ## Medieval Era III: stone curtain walls, round towers and a tall keep.
 static func _castle(m: Node3D, tint: Color) -> void:
-	var w := 0.72
-	var d := 0.44
+	var w := 0.6
+	var d := 0.38
 	var wall_h := 0.32
 	for z in [-d, d]:
 		_box(m, Vector3(w * 2.0, wall_h, 0.1), STONE, Vector3(0, 0, z))
@@ -255,18 +257,78 @@ static func _tower_ruin(m: Node3D) -> void:
 
 # --- Houses -------------------------------------------------------------------
 
-static func _round_hut(m: Node3D, r: float) -> void:
-	_post(m, r, r * 0.9, MUD, Vector3.ZERO, 7)
-	_add(m, LowPoly.cone(r * 1.4, r * 1.5, 7), THATCH, Vector3(0, r * 0.9 + r * 0.75, 0))
-	_box(m, Vector3(r * 0.5, r * 0.6, 0.01), DOOR, Vector3(0, 0, r * 0.98))
+## Era I: a round mud-walled hut under a straw cone, with a door frame,
+## a smoke hole, and a woodpile or a pot by the wall.
+static func _round_hut(m: Node3D, r: float, variant := 0) -> void:
+	var straw: Color = [THATCH, Color("#c8963c"), Color("#dcb35a")][variant % 3]
+	_post(m, r * 1.06, 0.025, STONE_DARK, Vector3.ZERO, 7)
+	_post(m, r, r * 0.9, MUD, Vector3(0, 0.02, 0), 7)
+	_add(m, LowPoly.cone(r * 1.45, r * 1.5, 7), straw, Vector3(0, 0.02 + r * 0.9 + r * 0.75, 0))
+	_add(m, LowPoly.cone(r * 1.05, r * 0.6, 7), straw.darkened(0.18), Vector3(0, 0.02 + r * 0.9 + r * 1.2, 0))
+	_post(m, r * 0.18, r * 0.25, WOOD_DARK, Vector3(0, 0.02 + r * 2.35, 0), 5)
+	_box(m, Vector3(r * 0.6, r * 0.7, 0.012), WOOD_DARK, Vector3(0, 0.02, r * 0.97))
+	_box(m, Vector3(r * 0.42, r * 0.58, 0.014), DOOR, Vector3(0, 0.02, r * 0.98))
+	if variant % 2 == 0:
+		_log_pile(m, Vector3(r * 1.4, 0, r * 0.3), 3)
+	else:
+		_add(m, LowPoly.blob(r * 0.3, 0.9, 6, 3), Color("#a0522d"), Vector3(-r * 1.25, r * 0.25, r * 0.4))
 
 
-static func _house(m: Node3D, wall: Color, roof: Color, beams: bool) -> void:
-	_hall(m, Vector3(0.22, 0.13, 0.16), wall, roof, 0.1 if beams else 0.06, Vector3.ZERO, false, 0)
-	if beams:
-		for x in [-0.11, 0.11]:
-			_box(m, Vector3(0.018, 0.13, 0.17), WOOD_DARK, Vector3(x, 0, 0))
-		_box(m, Vector3(0.23, 0.015, 0.17), WOOD_DARK, Vector3(0, 0.065, 0))
+## Medieval house: whitewashed walls in a dark timber frame on a stone
+## footing, a steep roof (shingles, thatch or slate), a chimney, shuttered
+## windows and a door.
+static func _timber_house(m: Node3D, variant := 0) -> void:
+	var w := 0.22
+	var d := 0.16
+	var h := 0.14
+	var roof: Color = [ROOF_BROWN, Color("#c9a24a"), Color("#5d6470"), Color("#8a3b28")][variant % 4]
+	_box(m, Vector3(w + 0.02, 0.025, d + 0.02), STONE, Vector3.ZERO)
+	_box(m, Vector3(w, h, d), Color("#f1e8d4"), Vector3(0, 0.025, 0))
+	# Timber frame on the front: corner posts, a middle beam, cross braces.
+	var front := d / 2.0 + 0.004
+	for x in [-w / 2.0, w / 2.0]:
+		_box(m, Vector3(0.016, h, 0.012), WOOD_DARK, Vector3(x, 0.025, front))
+	_box(m, Vector3(w, 0.014, 0.012), WOOD_DARK, Vector3(0, 0.025 + h * 0.55, front))
+	_box(m, Vector3(w, 0.014, 0.012), WOOD_DARK, Vector3(0, 0.025 + h - 0.007, front))
+	for x in [-0.065, 0.065]:
+		var brace := _box(m, Vector3(0.012, h * 0.62, 0.01), WOOD_DARK, Vector3(x, 0.025 + h * 0.18, front + 0.002))
+		brace.rotation.z = 0.6 if x < 0 else -0.6
+	# Door, windows with shutters.
+	_box(m, Vector3(0.045, 0.07, 0.014), DOOR, Vector3(0.02 if variant % 2 == 0 else -0.02, 0.025, front))
+	var win_x := -0.065 if variant % 2 == 0 else 0.065
+	_box(m, Vector3(0.03, 0.03, 0.014), Color("#2c3e50"), Vector3(win_x, 0.025 + h * 0.62, front))
+	for s in [-1, 1]:
+		_box(m, Vector3(0.012, 0.032, 0.016), Color("#2e6b3f"), Vector3(win_x + s * 0.022, 0.025 + h * 0.62, front))
+	# A steep roof with a little overhang, so the walls show; ridge beam.
+	_add(m, LowPoly.gable(w * 1.12, d * 1.22, 0.13), roof, Vector3(0, 0.025 + h, 0))
+	_box(m, Vector3(w * 1.14, 0.014, 0.014), roof.darkened(0.3), Vector3(0, 0.025 + h + 0.125, 0))
+	var cx := 0.06 if variant % 2 == 0 else -0.06
+	_box(m, Vector3(0.035, 0.12, 0.035), STONE, Vector3(cx, 0.025 + h + 0.03, -0.03))
+	_box(m, Vector3(0.04, 0.012, 0.04), STONE_DARK, Vector3(cx, 0.025 + h + 0.15, -0.03))
+	if variant % 3 == 0:
+		_post(m, 0.022, 0.05, WOOD, Vector3(w / 2.0 + 0.03, 0, front - 0.02), 7)  # a barrel
+
+
+## Classical house: white walls and a low terracotta roof, a small porch on
+## two columns, a window, and a potted plant.
+static func _villa(m: Node3D, variant := 0) -> void:
+	var w := 0.22
+	var d := 0.16
+	var h := 0.12
+	var roof: Color = [TERRACOTTA, Color("#b5522f"), Color("#d47a4a")][variant % 3]
+	_box(m, Vector3(w + 0.02, 0.02, d + 0.06), MARBLE_SHADE, Vector3(0, 0, 0.02))
+	_box(m, Vector3(w, h, d), Color("#f6f1e6"), Vector3(0, 0.02, 0))
+	var front := d / 2.0 + 0.004
+	_box(m, Vector3(0.04, 0.07, 0.014), DOOR, Vector3(0, 0.02, front))
+	_box(m, Vector3(0.028, 0.028, 0.014), Color("#2c3e50"), Vector3(0.065 if variant % 2 == 0 else -0.065, 0.02 + h * 0.55, front))
+	_box(m, Vector3(w + 0.01, 0.012, 0.012), roof.darkened(0.15), Vector3(0, 0.02 + h - 0.012, front))
+	_add(m, LowPoly.gable(w * 1.12, d * 1.2, 0.07), roof, Vector3(0, 0.02 + h, 0))
+	for x in [-0.045, 0.045]:
+		_post(m, 0.009, h, MARBLE, Vector3(x, 0.02, front + 0.03), 6)
+	_box(m, Vector3(0.12, 0.012, 0.045), roof, Vector3(0, 0.02 + h, front + 0.02))
+	var px := -w / 2.0 - 0.02 if variant % 2 == 0 else w / 2.0 + 0.02
+	_post(m, 0.016, 0.025, TERRACOTTA, Vector3(px, 0, front), 6)
+	_add(m, LowPoly.blob(0.022, 0.9, 6, 3), Color("#4f8f37"), Vector3(px, 0.04, front))
 
 
 # --- Food and wood --------------------------------------------------------------

@@ -131,6 +131,10 @@ func _centered_text(font: Font, text: String, at: Vector2, font_size: int, color
 
 ## The option's building art, fitted inside the disc; greyed out when locked.
 func _draw_icon_art(art: Dictionary, c: Vector2, on: bool) -> void:
+	if art.has("texture"):  # a picture of the 3D model
+		var tsz: Vector2 = art.size * minf(84.0 / art.size.x, 70.0 / art.size.y)
+		draw_texture_rect(art.texture, Rect2(c - tsz / 2 + Vector2(0, 2), tsz), false, Color.WHITE if on else Color(0.55, 0.55, 0.55, 0.85))
+		return
 	var box := Vector2(66, 56)
 	var sz: Vector2 = art.size
 	sz *= minf(box.x / sz.x, box.y / sz.y)

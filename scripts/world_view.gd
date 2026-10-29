@@ -46,6 +46,11 @@ var _arrows: Array[Node3D] = []
 ## Health bars drawn over the 3D view: [screen point, hp, max hp, team].
 var _bars := []
 var _overlay: Control
+## Menu pictures of the 3D models, by model, color and upgrade.
+var _icons := {}
+var _icon_holder: Node
+## See-through models standing on the open build plots.
+var _ghosts := {}
 var _map_size := Vector2.ZERO
 ## Whole-battlefield camera, and the testing zoom on top of it.
 var _home := Transform3D.IDENTITY
@@ -59,6 +64,7 @@ var _last_tap_ms := 0
 ## The view size the map was last fitted to.
 var _fitted_for := Vector2.ZERO
 var _sun: DirectionalLight3D
+var _env: Environment
 var _supersample := MAP_SUPERSAMPLE
 var _quality := 0
 var _slow_frames := 0.0
@@ -101,6 +107,7 @@ func _process(delta: float) -> void:
 		_sync_buildings()
 		_animate(delta)
 		_sync_figures()
+		_sync_ghosts()
 		_overlay.queue_redraw()
 	_watch_speed(delta)
 
@@ -122,7 +129,7 @@ func _wanted_buildings() -> Dictionary:
 		want["fort%d" % team] = [fort, view.town_center(team) + Vector2(0, -12), color]
 		var hut := "hut_era0" if era == 0 else ("hut_classical" if classical else "hut_medieval")
 		for i in e.huts:
-			want["hut%d_%d" % [team, i]] = [hut, view.hut_pos(team, i), color]
+			want["hut%d_%d" % [team, i]] = [hut, view.hut_pos(team, i), color, 1.0, false, i]
 		want["fire%d" % team] = ["campfire", view.campfire_pos(team), color]
 		if e.camps.has("farm") and classical:
 			# The olive grove's trees (wheat fields stay flat on the ground).
@@ -180,7 +187,8 @@ func _sync_buildings() -> void:
 		if _buildings.has(slot):
 			continue
 		var spec: Array = want[slot]
-		var model: Node3D = Figures.olive_tree(spec[5]) if spec[0] == "olive_tree" else Models.make(spec[0], spec[2])
+		var variant: int = spec[5] if spec.size() > 5 else 0
+		var model: Node3D = Figures.olive_tree(variant) if spec[0] == "olive_tree" else Models.make(spec[0], spec[2], variant)
 		if spec.size() > 4 and spec[4]:
 			Models.military_tier2(model, spec[2])
 		model.position = map_to_world(spec[1])
@@ -189,6 +197,131 @@ func _sync_buildings() -> void:
 		_building_root.add_child(model)
 		model.set_meta("box", _bounds(model))
 		_buildings[slot] = model
+
+
+# --- Build plots and menu icons ---------------------------------------------------
+
+## The 3D model shown for a build plot or a menu option, by the plot's or
+## option's id: [model id, with the second-upgrade stone base].
+func model_for(id: String, e: Economy) -> Array:
+	var classical := e.style() == "classical"
+	match id:
+		"era":
+			var next := mini(e.era_index + 1, 2)
+			if next == 1:
+				return ["timber_hall" if classical else "fort_wood", false]
+			return ["marble_palace" if classical else "castle_stone", false]
+		"farm":
+			return ["granary", false]
+		"lumberjack":
+			return ["lean_to", false]
+		"hut":
+			return ["hut_era0" if e.era_index == 0 else ("hut_classical" if classical else "hut_medieval"), false]
+		"towers":
+			return ["tower_wood", false]
+		"stone_towers":
+			return ["tower_marble" if classical else "tower_stone", false]
+		"gold", "stone":
+			return [id + "_mine", false]
+		"gold_mine2", "stone_mine2":
+			return [id, false]
+		"barracks", "archery_range", "stables":
+			return [id + "_era0", false]
+		"mill":
+			return ["olive_press" if classical else "windmill", false]
+		"mill2":
+			return ["oil_workshop" if classical else "grand_mill", false]
+		"lumber_camp":
+			return ["timber_yard" if classical else "lumber_camp", false]
+		"lumber_camp2":
+			return ["carpentry" if classical else "sawmill", false]
+	if id.begins_with("tower:"):
+		return ["tower_wood", false]
+	for mil in ["barracks", "archery_range", "stables"]:
+		for tier in [1, 2]:
+			if id == mil + str(tier):
+				return ["%s_%s" % [mil, "classical" if classical else "medieval"], tier == 2]
+	return []
+
+
+## A picture of a 3D model (for the building menus), rendered once in a
+## small scene of its own and kept.
+func model_icon(model_id: String, tint: Color, tier2 := false) -> Texture2D:
+	var key := "%s|%s|%s" % [model_id, tint.to_html(), tier2]
+	if _icons.has(key):
+		return _icons[key]
+	if _icon_holder == null:
+		_icon_holder = Node.new()
+		_world_vp.add_child(_icon_holder)
+	var vp := SubViewport.new()
+	vp.size = Vector2i(180, 150)
+	vp.own_world_3d = true
+	vp.transparent_bg = true
+	vp.msaa_3d = Viewport.MSAA_4X
+	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	_icon_holder.add_child(vp)
+	var env := WorldEnvironment.new()
+	env.environment = _env.duplicate()
+	env.environment.background_mode = Environment.BG_CLEAR_COLOR
+	vp.add_child(env)
+	var sun := DirectionalLight3D.new()
+	sun.light_color = _sun.light_color
+	sun.light_energy = _sun.light_energy
+	sun.rotation = _sun.rotation
+	sun.shadow_enabled = true
+	vp.add_child(sun)
+	var model := Models.make(model_id, tint, 1)
+	if tier2:
+		Models.military_tier2(model, tint)
+	vp.add_child(model)
+	var box := _bounds(model)
+	var cam := Camera3D.new()
+	cam.fov = 30.0
+	vp.add_child(cam)
+	var center := box.get_center()
+	var radius := box.size.length() / 2.0
+	var dir := Vector3(0.35, 0.75, 1.0).normalized()
+	cam.look_at_from_position(center + dir * radius / sin(deg_to_rad(cam.fov / 2.0)) * 0.95, center, Vector3.UP)
+	var tex := vp.get_texture()
+	_icons[key] = tex
+	return tex
+
+
+## A see-through model on every open build plot of the player's.
+func _sync_ghosts() -> void:
+	var want := {}
+	for site in view.build_sites(view.economy):
+		var spec := model_for(site[0], view.economy)
+		if spec.is_empty():
+			continue
+		want["%s@%s" % [site[0], site[1]]] = [spec[0], site[1]]
+	for key in _ghosts.keys():
+		if not want.has(key):
+			_ghosts[key].queue_free()
+			_ghosts.erase(key)
+	for key in want:
+		if _ghosts.has(key):
+			continue
+		var model := Models.make(want[key][0], Color.WHITE)
+		for mi in model.find_children("*", "MeshInstance3D", true, false):
+			mi.material_override = _ghost_material()
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		model.position = map_to_world(want[key][1])
+		model.scale = Vector3.ONE * BUILDING_SCALE
+		_building_root.add_child(model)
+		_ghosts[key] = model
+
+
+static var _ghost_mat: StandardMaterial3D
+
+
+static func _ghost_material() -> StandardMaterial3D:
+	if _ghost_mat == null:
+		_ghost_mat = StandardMaterial3D.new()
+		_ghost_mat.albedo_color = Color(0.92, 0.94, 0.98, 0.32)
+		_ghost_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_ghost_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	return _ghost_mat
 
 
 # --- Troops, villagers and arrows -------------------------------------------------
@@ -411,6 +544,7 @@ func _build_world() -> void:
 	e.ambient_light_energy = 0.2
 	e.tonemap_mode = Environment.TONE_MAPPER_LINEAR
 	env.environment = e
+	_env = e
 	root.add_child(env)
 	# Late-afternoon sun from the front left: lit fronts, shadows falling to
 	# the right where they show.

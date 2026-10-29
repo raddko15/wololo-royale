@@ -128,13 +128,15 @@ func military_pos(team: int, id: String) -> Vector2:
 		"barracks":
 			return _cp(team, 0.075, TOWER_DEPTH)
 		"archery_range":
-			return _cp(team, 0.34, 232)
-	return _cp(team, 0.66, 232)
+			# In 3D, a little out and toward the lanes, clear of a big castle.
+			return _cp(team, 0.31, 262) if in_3d else _cp(team, 0.34, 232)
+	return _cp(team, 0.69, 262) if in_3d else _cp(team, 0.66, 232)
 
 
-## Gold / stone mine: small, on the grass between the lane towers.
+## Gold / stone mine: small, on the grass between the lane towers (in 3D a
+## little toward the lanes, out of the towers' way).
 func mine_pos(team: int, res: String) -> Vector2:
-	return _cp(team, 0.34 if res == "gold" else 0.66, TOWER_DEPTH)
+	return _cp(team, 0.34 if res == "gold" else 0.66, TOWER_DEPTH + (40.0 if in_3d else 0.0))
 
 
 ## Drop-off for a job: the mill (food), lumber camp (wood), or the town center (mined).
@@ -1062,7 +1064,7 @@ func _draw_build_site(site: Array, e: Economy, now: float) -> void:
 	for k in range(0, 32, 2):  # dashed rim
 		draw_line(ring[k], ring[k + 1], Color(1, 1, 1, 0.5), 2)
 	var tex := _tex(art[0])
-	if tex:
+	if tex and not in_3d:  # the 3D world stands a see-through model here
 		draw_texture_rect(tex, Rect2(c + art[1] - art[2] / 2, art[2]), false, Color(0.15, 0.15, 0.15, 0.25))
 	var pulse := 0.5 + 0.5 * sin(now * 4.0)
 	var at: Vector2 = c + art[1]
