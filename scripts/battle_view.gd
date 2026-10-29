@@ -1028,8 +1028,8 @@ func order_button(lane: int) -> Vector2:
 	return _lane_pos_at(lane, 0.5, 0.0)
 
 
-## Fill and rim per order: GO green ▶, BACK blue ◀ (HOLD amber ■ is the
-## computer's, never shown).
+## Fill and rim per order: GO green with an arrow up the lane, BACK blue with
+## an arrow down it (HOLD amber ■ is the computer's, never shown).
 const ORDER_LOOK := {
 	"march": [Color("#2f5d34"), Color("#44bd32")],
 	"stop": [Color("#5a4a24"), Color("#f1c40f")],
@@ -1046,14 +1046,17 @@ func _draw_order_button(lane: int) -> void:
 	_c.draw_circle(c, 24, OUTLINE)
 	_c.draw_circle(c, 22, look[0])
 	_c.draw_arc(c, 21, 0, TAU, 32, look[1], 3)
-	var ic := c
-	match state:
-		"march":
-			_c.draw_colored_polygon(PackedVector2Array([ic + Vector2(-8, -11), ic + Vector2(11, 0), ic + Vector2(-8, 11)]), Color.WHITE)
-		"stop":
-			_c.draw_rect(Rect2(ic + Vector2(-9, -9), Vector2(18, 18)), Color.WHITE)
-		"retreat":
-			_c.draw_colored_polygon(PackedVector2Array([ic + Vector2(8, -11), ic + Vector2(-11, 0), ic + Vector2(8, 11)]), Color.WHITE)
+	if state == "stop":
+		_c.draw_rect(Rect2(c + Vector2(-9, -9), Vector2(18, 18)), Color.WHITE)
+	else:
+		# An arrow along the lane: up toward the enemy (GO), down home (BACK).
+		var dir := -1.0 if state == "march" else 1.0
+		var arrow := PackedVector2Array()
+		for p in [Vector2(0, 13), Vector2(11, 1), Vector2(4.5, 1), Vector2(4.5, -12), Vector2(-4.5, -12), Vector2(-4.5, 1), Vector2(-11, 1)]:
+			arrow.append(c + Vector2(p.x, p.y * dir))
+		_c.draw_colored_polygon(arrow, Color.WHITE)
+		arrow.append(arrow[0])
+		_c.draw_polyline(arrow, OUTLINE, 1.6)
 	var n := battle.units_in(Battlefield.PLAYER, lane)
 	if n > 0:
 		_draw_count_tag(c + Vector2(19, -18), n, true)
