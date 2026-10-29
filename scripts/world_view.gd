@@ -1,0 +1,366 @@
+class_name WorldView
+extends SubViewportContainer
+## The battlefield in 3D: a lit ground seen by a tilted camera, Clash Royale
+## style. The flat map (BattleView) is still the game's layout: every
+## position is a point on it, in pixels. Here it is drawn off screen and laid
+## on the 3D ground as its texture, and 3D models stand on it. Taps on the
+## 3D view are traced back to map pixels, so BattleView's tap handling, the
+## card drops and the menus work unchanged.
+##
+## For testing, the camera zooms (mouse wheel or pinch) and pans (drag);
+## a double tap goes back to the whole-battlefield view.
+
+## World units per map pixel: the map is laid out 1 unit per 100 pixels.
+const PX := 0.01
+## Camera pitch below the horizon, and field of view (degrees).
+const PITCH := 66.0
+const FOV := 32.0
+## Map rendered at this many times its size, so the tilted ground stays sharp.
+const MAP_SUPERSAMPLE := 2.0
+## Below this frame rate (over a few seconds) quality steps down: a less
+## sharp map, then no edge smoothing, then no shadows.
+const MIN_FPS := 40.0
+
+var view: BattleView
+var camera: Camera3D
+var _world_vp: SubViewport
+var _map_vp: SubViewport
+var _ground: MeshInstance3D
+var _root: Node3D
+## Trees and rocks, rebuilt when the map changes size.
+var _scenery: Node3D
+var _map_size := Vector2.ZERO
+## Whole-battlefield camera, and the testing zoom on top of it.
+var _home := Transform3D.IDENTITY
+var _zoom := 1.0
+var _pan := Vector3.ZERO
+var _touches := {}
+var _pinch_from := 0.0
+var _press_at := Vector2.INF
+var _dragged := false
+var _last_tap_ms := 0
+var _sun: DirectionalLight3D
+var _supersample := MAP_SUPERSAMPLE
+var _quality := 0
+var _slow_frames := 0.0
+var _timed := 0.0
+
+
+func _init(battle_view: BattleView) -> void:
+	view = battle_view
+	stretch = true
+	mouse_filter = Control.MOUSE_FILTER_STOP
+	_world_vp = SubViewport.new()
+	_world_vp.msaa_3d = Viewport.MSAA_4X
+	_world_vp.handle_input_locally = false
+	add_child(_world_vp)
+	# The flat map, drawn off screen into a texture for the ground.
+	_map_vp = SubViewport.new()
+	_map_vp.transparent_bg = false
+	_map_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	_map_vp.size_2d_override_stretch = true
+	_map_vp.gui_disable_input = true
+	view.visible = false  # until it is given its size (_fit)
+	_map_vp.add_child(view)
+	# Inside the 3D viewport, not this container (which would show it flat).
+	_world_vp.add_child(_map_vp)
+	_build_world()
+
+
+## Frame the map once the 3D viewport has taken this view's size (the
+## camera's projection uses it).
+func _process(delta: float) -> void:
+	if size.x >= 2 and Vector2(_world_vp.size) == size.floor() and _map_size != size:
+		_fit()
+	_watch_speed(delta)
+
+
+## Step quality down while the game runs slowly (checked every 4 seconds).
+func _watch_speed(delta: float) -> void:
+	if _quality >= 3 or _map_size == Vector2.ZERO:
+		return
+	_timed += delta
+	if delta > 1.0 / MIN_FPS:
+		_slow_frames += delta
+	if _timed < 4.0:
+		return
+	if _slow_frames > _timed * 0.5:
+		_quality += 1
+		match _quality:
+			1:
+				_supersample = 1.0
+				_map_vp.size = Vector2i(_map_size * _supersample)
+			2:
+				_world_vp.msaa_3d = Viewport.MSAA_DISABLED
+			3:
+				_sun.shadow_enabled = false
+	_timed = 0.0
+	_slow_frames = 0.0
+
+
+func _build_world() -> void:
+	var root := Node3D.new()
+	_root = root
+	_world_vp.add_child(root)
+	var env := WorldEnvironment.new()
+	var e := Environment.new()
+	e.background_mode = Environment.BG_COLOR
+	e.background_color = Color("#2c3e22")
+	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	e.ambient_light_color = Color("#fff4e0")
+	e.ambient_light_energy = 0.2
+	e.tonemap_mode = Environment.TONE_MAPPER_LINEAR
+	env.environment = e
+	root.add_child(env)
+	# Late-afternoon sun from the left, behind the player: long soft shadows.
+	var sun := DirectionalLight3D.new()
+	_sun = sun
+	sun.light_color = Color("#fff1d6")
+	sun.light_energy = 0.4
+	sun.shadow_enabled = true
+	sun.directional_shadow_max_distance = 40.0
+	sun.rotation_degrees = Vector3(-50, -35, 0)
+	root.add_child(sun)
+	# Grass reaching past the map's edges, so the tilted view has no void.
+	var field := MeshInstance3D.new()
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(60, 60)
+	field.mesh = plane
+	field.position.y = -0.01
+	var grass := StandardMaterial3D.new()
+	grass.albedo_color = BattleView.GRASS
+	grass.roughness = 1.0
+	field.material_override = grass
+	root.add_child(field)
+	# The map itself.
+	_ground = MeshInstance3D.new()
+	_ground.mesh = PlaneMesh.new()
+	var mat := StandardMaterial3D.new()
+	mat.albedo_texture = _map_vp.get_texture()
+	mat.roughness = 1.0
+	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
+	_ground.material_override = mat
+	root.add_child(_ground)
+	camera = Camera3D.new()
+	camera.fov = FOV
+	camera.near = 0.1
+	camera.far = 200.0
+	root.add_child(camera)
+
+
+## Lay out the map at this view's size and frame it with the camera.
+func _fit() -> void:
+	_map_size = size
+	view.size = size
+	view.visible = true
+	view.in_3d = true
+	_map_vp.size_2d_override = Vector2i(size)
+	_map_vp.size = Vector2i(size * _supersample)
+	var plane: PlaneMesh = _ground.mesh
+	plane.size = size * PX
+	_home = _framing()
+	_apply_camera()
+	_build_scenery()
+
+
+## The forests' trees on the map, and woods and rocks all around it.
+func _build_scenery() -> void:
+	if _scenery:
+		_scenery.queue_free()
+	_scenery = Node3D.new()
+	_root.add_child(_scenery)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 11
+	var trees: Array[Vector3] = []
+	for team in 2:
+		for i in BattleView.TREE_COLS * BattleView.TREE_ROWS:
+			trees.append(map_to_world(view.work_spot(team, "wood", i)))
+	_scenery.add_child(LowPoly.forest(trees, rng))
+	# Around the battlefield: a ring of mixed woods, thicker further out.
+	var half := _map_size * PX / 2.0
+	var leafy: Array[Vector3] = []
+	var pines: Array[Vector3] = []
+	var stones: Array[Vector3] = []
+	var keep_out := Rect2(-half - Vector2(0.12, 0.12), half * 2.0 + Vector2(0.24, 0.24))
+	var tries := 0
+	while leafy.size() + pines.size() < 420 and tries < 6000:
+		tries += 1
+		var p := Vector2(rng.randf_range(-half.x - 4.0, half.x + 4.0), rng.randf_range(-half.y - 4.0, half.y + 3.0))
+		if keep_out.has_point(p):
+			continue
+		# Sparse near the map, dense further out.
+		var gap := maxf(maxf(absf(p.x) - half.x, absf(p.y) - half.y), 0.0)
+		if rng.randf() > clampf(0.25 + gap * 0.5, 0.0, 1.0):
+			continue
+		(pines if rng.randf() < 0.35 else leafy).append(Vector3(p.x, 0, p.y))
+		if rng.randf() < 0.08:
+			stones.append(Vector3(p.x + 0.15, 0, p.y + 0.1))
+	_scenery.add_child(LowPoly.forest(leafy, rng))
+	_scenery.add_child(LowPoly.forest(pines, rng, true))
+	_scenery.add_child(LowPoly.rocks(stones, rng))
+
+
+## The camera that shows the whole map as large as the view allows, centered.
+func _framing() -> Transform3D:
+	var half := _map_size * PX / 2.0
+	var corners := [Vector3(-half.x, 0, -half.y), Vector3(half.x, 0, -half.y), Vector3(-half.x, 0, half.y), Vector3(half.x, 0, half.y)]
+	var back := Vector3(0, sin(deg_to_rad(PITCH)), cos(deg_to_rad(PITCH)))
+	var target := Vector3.ZERO
+	var t := Transform3D.IDENTITY
+	for pass_i in 4:
+		# Nearest distance at which all four corners are on screen...
+		var lo := 1.0
+		var hi := 200.0
+		for i in 40:
+			var d := (lo + hi) / 2.0
+			camera.transform = Transform3D(Basis.IDENTITY, target + back * d).looking_at(target, Vector3.UP)
+			if corners.all(func(c): return _on_screen(c)):
+				hi = d
+			else:
+				lo = d
+		t = Transform3D(Basis.IDENTITY, target + back * hi).looking_at(target, Vector3.UP)
+		camera.transform = t
+		# ...then slide along the map so the top and bottom margins match.
+		var top: float = minf(camera.unproject_position(corners[0]).y, camera.unproject_position(corners[1]).y)
+		var bottom: float = maxf(camera.unproject_position(corners[2]).y, camera.unproject_position(corners[3]).y)
+		var off := (top - (size.y - bottom)) / 2.0
+		target.z += off / size.y * half.y * 1.6
+	return t
+
+
+func _on_screen(p: Vector3) -> bool:
+	if camera.is_position_behind(p):
+		return false
+	var s := camera.unproject_position(p)
+	return s.x >= -0.5 and s.y >= -0.5 and s.x <= size.x + 0.5 and s.y <= size.y + 0.5
+
+
+func _apply_camera() -> void:
+	var t := _home
+	var look := t.origin + -t.basis.z * (t.origin.y / -(-t.basis.z).y)
+	var origin := look + (t.origin - look) / _zoom + _pan
+	camera.transform = Transform3D(t.basis, origin)
+
+
+# --- Map pixels <-> 3D and the screen --------------------------------------
+
+## The 3D point on the ground at a map pixel.
+func map_to_world(p: Vector2) -> Vector3:
+	return Vector3((p.x - _map_size.x / 2.0) * PX, 0.0, (p.y - _map_size.y / 2.0) * PX)
+
+
+func world_to_map(w: Vector3) -> Vector2:
+	return Vector2(w.x / PX + _map_size.x / 2.0, w.z / PX + _map_size.y / 2.0)
+
+
+## Where a map pixel shows in this view (local coordinates).
+func map_to_screen(p: Vector2) -> Vector2:
+	return camera.unproject_position(map_to_world(p))
+
+
+## The map pixel under a point of this view (local coordinates), or
+## Vector2.INF when it is not on the ground.
+func screen_to_map(local: Vector2) -> Vector2:
+	var from := camera.project_ray_origin(local)
+	var dir := camera.project_ray_normal(local)
+	if dir.y >= 0.0:
+		return Vector2.INF
+	var hit := from + dir * (-from.y / dir.y)
+	return world_to_map(hit)
+
+
+## Global screen point -> map pixel (for card drags and drops).
+func global_to_map(global: Vector2) -> Vector2:
+	return screen_to_map(global - global_position)
+
+
+# --- Input: taps go to the map; zoom and pan for testing ---------------------
+
+func _gui_input(event: InputEvent) -> void:
+	if event is InputEventScreenTouch:
+		if event.pressed:
+			_touches[event.index] = event.position
+		else:
+			_touches.erase(event.index)
+		if _touches.size() == 2:
+			var pts: Array = _touches.values()
+			_pinch_from = (pts[0] as Vector2).distance_to(pts[1])
+		return
+	if event is InputEventScreenDrag:
+		_touches[event.index] = event.position
+		if _touches.size() == 2 and _pinch_from > 0.0:
+			var pts: Array = _touches.values()
+			var now_d := (pts[0] as Vector2).distance_to(pts[1])
+			_set_zoom(_zoom * now_d / _pinch_from)
+			_pinch_from = now_d
+			_dragged = true
+		return
+	if event is InputEventMagnifyGesture:
+		_set_zoom(_zoom * event.factor)
+		return
+	if event is InputEventMouseButton:
+		match event.button_index:
+			MOUSE_BUTTON_WHEEL_UP:
+				if event.pressed:
+					_set_zoom(_zoom * 1.1)
+				return
+			MOUSE_BUTTON_WHEEL_DOWN:
+				if event.pressed:
+					_set_zoom(_zoom / 1.1)
+				return
+			MOUSE_BUTTON_LEFT:
+				if event.pressed:
+					_press_at = event.position
+					_dragged = false
+					_forward(event)  # BattleView acts on the press, as before
+				else:
+					_press_at = Vector2.INF
+					if not _dragged:
+						var now := Time.get_ticks_msec()
+						if now - _last_tap_ms < 300 and _zoom != 1.0:
+							_reset_camera()
+						_last_tap_ms = now
+					_forward(event)
+		return
+	if event is InputEventMouseMotion and _press_at != Vector2.INF and _touches.size() < 2:
+		if _zoom > 1.0 and (_dragged or event.position.distance_to(_press_at) > 12.0):
+			_dragged = true
+			_pan_by(event.relative)
+
+
+## Hand a mouse button event to the map, at the map pixel under it.
+func _forward(event: InputEventMouseButton) -> void:
+	var at := screen_to_map(event.position)
+	if at == Vector2.INF:
+		return
+	var ev: InputEventMouseButton = event.duplicate()
+	ev.position = at
+	ev.global_position = at
+	view._gui_input(ev)
+
+
+func _set_zoom(z: float) -> void:
+	_zoom = clampf(z, 1.0, 4.0)
+	if is_equal_approx(_zoom, 1.0):
+		_pan = Vector3.ZERO
+	_apply_camera()
+
+
+## Move the camera so the ground under the finger follows it.
+func _pan_by(screen_delta: Vector2) -> void:
+	var mid := size / 2.0
+	var a := screen_to_map(mid)
+	var b := screen_to_map(mid - screen_delta)
+	if a == Vector2.INF or b == Vector2.INF:
+		return
+	_pan += map_to_world(b) - map_to_world(a)
+	var half := _map_size * PX / 2.0
+	_pan.x = clampf(_pan.x, -half.x, half.x)
+	_pan.z = clampf(_pan.z, -half.y, half.y)
+	_apply_camera()
+
+
+func _reset_camera() -> void:
+	_zoom = 1.0
+	_pan = Vector3.ZERO
+	_apply_camera()

@@ -530,6 +530,9 @@ func _gui_input(event: InputEvent) -> void:
 # --- Drawing ------------------------------------------------------------
 
 const GRASS := Color("#4f8a3c")
+## Drawn as the 3D battlefield's ground (WorldView): things the 3D world
+## shows as models are left out here.
+var in_3d := false
 const ROAD := Color("#b8a074")
 const ROAD_EDGE := Color("#8a7552")
 ## Scattered grass detail, generated once per screen size so it never flickers.
@@ -842,8 +845,9 @@ func _draw_city(team: int, now: float) -> void:
 		_draw_olive_grove(farm_rect(team))
 	elif farm:
 		_draw_farm(farm_rect(team))
-	for i in TREE_COLS * TREE_ROWS:
-		_draw_tree(work_spot(team, "wood", i))
+	if not in_3d:  # the 3D world has its own trees
+		for i in TREE_COLS * TREE_ROWS:
+			_draw_tree(work_spot(team, "wood", i))
 	# Food and wood buildings, once built: Era I farm hut and lean-to, then
 	# the Era II and Era III upgrades.
 	var food_at := drop_off(team, "food")

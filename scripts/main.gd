@@ -20,6 +20,8 @@ var _over := false
 ## Which side this screen plays.
 var my_team := Battlefield.PLAYER
 var _view: BattleView
+## The 3D battlefield showing _view's map (taps on it reach _view).
+var _world: WorldView
 var _ui := {}
 var _cards := {}
 ## Troop portraits on the cards, by troop type (they change with its level).
@@ -136,7 +138,9 @@ func _start_game(civ_id: String, menu: Control, their_civ := "", role := "") -> 
 	_view.reassign_requested.connect(func(from: String, to: String): _do({"op": "reassign", "from": from, "to": to}))
 	_view.upgrade_badge_tapped.connect(func(id: String):
 		_do({"op": "advance"} if id == "era" else {"op": "upgrade", "id": id}))
-	box.add_child(_view)
+	_world = WorldView.new(_view)
+	_world.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	box.add_child(_world)
 
 	var bar_panel := PanelContainer.new()
 	bar_panel.add_theme_stylebox_override("panel", UiStyle.wood_bar(true))
@@ -290,7 +294,7 @@ func _input(event: InputEvent) -> void:
 			_drag_to(pos)
 	elif event is InputEventMouseButton and not event.pressed:
 		if _ghost:
-			_drop(_press.card, pos - _view.global_position)
+			_drop(_press.card, _world.global_to_map(pos))
 		else:
 			_tap(_press.card)
 		_end_drag()
@@ -307,7 +311,7 @@ func _drag_to(pos: Vector2) -> void:
 		add_child(_ghost)
 		_view.drag_card = _press.card
 	_ghost.position = pos - Vector2(65, 120)
-	_view.drag_pos = pos - _view.global_position
+	_view.drag_pos = _world.global_to_map(pos)
 
 
 func _end_drag() -> void:
@@ -405,7 +409,7 @@ func _flash_hint(text: String) -> void:
 func _open_menu(kind: String, at: Vector2) -> void:
 	if _menu or battle.winner != -1:
 		return
-	_menu = RadialMenu.new(_view.global_position + at, _menu_options.bind(kind))
+	_menu = RadialMenu.new(_world.global_position + _world.map_to_screen(at), _menu_options.bind(kind))
 	_menu.chosen.connect(_on_menu_choice)
 	_menu.closed.connect(_close_menu)
 	add_child(_menu)
