@@ -49,7 +49,7 @@ func _init() -> void:
 	var before: int = host.game.economies[Battlefield.ENEMY].jobs.size()
 	guest._do({"op": "recruit"})
 	guest._do({"op": "lane_order", "lane": 0, "order": "march"})
-	await _wait(0.5)
+	await _wait(1.5)  # two 3D games in one process draw slowly
 	_check(host.game.economies[Battlefield.ENEMY].jobs.size() == before + 1, "the guest's recruit reaches the host")
 	_check(host.battle.lane_orders[Battlefield.ENEMY][0] == "march", "the guest's order reaches the host")
 	_check(guest.economy.jobs.size() == before + 1, "the guest sees their villager training")
