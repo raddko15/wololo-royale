@@ -458,8 +458,9 @@
     "barracks1": {
       "name": "Veteran Fighters",
       "cost": {
-        "food": 150,
-        "gold": 100
+        "food": 125,
+        "gold": 75,
+        "stone": 50
       },
       "min_era": 1,
       "requires": {
@@ -475,8 +476,9 @@
     "barracks2": {
       "name": "Elite Swordsmen",
       "cost": {
-        "food": 300,
-        "gold": 200
+        "food": 250,
+        "gold": 150,
+        "stone": 150
       },
       "min_era": 2,
       "requires": {
@@ -492,8 +494,9 @@
     "archery_range1": {
       "name": "Longbows",
       "cost": {
-        "food": 150,
-        "gold": 100
+        "food": 125,
+        "gold": 75,
+        "stone": 50
       },
       "min_era": 1,
       "requires": {
@@ -509,8 +512,9 @@
     "archery_range2": {
       "name": "Crossbowmen",
       "cost": {
-        "food": 300,
-        "gold": 200
+        "food": 250,
+        "gold": 150,
+        "stone": 150
       },
       "min_era": 2,
       "requires": {
@@ -526,8 +530,9 @@
     "stables1": {
       "name": "Armored Horses",
       "cost": {
-        "food": 150,
-        "gold": 100
+        "food": 125,
+        "gold": 75,
+        "stone": 50
       },
       "min_era": 1,
       "requires": {
@@ -542,8 +547,9 @@
     "stables2": {
       "name": "Knights",
       "cost": {
-        "food": 300,
-        "gold": 200
+        "food": 250,
+        "gold": 150,
+        "stone": 150
       },
       "min_era": 2,
       "requires": {

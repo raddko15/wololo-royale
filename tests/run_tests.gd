@@ -120,6 +120,7 @@ func _init() -> void:
 	_check(spawned.size() == 3, "testing job speed: 10x faster training")
 	_check(not m.can_train("archer"), "archers need an archery range")
 	m.resources.gold = 1000.0
+	m.resources.stone = 1000.0
 	_check(not m.can_upgrade("archery_range1"), "archery upgrade needs the range")
 	_check(m.buy_upgrade("barracks1"), "barracks upgrade in Era II")
 	m.finish_jobs()
