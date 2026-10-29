@@ -155,8 +155,6 @@ func _start_game(civ_id: String, menu: Control, their_civ := "", role := "") -> 
 	for id in ["villager"] + economy.available_units():
 		var title: String = "Villager" if id == "villager" else GameConfig.data().units[id].name
 		var icon := UnitIcon.new(id, Color(economy.civ().color))
-		if _world:  # pictures of the 3D figures
-			icon.picture = func(unit: String, tier: int) -> Texture2D: return _world.figure_icon(unit, tier, Color(economy.civ().color))
 		_icons[id] = icon
 		var card := Card.new(title, icon)
 		card.pressed.connect(_on_card_pressed.bind(id))

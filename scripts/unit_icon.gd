@@ -1,22 +1,19 @@
 class_name UnitIcon
 extends Control
-## A small portrait of a troop for its card, drawn from the same art as on the
-## map: foot soldiers face the viewer with their weapon and gear, horsemen and
-## chariots are seen from above, pointing up.
+## A troop's portrait for its card: head and shoulders with its helmet,
+## weapon and gear, in the civ's color; horsemen with their horse's head.
 
 var unit_id: String
 var color: Color
 ## The troop's level (0-2): archers carry a crossbow at level 3.
 var tier := 0
-## (3D) gives a picture of the troop's 3D figure: (unit id, tier) -> Texture2D.
-var picture := Callable()
 var _tex := {}
 
 
 func _init(id: String, civ_color: Color) -> void:
 	unit_id = id
 	color = civ_color
-	custom_minimum_size = Vector2(0, 46)
+	custom_minimum_size = Vector2(0, 56)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 
@@ -39,101 +36,49 @@ func _layer(name: String, r: Rect2, tint := Color.WHITE) -> void:
 		draw_texture_rect(t, r, false, tint)
 
 
+## Portrait layers (assets/art/portrait), back to front, per troop and level
+## (the last list applies to higher levels too). Layers ending in "_tint"
+## take the civ's color (the villager's tunic: undyed cloth).
+const PORTRAITS := {
+	"villager": [["hoe", "tunic_tint", "head", "hair", "straw_hat"]],
+	"fighter": [["club", "tunic_tint", "head", "beard", "hair"],
+		["club", "tunic_tint", "head", "beard", "helm_nasal", "shield_tint", "shield"],
+		["sword", "tunic_tint", "mail", "head", "great_helm", "shield_tint", "shield"]],
+	"archer": [["tunic_tint", "head", "hair", "bow"],
+		["quiver", "tunic_tint", "head", "hood", "bow"],
+		["quiver", "tunic_tint", "head", "kettle_hat", "crossbow"]],
+	"phalanx": [["spear", "tunic_tint", "head", "hoplite_helm", "crest_tint", "aspis_tint", "aspis"]],
+	"cavalry": [["lance", "tunic_tint", "head", "hair", "horse"],
+		["lance", "tunic_tint", "head", "hair", "horse", "barding_tint"],
+		["lance", "tunic_tint", "head", "helm_nasal", "horse", "barding_tint", "chamfron"]],
+	"knight": [["lance", "pennant_tint", "tunic_tint", "head", "great_helm", "plume_tint", "horse", "barding_tint", "chamfron"]],
+	"chariot": [["tunic_tint", "head", "hair", "bow", "horse", "wheel"],
+		["tunic_tint", "head", "helm_nasal", "bow", "horse", "barding_tint", "wheel"]],
+}
+const VILLAGER_CLOTH := Color("#d9c8a0")
+const HORSE_LAYERS := ["horse", "barding_tint", "chamfron"]
+
+
+## A head-and-shoulders portrait on a soft disc of the civ's color.
 func _draw() -> void:
-	if picture.is_valid():
-		var tex: Texture2D = picture.call(unit_id, tier)
-		var k := minf(size.x / tex.get_width(), (size.y + 6) / tex.get_height())
-		var sz := Vector2(tex.get_size()) * k
-		draw_texture_rect(tex, Rect2((size - sz) / 2.0 + Vector2(0, 2), sz), false)
-		return
-	var c := size / 2
-	match unit_id:
-		"cavalry", "knight":
-			_mounted(c)
-		"chariot":
-			_chariot(c)
-		_:
-			_foot(c)
-
-
-## Standing figure (32x40 art) scaled to the icon, plus its gear and weapon.
-func _foot(c: Vector2) -> void:
-	var k := size.y / 40.0
-	var box := Rect2(c - Vector2(16, 21) * k, Vector2(32, 40) * k)
-	var gear: Array = {"fighter": ["helmet_1"], "archer": ["helmet_1"] if tier >= 2 else ["hood"], "phalanx": ["cuirass", "hoplite_helm"], "villager": []}.get(unit_id, [])
-	var tunic: Color = Color("#d9c8a0") if unit_id == "villager" else color
-	if unit_id == "archer":
-		_layer("quiver", box)
-	for leg in [-1, 1]:
-		draw_rect(Rect2(box.position + Vector2(16 + leg * 3.5 - 2, 31) * k, Vector2(4, 6) * k), Color("#5a3d24"))
-	_layer("unit", box)
-	_layer("unit_tint", box, tunic)
-	_layer("head", box)
-	for g in gear:
-		_layer(g, box)
-	var hand := box.position + Vector2(26, 27) * k
-	match unit_id:
-		"fighter":
-			_weapon("club", Vector2(10, 30), Vector2(5, 27), hand, -PI / 2 + 0.45, k)
-			_shield(box.position + Vector2(6, 26) * k, k)
-		"archer":
-			if tier >= 2:  # crossbow held across the chest
-				_weapon("crossbow", Vector2(18, 30), Vector2(9, 22), hand, -PI / 2 - 0.55, k)
-			else:  # bow upright in the hand, its back facing out
-				_weapon("bow", Vector2(16, 30), Vector2(5, 15), hand + Vector2(1, -2) * k, -PI / 2, k)
-		"phalanx":
-			_weapon("spear", Vector2(6, 70), Vector2(3, 50), hand, -PI / 2 + 0.55, k * 0.5)
-			var sh := Rect2(box.position + Vector2(-1, 17) * k, Vector2(22, 22) * k)
-			_layer("aspis", sh)
-			_layer("aspis_tint", sh, color)
-		"villager":
-			draw_line(hand, hand + Vector2(4, -12) * k, Color("#8a5a33"), 2.0 * k)
-
-
-func _weapon(name: String, tex_size: Vector2, pivot: Vector2, at: Vector2, angle: float, k: float) -> void:
-	var t := _t(name)
-	if t == null:
-		return
-	draw_set_transform(at, angle + PI / 2, Vector2(k, k))
-	draw_texture_rect(t, Rect2(-pivot, tex_size), false)
-	draw_set_transform(Vector2.ZERO)
-
-
-func _shield(at: Vector2, k: float) -> void:
-	var r := Rect2(at - Vector2(8, 8) * k, Vector2(16, 16) * k)
-	_layer("shield", r)
-	_layer("shield_tint", r, color)
-
-
-## Horse and rider from above (30x56 art), pointing up.
-func _mounted(c: Vector2) -> void:
-	var k := size.y / 48.0
-	var box := Rect2(c - Vector2(15, 30) * k, Vector2(30, 56) * k)
-	_layer("cav_horse", box)
-	if unit_id == "knight":
-		_layer("knight_barding_tint", box, color)
-		_layer("knight_barding", box)
-		_layer("knight_rider_tint", box, color)
-		_layer("knight_rider", box)
-		_layer("knight_helm", box)
-	else:
-		_layer("cav_rider", box)
-		_layer("cav_rider_tint", box, color)
-		_layer("cav_head", box)
-	var grip := box.position + Vector2(21, 30) * k
-	var lance := Rect2(grip - Vector2(4, 44) * 0.85 * k, Vector2(8, 56) * 0.85 * k)
-	_layer("lance", lance)
-	if unit_id == "knight":
-		_layer("pennant_tint", lance, color)
-
-
-## Two horses ahead of the car with its two archers, from above.
-func _chariot(c: Vector2) -> void:
-	var k := size.y / 58.0
-	for side in [-1.0, 1.0]:
-		_layer("cav_horse", Rect2(c + Vector2(side * 7.5 - 12, -31) * k, Vector2(24, 45) * k))
-	var car := Rect2(c + Vector2(-20, 3) * k, Vector2(40, 28) * k)
-	_layer("chariot_car", car)
-	_layer("chariot_car_tint", car, color)
-	_layer("chariot_crew_tint", car, color)
-	_layer("chariot_crew", car)
+	var tiers: Array = PORTRAITS.get(unit_id, PORTRAITS.fighter)
+	var layers: Array = tiers[mini(tier, tiers.size() - 1)]
+	var side := minf(size.x, size.y + 10)
+	var box := Rect2(Vector2((size.x - side) / 2.0, size.y - side + 4), Vector2(side, side))
+	draw_circle(box.get_center() + Vector2(0, 2), side * 0.42, Color(color, 0.18))
+	# With a horse: the horse's head smaller at the lower left, the rider a
+	# little to the right, so neither hides the other's face.
+	var mounted := layers.has("horse")
+	for name in layers:
+		var t := _t("portrait/" + name)
+		if t == null:
+			continue
+		var at := box
+		if mounted and name in HORSE_LAYERS:
+			at = Rect2(box.position + Vector2(side * 0.01, side * 0.3), box.size * 0.72)
+		elif mounted and name != "wheel":
+			at = Rect2(box.position + Vector2(side * 0.12, side * 0.02), box.size * 0.96)
+		var tint := Color.WHITE
+		if name.ends_with("_tint"):
+			tint = VILLAGER_CLOTH if unit_id == "villager" else color
+		draw_texture_rect(t, at, false, tint)
