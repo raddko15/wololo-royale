@@ -256,11 +256,40 @@ func model_icon(model_id: String, tint: Color, tier2 := false) -> Texture2D:
 	var key := "%s|%s|%s" % [model_id, tint.to_html(), tier2]
 	if _icons.has(key):
 		return _icons[key]
+	var model := Models.make(model_id, tint, 1)
+	if tier2:
+		Models.military_tier2(model, tint)
+	var tex := _snapshot(model, Vector2i(180, 150), Vector3(0.35, 0.75, 1.0), 0.95)
+	_icons[key] = tex
+	return tex
+
+
+## A portrait of a troop (or a villager) for its recruit card, standing,
+## seen from the front: the same 3D figure as on the battlefield.
+func figure_icon(type: String, tier: int, tint: Color) -> Texture2D:
+	var key := "fig|%s|%d|%s" % [type, tier, tint.to_html()]
+	if _icons.has(key):
+		return _icons[key]
+	var fig: Node3D = Figures.villager(false) if type == "villager" else _make_troop(type, tier, tint)
+	Figures.animate(fig, {"type": type, "walk": -1.0, "fight": -1.0}, 0.0)
+	LowPoly.merge(fig)
+	fig.rotation.y = -0.35 if type in BattleView.MOUNTED else -0.2
+	# Framed on the body, not the full reach of a lance or spear.
+	var fill: float = {"villager": 0.62, "cavalry": 0.5, "knight": 0.5, "chariot": 0.62, "phalanx": 0.5}.get(type, 0.62)
+	var tex := _snapshot(fig, Vector2i(150, 140), Vector3(0.0, 0.35, 1.0), fill)
+	_icons[key] = tex
+	return tex
+
+
+## Render `model` once into a small picture of its own, lit like the
+## battlefield, the camera looking at it from `dir` (`fill`: how much of the
+## picture it fills, smaller is bigger).
+func _snapshot(model: Node3D, size_px: Vector2i, dir: Vector3, fill: float) -> Texture2D:
 	if _icon_holder == null:
 		_icon_holder = Node.new()
 		_world_vp.add_child(_icon_holder)
 	var vp := SubViewport.new()
-	vp.size = Vector2i(180, 150)
+	vp.size = size_px
 	vp.own_world_3d = true
 	vp.transparent_bg = true
 	vp.msaa_3d = Viewport.MSAA_4X
@@ -277,9 +306,6 @@ func model_icon(model_id: String, tint: Color, tier2 := false) -> Texture2D:
 	sun.shadow_enabled = true
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
 	vp.add_child(sun)
-	var model := Models.make(model_id, tint, 1)
-	if tier2:
-		Models.military_tier2(model, tint)
 	vp.add_child(model)
 	var box := _bounds(model)
 	var cam := Camera3D.new()
@@ -287,11 +313,8 @@ func model_icon(model_id: String, tint: Color, tier2 := false) -> Texture2D:
 	vp.add_child(cam)
 	var center := box.get_center()
 	var radius := box.size.length() / 2.0
-	var dir := Vector3(0.35, 0.75, 1.0).normalized()
-	cam.look_at_from_position(center + dir * radius / sin(deg_to_rad(cam.fov / 2.0)) * 0.95, center, Vector3.UP)
-	var tex := vp.get_texture()
-	_icons[key] = tex
-	return tex
+	cam.look_at_from_position(center + dir.normalized() * radius / sin(deg_to_rad(cam.fov / 2.0)) * fill, center, Vector3.UP)
+	return vp.get_texture()
 
 
 ## A see-through model on every open build plot of the player's.

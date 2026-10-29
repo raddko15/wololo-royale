@@ -8,6 +8,8 @@ var unit_id: String
 var color: Color
 ## The troop's level (0-2): archers carry a crossbow at level 3.
 var tier := 0
+## (3D) gives a picture of the troop's 3D figure: (unit id, tier) -> Texture2D.
+var picture := Callable()
 var _tex := {}
 
 
@@ -38,6 +40,12 @@ func _layer(name: String, r: Rect2, tint := Color.WHITE) -> void:
 
 
 func _draw() -> void:
+	if picture.is_valid():
+		var tex: Texture2D = picture.call(unit_id, tier)
+		var k := minf(size.x / tex.get_width(), (size.y + 6) / tex.get_height())
+		var sz := Vector2(tex.get_size()) * k
+		draw_texture_rect(tex, Rect2((size - sz) / 2.0 + Vector2(0, 2), sz), false)
+		return
 	var c := size / 2
 	match unit_id:
 		"cavalry", "knight":
