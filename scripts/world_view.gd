@@ -18,6 +18,8 @@ const FOV := 32.0
 ## Buildings are modeled a little small; this brings them to the size the
 ## flat map drew them.
 const BUILDING_SCALE := 1.3
+## Slack when checking that the tilted map fills the view (pixels).
+const FIT_MARGIN := 2.0
 ## Map rendered at this many times its size, so the tilted ground stays sharp.
 const MAP_SUPERSAMPLE := 2.0
 ## Below this frame rate (over a few seconds) quality steps down: a less
@@ -45,6 +47,8 @@ var _pinch_from := 0.0
 var _press_at := Vector2.INF
 var _dragged := false
 var _last_tap_ms := 0
+## The view size the map was last fitted to.
+var _fitted_for := Vector2.ZERO
 var _sun: DirectionalLight3D
 var _supersample := MAP_SUPERSAMPLE
 var _quality := 0
@@ -76,7 +80,7 @@ func _init(battle_view: BattleView) -> void:
 ## Frame the map once the 3D viewport has taken this view's size (the
 ## camera's projection uses it).
 func _process(delta: float) -> void:
-	if size.x >= 2 and Vector2(_world_vp.size) == size.floor() and _map_size != size:
+	if size.x >= 2 and Vector2(_world_vp.size) == size.floor() and _fitted_for != size:
 		_fit()
 	if _map_size != Vector2.ZERO and view.battle != null:
 		_sync_buildings()
@@ -284,17 +288,37 @@ func _build_world() -> void:
 
 ## Lay out the map at this view's size and frame it with the camera.
 func _fit() -> void:
-	_map_size = size
-	view.size = size
+	_fitted_for = size
+	_map_size = Vector2(size.x, size.y * _stretch())
+	view.size = _map_size
 	view.visible = true
 	view.in_3d = true
-	_map_vp.size_2d_override = Vector2i(size)
-	_map_vp.size = Vector2i(size * _supersample)
+	_map_vp.size_2d_override = Vector2i(_map_size)
+	_map_vp.size = Vector2i(_map_size * _supersample)
 	var plane: PlaneMesh = _ground.mesh
-	plane.size = size * PX
+	plane.size = _map_size * PX
 	_home = _framing()
 	_apply_camera()
 	_build_scenery()
+
+
+## How much taller than the view the map is laid out, so that seen tilted it
+## fills the view's height as well as its width (longer lanes, no empty
+## bands). Only the look changes: the game measures lanes from end to end.
+func _stretch() -> float:
+	var lo := 1.0
+	var hi := 3.0
+	for i in 16:
+		var k := (lo + hi) / 2.0
+		_map_size = Vector2(size.x, size.y * k)
+		camera.transform = _framing()
+		# Still as wide as the view: height is not what limits it yet.
+		var half := _map_size * PX / 2.0
+		if camera.unproject_position(Vector3(-half.x, 0, half.y)).x <= FIT_MARGIN:
+			lo = k
+		else:
+			hi = k
+	return lo
 
 
 ## The forests' trees on the map, and woods and rocks all around it.
@@ -324,7 +348,10 @@ func _build_scenery() -> void:
 			continue
 		# Sparse near the map, dense further out.
 		var gap := maxf(maxf(absf(p.x) - half.x, absf(p.y) - half.y), 0.0)
-		if rng.randf() > clampf(0.25 + gap * 0.5, 0.0, 1.0):
+		var chance := clampf(0.25 + gap * 0.5, 0.0, 1.0)
+		if p.y > half.y:
+			chance *= 0.25  # nearest the camera: few, so they don't hide the village
+		if rng.randf() > chance:
 			continue
 		(pines if rng.randf() < 0.35 else leafy).append(Vector3(p.x, 0, p.y))
 		if rng.randf() < 0.08:
