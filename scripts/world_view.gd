@@ -33,6 +33,9 @@ var camera: Camera3D
 var _world_vp: SubViewport
 var _map_vp: SubViewport
 var _ground: MeshInstance3D
+## The grass painted once, for the map to draw as one picture.
+var _grass_vp: SubViewport
+var _grass_painter: Control
 var _root: Node3D
 ## Trees and rocks, rebuilt when the map changes size.
 var _scenery: Node3D
@@ -43,6 +46,8 @@ var _building_root: Node3D
 var _figures := {}
 var _figure_root: Node3D
 var _arrows: Array[Node3D] = []
+## One batch per part mesh, drawing that part of every figure.
+var _batches := {}
 ## Health bars drawn over the 3D view: [screen point, hp, max hp, team].
 var _bars := []
 var _overlay: Control
@@ -193,6 +198,7 @@ func _sync_buildings() -> void:
 			Models.military_tier2(model, spec[2])
 		model.position = map_to_world(spec[1])
 		model.scale = Vector3.ONE * BUILDING_SCALE * (spec[3] if spec.size() > 3 else 1.0)
+		LowPoly.merge(model)
 		model.set_meta("spec", spec)
 		_building_root.add_child(model)
 		model.set_meta("box", _bounds(model))
@@ -269,6 +275,7 @@ func model_icon(model_id: String, tint: Color, tier2 := false) -> Texture2D:
 	sun.light_energy = _sun.light_energy
 	sun.rotation = _sun.rotation
 	sun.shadow_enabled = true
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
 	vp.add_child(sun)
 	var model := Models.make(model_id, tint, 1)
 	if tier2:
@@ -303,6 +310,7 @@ func _sync_ghosts() -> void:
 		if _ghosts.has(key):
 			continue
 		var model := Models.make(want[key][0], Color.WHITE)
+		LowPoly.merge(model)
 		for mi in model.find_children("*", "MeshInstance3D", true, false):
 			mi.material_override = _ghost_material()
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -390,7 +398,46 @@ func _sync_figures() -> void:
 		if not seen.has(key):
 			_figures[key].queue_free()
 			_figures.erase(key)
+	_draw_parts()
 	_fly_arrows(flights)
+
+
+## Draw every visible part of every figure: one batch per mesh.
+func _draw_parts() -> void:
+	var groups := {}
+	for fig in _figures.values():
+		for part in fig.get_meta("parts"):
+			if not part.is_visible_in_tree():
+				continue
+			var mesh: Mesh = part.get_meta("mesh")
+			if not groups.has(mesh):
+				groups[mesh] = [[], []]
+			groups[mesh][0].append(part.global_transform)
+			groups[mesh][1].append(part.get_meta("color"))
+	for mesh in _batches:
+		if not groups.has(mesh):
+			_batches[mesh].multimesh.visible_instance_count = 0
+	for mesh in groups:
+		var batch: MultiMeshInstance3D = _batches.get(mesh)
+		if batch == null:
+			var mm := MultiMesh.new()
+			mm.transform_format = MultiMesh.TRANSFORM_3D
+			mm.use_colors = true
+			mm.mesh = mesh
+			batch = MultiMeshInstance3D.new()
+			batch.multimesh = mm
+			batch.material_override = LowPoly.vertex_material()
+			_figure_root.add_child(batch)
+			_batches[mesh] = batch
+		var xforms: Array = groups[mesh][0]
+		var colors: Array = groups[mesh][1]
+		var mm := batch.multimesh
+		if mm.instance_count < xforms.size():
+			mm.instance_count = xforms.size() + 16
+		for i in xforms.size():
+			mm.set_instance_transform(i, xforms[i])
+			mm.set_instance_color(i, colors[i])
+		mm.visible_instance_count = xforms.size()
 
 
 ## The figure for `key`, made anew when it doesn't exist or its look changed.
@@ -400,6 +447,7 @@ func _figure(key: String, spec: String, make: Callable) -> Node3D:
 		if fig:
 			fig.queue_free()
 		fig = make.call()
+		Figures.compact(fig, spec)
 		fig.set_meta("spec", spec)
 		if not key.begins_with("v"):
 			fig.scale = Vector3.ONE * FIGURE_SCALE
@@ -430,6 +478,8 @@ func _fly_arrows(flights: Array) -> void:
 		tip.material_override = LowPoly.material(Color("#d0d0d0"))
 		tip.position.z = 0.06
 		a.add_child(tip)
+		for mi in [shaft, tip]:
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_figure_root.add_child(a)
 		_arrows.append(a)
 	for i in _arrows.size():
@@ -525,7 +575,7 @@ func _watch_speed(delta: float) -> void:
 			3:
 				# Cheaper shadows, not none: without them this renderer
 				# lights the whole scene noticeably darker.
-				_sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
+				_sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
 				RenderingServer.directional_shadow_atlas_set_size(1024, true)
 	_timed = 0.0
 	_slow_frames = 0.0
@@ -553,6 +603,7 @@ func _build_world() -> void:
 	sun.light_color = Color("#fff1d6")
 	sun.light_energy = 0.4
 	sun.shadow_enabled = true
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
 	sun.directional_shadow_max_distance = 40.0
 	sun.rotation_degrees = Vector3(-42, -60, 0)
 	root.add_child(sun)
@@ -596,6 +647,19 @@ func _fit() -> void:
 	view.in_3d = true
 	_map_vp.size_2d_override = Vector2i(_map_size)
 	_map_vp.size = Vector2i(_map_size * _supersample)
+	if _grass_vp == null:
+		_grass_vp = SubViewport.new()
+		_grass_vp.size_2d_override_stretch = true
+		_grass_painter = Control.new()
+		_grass_painter.draw.connect(func(): view.paint_ground(_grass_painter))
+		_grass_vp.add_child(_grass_painter)
+		_world_vp.add_child(_grass_vp)
+	_grass_painter.size = _map_size
+	_grass_vp.size_2d_override = Vector2i(_map_size)
+	_grass_vp.size = Vector2i(_map_size * MAP_SUPERSAMPLE)
+	_grass_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	_grass_painter.queue_redraw()
+	view.ground_texture = _grass_vp.get_texture()
 	var plane: PlaneMesh = _ground.mesh
 	plane.size = _map_size * PX
 	_home = _framing()

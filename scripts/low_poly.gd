@@ -200,3 +200,91 @@ static func shed(w: float, d: float, back: float, front: float) -> ArrayMesh:
 	return solid([[pts[0], pts[1], pts[2], pts[3]], [pts[4], pts[5], pts[6], pts[7]], [pts[0], pts[1], pts[5], pts[4]],
 		[pts[3], pts[2], pts[6], pts[7]], [pts[0], pts[3], pts[7], pts[4]], [pts[1], pts[2], pts[6], pts[5]]],
 		Vector3(0, (back + front) / 4.0, 0))
+
+
+## A material whose color comes from each vertex (merged models, batches).
+static func vertex_material() -> StandardMaterial3D:
+	if not _materials.has("vertex"):
+		var m := StandardMaterial3D.new()
+		m.roughness = 0.95
+		m.vertex_color_use_as_albedo = true
+		m.vertex_color_is_srgb = true
+		_materials["vertex"] = m
+	return _materials["vertex"]
+
+
+## Merge a model's parts into one mesh, each part's color kept in its
+## vertices: one draw instead of dozens. Parts are MeshInstance3Ds, or
+## Node3Ds carrying "mesh" and "color" metadata (Figures' parts). Moving
+## parts stay separate: anything in the "spin" group or named "Flame".
+static func merge(root: Node3D) -> void:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var any := false
+	for n in root.find_children("*", "Node3D", true, false):
+		if _moving(n, root):
+			continue
+		var mesh: Mesh
+		var color := Color.WHITE
+		if n is MeshInstance3D:
+			mesh = n.mesh
+			var mat := n.material_override as StandardMaterial3D
+			if mat:
+				color = mat.albedo_color
+		elif n.has_meta("mesh"):
+			mesh = n.get_meta("mesh")
+			color = n.get_meta("color")
+		if mesh == null:
+			continue
+		_append(st, mesh, color, _relative(n, root))
+		any = true
+		if n is MeshInstance3D and n.get_child_count() == 0:
+			n.free()  # each node is visited once, so this is safe here
+		elif n is MeshInstance3D:
+			n.mesh = null
+		else:
+			n.remove_meta("mesh")
+	if not any:
+		return
+	var mi := MeshInstance3D.new()
+	mi.name = "Merged"
+	mi.mesh = st.commit()
+	mi.material_override = vertex_material()
+	root.add_child(mi)
+
+
+## Add `mesh`'s triangles, moved by `t` and painted `color`.
+static func _append(st: SurfaceTool, mesh: Mesh, color: Color, t: Transform3D) -> void:
+	var arrays := mesh.surface_get_arrays(0)
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+	var colors = arrays[Mesh.ARRAY_COLOR]
+	var index = arrays[Mesh.ARRAY_INDEX]  # none on flat-shaded meshes
+	var order := PackedInt32Array(range(verts.size()))
+	if index is PackedInt32Array and not index.is_empty():
+		order = index
+	for i in order:
+		var c := color
+		if colors is PackedColorArray and not colors.is_empty():
+			c = colors[i] * color
+		st.set_color(c)
+		st.set_normal((t.basis * normals[i]).normalized())
+		st.add_vertex(t * verts[i])
+
+
+## `n`'s transform within `root` (works before either is in the tree).
+static func _relative(n: Node3D, root: Node3D) -> Transform3D:
+	var t := n.transform
+	var p := n.get_parent()
+	while p != root and p is Node3D:
+		t = (p as Node3D).transform * t
+		p = p.get_parent()
+	return t
+
+
+static func _moving(n: Node, root: Node) -> bool:
+	while n != root and n != null:
+		if n.is_in_group("spin") or n.name == "Flame":
+			return true
+		n = n.get_parent()
+	return false

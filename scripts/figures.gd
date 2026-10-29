@@ -29,15 +29,18 @@ static func _m(key: String, build: Callable) -> Mesh:
 	return _meshes[key]
 
 
-static func _part(parent: Node3D, mesh: Mesh, color: Color, pos: Vector3, name := "") -> MeshInstance3D:
-	var mi := MeshInstance3D.new()
-	mi.mesh = mesh
-	mi.material_override = LowPoly.material(color)
-	mi.position = pos
+## A part: an empty node carrying its mesh and color. Figures draw nothing
+## themselves; WorldView draws every part of every figure in batches, one
+## per mesh (see compact()).
+static func _part(parent: Node3D, mesh: Mesh, color: Color, pos: Vector3, name := "") -> Node3D:
+	var part := Node3D.new()
+	part.set_meta("mesh", mesh)
+	part.set_meta("color", color)
+	part.position = pos
 	if name != "":
-		mi.name = name
-	parent.add_child(mi)
-	return mi
+		part.name = name
+	parent.add_child(part)
+	return part
 
 
 static func _pivot(parent: Node3D, name: String, pos: Vector3) -> Node3D:
@@ -48,7 +51,7 @@ static func _pivot(parent: Node3D, name: String, pos: Vector3) -> Node3D:
 	return n
 
 
-static func _box(parent: Node3D, size: Vector3, color: Color, pos: Vector3, name := "") -> MeshInstance3D:
+static func _box(parent: Node3D, size: Vector3, color: Color, pos: Vector3, name := "") -> Node3D:
 	var key := "box%s" % size
 	return _part(parent, _m(key, func(): return LowPoly.box(size)), color, pos, name)
 
@@ -153,6 +156,7 @@ static func soldier(type: String, tier: int, color: Color) -> Node3D:
 			var face := _part(aspis, _m("aspis_face", func(): return LowPoly.prism(0.068, 0.018, 10)), color, Vector3(0, 0, 0.002))
 			face.rotation.x = PI / 2
 			var spear := _pivot(hand_r, "Weapon", Vector3.ZERO)
+			spear.set_meta("level", true)
 			var shaft := _part(spear, _m("spear", func(): return LowPoly.prism(0.008, 0.5, 5)), WOOD, Vector3(0, 0, 0.17))
 			shaft.rotation.x = PI / 2
 			_part(spear, _m("spear_tip", func(): return LowPoly.cone(0.016, 0.05, 4)), IRON, Vector3(0, 0, 0.44)).rotation.x = PI / 2
@@ -209,6 +213,7 @@ static func rider(type: String, tier: int, color: Color) -> Node3D:
 	if knight or tier >= 2:
 		_helmet(head, knight)
 	var lance := _pivot(man.get_node("Body/ArmR/Hand"), "Weapon", Vector3.ZERO)
+	lance.set_meta("level", true)
 	var shaft := _part(lance, _m("lance", func(): return LowPoly.prism(0.009, 0.55, 5)), WOOD, Vector3(0, 0, 0.2))
 	shaft.rotation.x = PI / 2
 	_part(lance, _m("lance_tip", func(): return LowPoly.cone(0.014, 0.05, 4)), IRON, Vector3(0, 0, 0.49)).rotation.x = PI / 2
@@ -243,6 +248,45 @@ static func chariot(tier: int, color: Color) -> Node3D:
 		crew.name = "Crew%d" % (side + 1)
 		root.add_child(crew)
 	return root
+
+
+# --- Batching -------------------------------------------------------------------
+
+static var _merged := {}
+
+
+## Merge the parts that move together (the direct parts of each joint) into
+## one mesh, colors in its vertices, shared by every figure with the same
+## `spec`: a person ends up with about six parts. A joint's single part is
+## kept as it is, so its color can still change (a villager's load).
+static func compact(fig: Node3D, spec: String) -> void:
+	# Joints only (parts get freed below, so they mustn't be in this list).
+	var joints: Array = [fig]
+	joints.append_array(fig.find_children("*", "Node3D", true, false).filter(func(n): return not n.has_meta("mesh")))
+	for joint in joints:
+		var parts: Array = joint.get_children().filter(func(c): return c.has_meta("mesh") and c.get_child_count() == 0)
+		if parts.size() < 2:
+			continue
+		var key := "%s|%s" % [spec, _path(fig, joint)]
+		if not _merged.has(key):
+			var st := SurfaceTool.new()
+			st.begin(Mesh.PRIMITIVE_TRIANGLES)
+			for part in parts:
+				LowPoly._append(st, part.get_meta("mesh"), part.get_meta("color"), part.transform)
+			_merged[key] = st.commit()
+		for part in parts:
+			joint.remove_child(part)
+			part.free()
+		_part(joint, _merged[key], Color.WHITE, Vector3.ZERO, "Merged")
+	fig.set_meta("parts", fig.find_children("*", "Node3D", true, false).filter(func(n): return n.has_meta("mesh")))
+
+
+static func _path(root: Node, n: Node) -> String:
+	var names := []
+	while n != root:
+		names.push_front(n.name)
+		n = n.get_parent()
+	return "/".join(names)
 
 
 # --- Posing ----------------------------------------------------------------------
@@ -325,7 +369,7 @@ static func animate(fig: Node3D, info: Dictionary, now: float) -> void:
 			var load: Node3D = body.get_node("Load")
 			load.visible = info.get("carry", "") != ""
 			if load.visible:
-				(load.get_node("Box") as MeshInstance3D).material_override = LowPoly.material(info.get("carry_color", HAIR))
+				load.get_node("Box").set_meta("color", info.get("carry_color", HAIR))
 				arm_r.rotation.x = -2.9
 				arm_l.rotation.x = -2.9
 	_level(body)
@@ -339,7 +383,7 @@ static func _level(body: Node3D) -> void:
 		if g:
 			g.rotation.x = -body.get_node("ArmL").rotation.x
 	var w: Node3D = body.get_node_or_null("ArmR/Hand/Weapon")
-	if w and w.get_child_count() > 0 and w.get_child(0).position.z > 0.0:
+	if w and w.has_meta("level"):
 		w.rotation.x = -body.get_node("ArmR").rotation.x
 
 

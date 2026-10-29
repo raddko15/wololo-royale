@@ -553,8 +553,22 @@ var _ground_size := Vector2.ZERO
 var _ground_bits := {}
 
 
+## The grass with its patches, blades and flowers painted once (set by the 3D
+## view; drawing them every frame is hundreds of draws), or null.
+var ground_texture: Texture2D
+
+
 func _draw_ground() -> void:
-	draw_rect(Rect2(Vector2.ZERO, size), GRASS)
+	if ground_texture:
+		draw_texture_rect(ground_texture, Rect2(Vector2.ZERO, size), false)
+		return
+	paint_ground(self)
+
+
+## Grass, soft patches, little blades and flowers, onto `c` (this view, or
+## the canvas that paints ground_texture).
+func paint_ground(c: CanvasItem) -> void:
+	c.draw_rect(Rect2(Vector2.ZERO, size), GRASS)
 	if _ground_size != size:
 		_ground_size = size
 		var rng := RandomNumberGenerator.new()
@@ -570,12 +584,12 @@ func _draw_ground() -> void:
 			flowers.append([Vector2(rng.randf() * size.x, rng.randf() * size.y), rng.randi() % 3])
 		_ground_bits = {"patches": patches, "tufts": tufts, "flowers": flowers}
 	for pt in _ground_bits.patches:  # soft light and dark patches
-		draw_circle(pt[0], pt[1], Color(1, 1, 0.8, 0.035) if pt[2] else Color(0, 0.1, 0, 0.04))
+		c.draw_circle(pt[0], pt[1], Color(1, 1, 0.8, 0.035) if pt[2] else Color(0, 0.1, 0, 0.04))
 	for t in _ground_bits.tufts:  # little grass blades
-		draw_line(t, t + Vector2(-2, -5), Color("#3d7230"), 1.4)
-		draw_line(t, t + Vector2(2, -5), Color("#6aa84f"), 1.4)
+		c.draw_line(t, t + Vector2(-2, -5), Color("#3d7230"), 1.4)
+		c.draw_line(t, t + Vector2(2, -5), Color("#6aa84f"), 1.4)
 	for f in _ground_bits.flowers:
-		draw_circle(f[0], 2.0, [Color("#f5f6fa"), Color("#f9ca24"), Color("#e8a0c8")][f[1]])
+		c.draw_circle(f[0], 2.0, [Color("#f5f6fa"), Color("#f9ca24"), Color("#e8a0c8")][f[1]])
 
 
 ## Dirt lanes and L roads: a darker edge under a lighter fill, then pebbles.
