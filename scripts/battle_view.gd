@@ -87,12 +87,20 @@ const TOWER_DEPTH := 300.0
 const FORT_DEPTH := 180.0
 
 ## Point at width fraction x and `depth` px in front of `team`'s back edge.
+## Villages stretched deeper by this (the 3D view: shorter lanes, more room
+## for houses and buildings).
+var depth_scale := 1.0
+
+
 func _cp(team: int, x: float, depth: float) -> Vector2:
+	depth *= depth_scale
 	return Vector2(x * size.x, size.y - depth if team == Battlefield.PLAYER else depth)
 
 
 ## Rect spanning width fractions x..x+w and depths far..near from the back edge.
 func _crect(team: int, x: float, w: float, near: float, far: float) -> Rect2:
+	near *= depth_scale
+	far *= depth_scale
 	var top := size.y - near if team == Battlefield.PLAYER else far
 	return Rect2(Vector2(x * size.x, top), Vector2(w * size.x, near - far))
 
@@ -281,7 +289,7 @@ func _slots() -> Array[Vector2]:
 		chosen.sort_custom(func(a, b): return a[0] < b[0])
 		for item in chosen:
 			var spot: Vector2 = item[1]
-			_hut_slots.append(Vector2(spot.x / size.x, size.y - spot.y))
+			_hut_slots.append(Vector2(spot.x / size.x, (size.y - spot.y) / depth_scale))
 	return _hut_slots
 
 

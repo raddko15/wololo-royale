@@ -18,6 +18,8 @@ const FOV := 32.0
 ## Buildings are modeled a little small; this brings them to the size the
 ## flat map drew them.
 const BUILDING_SCALE := 1.3
+## Lanes are this share of the length they would have on the tall map.
+const LANE_SHARE := 0.9
 ## Slack when checking that the tilted map fills the view (pixels).
 const FIT_MARGIN := 2.0
 ## Map rendered at this many times its size, so the tilted ground stays sharp.
@@ -448,6 +450,10 @@ func _build_world() -> void:
 func _fit() -> void:
 	_fitted_for = size
 	_map_size = Vector2(size.x, size.y * _stretch())
+	# Lanes 10% shorter than the tall map would make them: the room goes to
+	# the villages at both ends.
+	var villages := 2.0 * BattleView.TOWER_DEPTH
+	view.depth_scale = (_map_size.y - LANE_SHARE * (_map_size.y - villages)) / villages
 	view.size = _map_size
 	view.visible = true
 	view.in_3d = true
