@@ -83,6 +83,7 @@ func _init() -> void:
 	if era >= 1 and mode != "sites":
 		main.battle.build_towers(Battlefield.PLAYER)
 		main.battle.build_towers(Battlefield.ENEMY)
+		main.game.tick(0.0)  # the economies learn their towers stand
 		main.economy.mines = {"gold": true, "stone": true}
 	for job in ["food", "food", "food", "wood", "wood"] + (["gold", "gold", "stone", "stone"] if era >= 1 else []):
 		main.economy.villagers.idle += 1
@@ -139,8 +140,9 @@ func _init() -> void:
 		e.resources = {"food": 9000.0, "wood": 9000.0, "gold": 9000.0, "stone": 9000.0}
 		e.military = {"barracks": 1}
 		e.mines = {"gold": true}
-		main.battle.towers_built[Battlefield.PLAYER] = false
+		main.battle.towers_built[Battlefield.PLAYER] = [false, false, false]
 		main.battle.buildings[Battlefield.PLAYER].towers = [0.0, 0.0, 0.0]
+		main.game.tick(0.0)
 		e.advance()
 		e.recruit()
 		e.recruit()
@@ -149,7 +151,7 @@ func _init() -> void:
 		e.build_hut()
 		e.build_military("archery_range")
 		e.build_mine("stone")
-		e.build_towers()
+		e.build_tower(1)
 		e.buy_upgrade("mill")
 		e.train("fighter", 0)
 		e.train("fighter", 1)

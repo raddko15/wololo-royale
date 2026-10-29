@@ -520,12 +520,11 @@ func _gui_input(event: InputEvent) -> void:
 		if economy.camps.has(Economy.CAMP_FOR[res]) and pos.distance_to(drop_off(Battlefield.PLAYER, res)) < 40:
 			building_tapped.emit("mill" if res == "food" else "lumber_camp", drop_off(Battlefield.PLAYER, res))
 			return
-	if battle.towers_built[Battlefield.PLAYER]:
-		for lane in Battlefield.LANES:
-			var t := building_pos(Battlefield.PLAYER, "tower", lane)
-			if pos.distance_to(t) < 40:
-				building_tapped.emit("towers", t)
-				return
+	for lane in Battlefield.LANES:
+		var t := building_pos(Battlefield.PLAYER, "tower", lane)
+		if battle.buildings[Battlefield.PLAYER].towers[lane] > 0 and pos.distance_to(t) < 40:
+			building_tapped.emit("towers", t)
+			return
 
 
 # --- Drawing ------------------------------------------------------------
@@ -904,9 +903,14 @@ func _draw_city(team: int, now: float) -> void:
 	for l in e.leaving:
 		_draw_worker(leaver_pos(team, l), l, now, olives)
 	# Towers last so their health bars stay visible over the fields.
-	if battle.towers_built[team]:
-		for lane in Battlefield.LANES:
-			_draw_tower(building_pos(team, "tower", lane), color, battle.buildings[team].towers[lane], e.upgrades.has("stone_towers"), style, battle.tower_max_hp[team])
+	for lane in Battlefield.LANES:
+		var hp: float = battle.buildings[team].towers[lane]
+		# A destroyed tower leaves a ruin, unless it is being rebuilt or its
+		# plot is open again (then the plot shows).
+		var ruin: bool = battle.towers_built[team][lane] and not e.is_pending("towers", str(lane)) \
+			and not (team == Battlefield.PLAYER and e.site_open("towers", str(lane)))
+		if hp > 0 or ruin:
+			_draw_tower(building_pos(team, "tower", lane), color, hp, e.upgrades.has("stone_towers"), style, battle.tower_max_hp[team])
 	_draw_jobs(team, e, now)
 	_draw_helpers(team, helping, now)
 
@@ -918,12 +922,13 @@ func _draw_city(team: int, now: float) -> void:
 
 
 ## The order button for each lane, in the middle of the lane halfway between
-## the two sides' towers: HOLD / GO / BACK for the player's troops there.
+## the two sides' towers: GO / BACK for the player's troops there.
 func order_button(lane: int) -> Vector2:
 	return _lane_pos_at(lane, 0.5, 0.0)
 
 
-## Fill and rim per order: GO green ▶, HOLD amber ■, BACK blue ◀.
+## Fill and rim per order: GO green ▶, BACK blue ◀ (HOLD amber ■ is the
+## computer's, never shown).
 const ORDER_LOOK := {
 	"march": [Color("#2f5d34"), Color("#44bd32")],
 	"stop": [Color("#5a4a24"), Color("#f1c40f")],
@@ -974,9 +979,9 @@ func build_sites(e: Economy) -> Array:
 	if e.pending_count("hut") == 0 and e.max_population() < GameConfig.data().population.max_cap \
 			and e.max_population() - e.population() <= HUT_SITE_ROOM:
 		sites.append(["hut", hut_pos(p, e.huts), "hut"])
-	if e.site_open("towers", "towers") and not battle.towers_built[p]:
-		for lane in Battlefield.LANES:
-			sites.append(["towers", building_pos(p, "tower", lane), "tower"])
+	for lane in Battlefield.LANES:
+		if e.site_open("towers", str(lane)):
+			sites.append(["tower:%d" % lane, building_pos(p, "tower", lane), "tower"])
 	return sites
 
 
@@ -1016,7 +1021,7 @@ func _draw_build_site(site: Array, e: Economy, now: float) -> void:
 			affordable = e.can_build_hut()
 		_:
 			art = ["tower_wood", Vector2(0, -10), Vector2(56, 84), Vector2(0, 26), Vector2(22, 9)]
-			affordable = e.can_build_towers()
+			affordable = e.can_build_tower(int(id.trim_prefix("tower:")))
 	var base: Vector2 = c + art[3]
 	var radii: Vector2 = art[4]
 	var ring := PackedVector2Array()
@@ -1036,8 +1041,6 @@ func _draw_build_site(site: Array, e: Economy, now: float) -> void:
 	draw_line(at + Vector2(0, -6), at + Vector2(0, 6), OUTLINE, 3)
 	# Info tag under the plot: what it is and what it costs (the three tower
 	# plots share one, under the middle tower).
-	if site[2] == "tower" and not is_equal_approx(c.x, building_pos(Battlefield.PLAYER, "tower", 1).x):
-		return
 	var cfg := GameConfig.data()
 	var info: Array  # [name, cost]
 	match site[2]:
@@ -1050,7 +1053,7 @@ func _draw_build_site(site: Array, e: Economy, now: float) -> void:
 		"hut":
 			info = ["%s +%d pop" % [cfg.buildings.hut.name, cfg.buildings.hut.population], cfg.buildings.hut.cost]
 		_:
-			info = ["Towers (all 3)", cfg.buildings.towers.cost]
+			info = [cfg.buildings.towers.name, cfg.buildings.towers.cost]
 	var parts := []
 	for res in info[1]:
 		parts.append("%d %s" % [info[1][res], res])
@@ -1171,10 +1174,8 @@ func _draw_jobs(team: int, e: Economy, now: float) -> void:
 				var bs := _military_site(team, e, job.id)
 				_draw_scaffold(bs[0], bs[1], frac, now, true)
 			"towers":
-				# One job for all three: only the middle site shows the bar.
-				for lane in Battlefield.LANES:
-					var tw := _site("tower", building_pos(team, "tower", lane))
-					_draw_scaffold(tw[0], tw[1], frac, now, true, lane == 1)
+				var tw := _site("tower", building_pos(team, "tower", int(job.id)))
+				_draw_scaffold(tw[0], tw[1], frac, now, true)
 			"upgrade":
 				var sites := _upgrade_sites(team, job.id)
 				for k in sites.size():
@@ -1210,10 +1211,7 @@ func _job_sites(team: int, e: Economy, job: Dictionary) -> Array:
 		"military":
 			return [_military_site(team, e, job.id)]
 		"towers":
-			var t := []
-			for lane in Battlefield.LANES:
-				t.append(_site("tower", building_pos(team, "tower", lane)))
-			return t
+			return [_site("tower", building_pos(team, "tower", int(job.id)))]
 		"upgrade":
 			return _upgrade_sites(team, job.id)
 	return []
@@ -1305,7 +1303,8 @@ func _upgrade_sites(team: int, id: String) -> Array:
 		"towers":
 			var t := []
 			for lane in Battlefield.LANES:
-				t.append(_site("tower", building_pos(team, "tower", lane)))
+				if battle.buildings[team].towers[lane] > 0:
+					t.append(_site("tower", building_pos(team, "tower", lane)))
 			return t
 		"barracks", "archery_range", "stables":
 			return [_site("military", military_pos(team, site))]

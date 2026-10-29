@@ -74,7 +74,7 @@ func apply(_team: int, cmd: Dictionary) -> Dictionary:
 		"camp":
 			ok = e.can_build_camp(cmd.id)
 		"towers":
-			ok = e.can_build_towers()
+			ok = e.can_build_tower(int(cmd.get("lane", -1)))
 		"pause":
 			paused = cmd.on
 			_paused_at = Time.get_ticks_msec()

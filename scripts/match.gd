@@ -33,8 +33,9 @@ func _init(player_civ: String, enemy_civ: String, opponent := "ai:normal") -> vo
 	for team in 2:
 		sides.append({"auto": {}, "lanes_on": [false, true, false], "next_lane": {}})
 		if is_human(team):
-			# Players' troops wait by their towers until sent.
-			battle.lane_orders[team] = ["stop", "stop", "stop"]
+			# Players' troops wait by their towers until sent (GO), and BACK
+			# brings them home to wait again.
+			battle.lane_orders[team] = ["retreat", "retreat", "retreat"]
 			battle.fort_civ_bonus(team, economies[team].civ().get("fort_bonus", {}))
 			economies[team].job_done.connect(_on_job_done.bind(team))
 	battle.unit_died.connect(func(team: int): if is_human(team): economies[team].army_size -= 1)
@@ -49,6 +50,9 @@ func tick(delta: float) -> void:
 	if paused or battle.winner != -1:
 		return
 	for team in 2:
+		# Destroyed towers free their plots for rebuilding.
+		for lane in Battlefield.LANES:
+			economies[team].towers_up[lane] = battle.buildings[team].towers[lane] > 0
 		if is_human(team):
 			_run_auto(team)
 			economies[team].tick(delta)
@@ -103,8 +107,8 @@ func apply(team: int, cmd: Dictionary) -> Dictionary:
 			return {"ok": e.build_mine(cmd.id)}
 		"camp":
 			return {"ok": e.build_camp(cmd.id)}
-		"towers":
-			return {"ok": e.build_towers()}
+		"towers":  # {lane}: one lane tower (-1 or none: the next free lane)
+			return {"ok": e.build_tower(int(cmd.get("lane", -1)))}
 		"cancel":
 			if cmd.kind == "unit":
 				side.auto.erase(cmd.id)  # or AUTO would queue it straight back
@@ -169,7 +173,7 @@ func _on_job_done(job: Dictionary, team: int) -> void:
 				lane = 1  # no lane lit: the middle
 			battle.spawn_squad(team, job.id, lane, e.squad(job.id), e.unit_bonus(job.id), e.unit_tier(job.id))
 		"towers":
-			battle.build_towers(team)
+			battle.build_tower(team, int(job.id))
 		"era":
 			battle.fort_new_era(team, e.era_index)
 		"upgrade":

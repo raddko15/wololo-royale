@@ -44,7 +44,7 @@ func _on_job_done(job: Dictionary) -> void:
 		"unit":
 			battle.spawn_squad(team, job.id, job.lane, economy.squad(job.id), economy.unit_bonus(job.id), economy.unit_tier(job.id))
 		"towers":
-			battle.build_towers(team)
+			battle.build_tower(team)
 		"era":
 			battle.fort_new_era(team, economy.era_index)
 		"upgrade":
@@ -113,8 +113,8 @@ func _next_goal() -> Dictionary:
 				if e.era_index + 1 == int(id) and not era_cost.is_empty() and not e.is_pending("era", "next") and ready:
 					return {"cost": era_cost, "act": e.advance}
 			"towers":
-				if e.site_open("towers", "towers"):
-					return {"cost": _cfg.buildings.towers.cost, "act": e.build_towers}
+				if e.next_tower_lane() >= 0:
+					return {"cost": _cfg.buildings.towers.cost, "act": e.build_tower}
 			"mine":
 				if e.site_open("mine", id):
 					return {"cost": e.mine_cost(), "act": e.build_mine.bind(id)}

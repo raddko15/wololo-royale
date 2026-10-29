@@ -82,13 +82,13 @@ func _init() -> void:
 	_check(e.advance() and e.era_index == 0 and e.resources.food == 0 and not e.can_advance(), "advancing to Era II takes time; paid up front")
 	e.finish_jobs()
 	_check(e.era_index == 1, "Era II reached when the research finishes")
-	e.resources = {"food": 1000.0, "wood": 1150.0, "gold": 500.0, "stone": 499.0}
+	e.resources = {"food": 1000.0, "wood": 1150.0, "gold": 500.0, "stone": 349.0}
 	_check(not e.reassign("idle", "gold"), "cannot mine gold before the mine exists")
 	_check(e.build_mine("gold") and e.resources.wood == 1000 and not e.build_mine("gold"), "gold mine costs 150 wood, built once")
 	e.finish_jobs()
 	e.villagers.idle += 1
 	_check(e.reassign("idle", "gold") and e.villagers.gold == 1, "villager works the gold mine")
-	_check(not e.can_advance(), "Era III needs 500 stone too")
+	_check(not e.can_advance(), "Era III needs 350 stone too")
 	e.resources.stone = 500.0
 	_check(e.advance(), "advance to Era III with 1000/1000/500/500")
 	e.finish_jobs()
@@ -164,7 +164,7 @@ func _init() -> void:
 
 	var b0 := Battlefield.new()
 	var rusher := b0.spawn(Battlefield.ENEMY, "fighter", 1)
-	_check(not b0.towers_built[Battlefield.PLAYER], "no towers in Era I")
+	_check(not b0.towers_built[Battlefield.PLAYER].has(true), "no towers in Era I")
 	for i in 400:
 		b0.tick(0.1)
 	_check(b0.units.size() == 1 and b0.buildings[Battlefield.PLAYER].main < 1000, "the Era I fort does not shoot: a fighter hacks at it unharmed")
@@ -423,7 +423,33 @@ func _init() -> void:
 		duo.tick(0.1)
 	var theirs := duo.battle.units.filter(func(u): return u.team == Battlefield.ENEMY)
 	_check(theirs.size() >= 1 and theirs.all(func(u): return u.lane == 2), "their AUTO fighters come out in the lane they lit")
-	_check(duo.battle.lane_orders[Battlefield.ENEMY] == ["stop", "stop", "stop"] and theirs[0].waiting, "and hold by their tower until sent")
+	_check(duo.battle.lane_orders[Battlefield.ENEMY] == ["retreat", "retreat", "retreat"] and theirs[0].waiting, "and hold by their tower until sent")
+
+	# Towers: one lane at a time for wood and stone, rebuilt when destroyed,
+	# and they repair themselves when left alone.
+	var tm := Match.new("franks", "romans", "human")
+	var te: Economy = tm.economies[Battlefield.PLAYER]
+	te.era_index = 1
+	te.resources = {"food": 0.0, "wood": 500.0, "gold": 0.0, "stone": 500.0}
+	var tcost: Dictionary = GameConfig.data().buildings.towers.cost
+	_check(tcost.keys().all(func(r): return r in ["wood", "stone"]), "a tower costs wood and stone only")
+	_check(tm.apply(Battlefield.PLAYER, {"op": "towers", "lane": 0}).ok, "a tower for the left lane")
+	_check(not tm.apply(Battlefield.PLAYER, {"op": "towers", "lane": 2}).ok, "one tower goes up at a time")
+	te.finish_jobs()
+	_check(tm.battle.buildings[0].towers[0] > 0 and tm.battle.buildings[0].towers[2] == 0.0, "only the left tower stands")
+	var tmax: float = tm.battle.tower_max_hp[0]
+	tm.battle.buildings[0].towers[0] = tmax - 100.0
+	tm.battle.tower_quiet[0][0] = 0.0
+	for i in 20:
+		tm.tick(0.5)
+	_check(tm.battle.buildings[0].towers[0] > tmax - 100.0, "a tower left alone repairs itself")
+	tm.battle.buildings[0].towers[0] = 0.0
+	tm.tick(0.1)
+	_check(te.site_open("towers", "0") and tm.apply(Battlefield.PLAYER, {"op": "towers", "lane": 0}).ok, "a destroyed tower can be rebuilt")
+	te.finish_jobs()
+	_check(is_equal_approx(tm.battle.buildings[0].towers[0], tmax), "and comes back at full health")
+	tm.battle.set_order(Battlefield.PLAYER, 1, "march")
+	_check(tm.battle.lane_orders[0][1] == "march" and tm.sides.size() == 2, "lanes switch between GO and BACK")
 
 	# A worker called back first drops off what it carries, then walks home.
 	var home := Economy.new("franks")

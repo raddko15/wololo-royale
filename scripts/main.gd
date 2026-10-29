@@ -187,13 +187,13 @@ func _recruit_lanes() -> Control:
 	return row
 
 
-## A lane's order button on the map was tapped: HOLD → GO → BACK.
+## A lane's order button on the map was tapped: GO ↔ BACK.
 func _cycle_lane_order(lane: int) -> void:
-	var next: String = {"stop": "march", "march": "retreat", "retreat": "stop"}[battle.lane_orders[my_team][lane]]
+	var next: String = "retreat" if battle.lane_orders[my_team][lane] == "march" else "march"
 	_do({"op": "lane_order", "lane": lane, "order": next})
 	_update_lane_marks()
-	var what: String = {"stop": "HOLD – troops wait by the tower and defend", "march": "GO – the whole group marches out to attack",
-		"retreat": "BACK – troops return to the tower"}[next]
+	var what: String = {"march": "GO – the whole group marches out to attack",
+		"retreat": "BACK – troops return to the tower, wait there and defend"}[next]
 	_flash_hint("%s lane: %s" % [["Left", "Middle", "Right"][lane], what])
 
 
@@ -428,7 +428,9 @@ func _on_menu_choice(id: String) -> bool:
 			cmd = {"op": "hut"}
 			closes = false
 		"towers":
-			cmd = {"op": "towers"}
+			cmd = {"op": "towers"}  # the next free lane
+		_ when id.begins_with("tower:"):
+			cmd = {"op": "towers", "lane": int(id.trim_prefix("tower:"))}
 		"gold", "stone":
 			cmd = {"op": "mine", "id": id}
 		"farm", "lumberjack":
@@ -466,6 +468,9 @@ func _on_site_tapped(id: String) -> void:
 	elif id in Economy.MINED:
 		cost = economy.mine_cost()
 		name = "%s mine" % id.capitalize()
+	elif id.begins_with("tower:"):
+		cost = cfg.buildings.towers.cost
+		name = cfg.buildings.towers.name
 	else:
 		cost = cfg.buildings.towers.cost
 		name = "Towers"
@@ -598,8 +603,10 @@ func _menu_options(kind: String) -> Array:
 			var full: bool = economy.max_population() >= cfg.population.max_cap
 			opts.append(_option("hut", "hut", "Hut +%d" % hut.population, "max pop" if full else _cost_text(hut.cost), economy.can_build_hut()))
 			var towers: Dictionary = cfg.buildings.towers
-			var tnote := _status_note(economy.has_towers, "towers", "towers", towers.min_era, towers.cost)
-			opts.append(_option("towers", "towers", "Towers", tnote, economy.can_build_towers()))
+			var tnote := _status_note(not economy.towers_up.has(false), "towers", "", towers.min_era, towers.cost)
+			if economy.pending_count("towers") > 0:
+				tnote = "in progress"
+			opts.append(_option("towers", "towers", towers.name, tnote, economy.can_build_tower()))
 			var mine: Dictionary = cfg.buildings.mine
 			for res in Economy.MINED:
 				var mnote := _status_note(economy.mines.has(res), "mine", res, economy.mine_era(res), mine.cost)
@@ -683,7 +690,7 @@ func _describe(id: String) -> String:
 		"hut":
 			return "+%d population" % cfg.buildings.hut.population
 		"towers":
-			return "a tower on each lane"
+			return "guards a lane; rebuild it if it falls"
 		"gold", "stone":
 			return "lets villagers mine %s" % id
 		"farm":
@@ -705,7 +712,7 @@ func _next_upgrades() -> Array:
 			if not economy.upgrades.has(id):
 				ids.append(id)
 				break
-	if battle.towers_built[Battlefield.PLAYER] and not economy.upgrades.has("stone_towers"):
+	if battle.towers_built[Battlefield.PLAYER].has(true) and not economy.upgrades.has("stone_towers"):
 		ids.append("stone_towers")
 	for res in Economy.MINED:
 		if economy.mines.has(res) and not economy.upgrades.has(res + "_mine2"):
@@ -790,7 +797,7 @@ func _refresh() -> void:
 	var full := not economy.has_room()
 	_ui.pop.add_theme_color_override("font_color", Color("#e55039") if full else UiStyle.CREAM)
 	if Time.get_ticks_msec() > _ui.get("hint_until", 0):
-		_ui.hint.text = "Tap a card for AUTO · lanes for new troops below · HOLD / GO / BACK by the towers"
+		_ui.hint.text = "Tap a card for AUTO · lanes for new troops below · GO / BACK on the lanes"
 
 	var dragging: String = _press.get("card", "") if _ghost else ""
 	var vcost := economy.villager_cost()

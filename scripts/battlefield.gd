@@ -19,9 +19,13 @@ const MAIN_DIST := [0.5, 0.12, 0.5]
 const REACH_EPS := 0.001
 
 ## buildings[team] = {"towers": [hp, hp, hp], "main": hp}. Towers start
-## unbuilt (hp 0, nothing to fight) until build_towers() is called in Era II.
+## unbuilt (hp 0, nothing to fight) until build_tower() raises one (from Era II).
 var buildings: Array = []
-var towers_built := [false, false]
+## Per side and lane: whether a tower was ever built there (a destroyed one
+## leaves a ruin until it is rebuilt).
+var towers_built := [[false, false, false], [false, false, false]]
+## Seconds since each tower was last hit: left alone, it repairs like the fort.
+var tower_quiet := [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
 ## Full health of each side's lane towers (raised by the stone towers upgrade).
 var tower_max_hp := [0.0, 0.0]
 var units: Array[Dictionary] = []
@@ -67,13 +71,20 @@ func _init(cfg: Dictionary = GameConfig.data()) -> void:
 		tower_max_hp[team] = float(_cfg.buildings.tower.hp)
 
 
-## A fort left alone for regen_delay_sec repairs itself slowly.
+## A fort or tower left alone for regen_delay_sec repairs itself slowly
+## (a destroyed tower stays down until it is rebuilt).
 func _repair_forts(delta: float) -> void:
 	var fort: Dictionary = _cfg.buildings.main
+	var tower: Dictionary = _cfg.buildings.tower
 	for team in 2:
 		fort_quiet[team] += delta
 		if fort_quiet[team] >= fort.regen_delay_sec and buildings[team].main > 0:
 			buildings[team].main = minf(buildings[team].main + fort.regen_per_sec * delta, fort_max_hp[team])
+		for lane in LANES:
+			tower_quiet[team][lane] += delta
+			var hp: float = buildings[team].towers[lane]
+			if hp > 0 and hp < tower_max_hp[team] and tower_quiet[team][lane] >= tower.regen_delay_sec:
+				buildings[team].towers[lane] = minf(hp + tower.regen_per_sec * delta, tower_max_hp[team])
 
 
 func fort_repairing(team: int) -> bool:
@@ -96,11 +107,17 @@ func fort_civ_bonus(team: int, bonus: Dictionary) -> void:
 	fort_armor[team] += _fort_extra_armor[team]
 
 
-## All three lane towers of `team` at full health.
+## A lane tower of `team` goes up (again) at full health.
+func build_tower(team: int, lane: int) -> void:
+	buildings[team].towers[lane] = tower_max_hp[team]
+	towers_built[team][lane] = true
+	tower_quiet[team][lane] = 0.0
+
+
+## All three lane towers at once (tests).
 func build_towers(team: int) -> void:
 	for lane in LANES:
-		buildings[team].towers[lane] = tower_max_hp[team]
-	towers_built[team] = true
+		build_tower(team, lane)
 
 
 ## Stone towers: more maximum health, and standing towers gain the difference.
@@ -271,6 +288,7 @@ func _unit_act(u: Dictionary, delta: float) -> void:
 	if absf(target_y - u.y) <= u.range + REACH_EPS:
 		if buildings[enemy].towers[u.lane] > 0:
 			buildings[enemy].towers[u.lane] -= u.dps * delta
+			tower_quiet[enemy][u.lane] = 0.0
 			u.target = "tower"
 		else:
 			buildings[enemy].main -= u.dps * (1.0 - fort_armor[enemy]) * delta

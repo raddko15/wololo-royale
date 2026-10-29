@@ -45,7 +45,7 @@ func _on_job_done(job: Dictionary) -> void:
 		"unit":
 			battle.spawn_squad(team, job.id, job.lane, economy.squad(job.id), economy.unit_bonus(job.id), economy.unit_tier(job.id))
 		"towers":
-			battle.build_towers(team)
+			battle.build_tower(team, int(job.id))
 		"era":
 			battle.fort_new_era(team, economy.era_index)
 		"upgrade":
@@ -88,10 +88,10 @@ func _next_goal() -> Dictionary:
 	# [kind, id, era it may start in, (villagers needed)]; "barracks:2" = a second barracks.
 	var steps := [
 		["camp", "farm", 0], ["camp", "lumberjack", 0], ["military", "barracks", 0], ["mine", "gold", 0, 12],
-		["military", "barracks:2", 0], ["era", "1", 0], ["towers", "", 1], ["upgrade", "lumber_camp", 1], ["upgrade", "mill", 1],
+		["military", "barracks:2", 0], ["era", "1", 0], ["mine", "stone", 1], ["towers", "", 1], ["upgrade", "lumber_camp", 1], ["upgrade", "mill", 1],
 		["military", "archery_range", 1], ["military", "barracks:2", 1], ["military", "stables", 1],
 		["upgrade", "barracks1", 1], ["upgrade", "archery_range1", 1], ["upgrade", "stables1", 1],
-		["mine", "stone", 1], ["military", "archery_range:2", 1], ["era", "2", 1], ["upgrade", "stone_towers", 2],
+		["military", "archery_range:2", 1], ["era", "2", 1], ["upgrade", "stone_towers", 2],
 		["military", "stables:2", 2], ["upgrade", "mill2", 2], ["upgrade", "lumber_camp2", 2],
 		["upgrade", "barracks2", 2], ["upgrade", "archery_range2", 2], ["upgrade", "stables2", 2],
 		["military", "barracks:3", 2], ["military", "stables:3", 2], ["military", "archery_range:3", 2],
@@ -118,8 +118,9 @@ func _next_goal() -> Dictionary:
 				if e.era_index + 1 == int(id) and not era_cost.is_empty() and not e.is_pending("era", "next") and ready:
 					return {"cost": era_cost, "act": e.advance}
 			"towers":
-				if e.site_open("towers", "towers"):
-					return {"cost": _cfg.buildings.towers.cost, "act": e.build_towers}
+				var lane := e.next_tower_lane()
+				if lane >= 0:
+					return {"cost": _cfg.buildings.towers.cost, "act": e.build_tower.bind(lane)}
 			"mine":
 				if e.site_open("mine", id):
 					return {"cost": e.mine_cost(), "act": e.build_mine.bind(id)}

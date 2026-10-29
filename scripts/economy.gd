@@ -44,8 +44,10 @@ var workers: Array[Dictionary] = []
 ## ("from": "spot" | "drop" | "walk" from the drop-off | "walk_fire" from the
 ## campfire, at fraction t0 of the walk out).
 var leaving: Array[Dictionary] = []
-## Lane towers finished (they are built through a job like everything else).
-var has_towers := false
+## Which lane towers stand (left, middle, right). Each is built through a
+## job like everything else; the match keeps this in step with the
+## battlefield, so a destroyed tower's plot opens again.
+var towers_up := [false, false, false]
 ## Everything ordered but not finished: {"queue", "kind", "id", "lane", "t", "total"}.
 ## Jobs in the same queue run one after another (e.g. villagers and the era at
 ## the town center); different queues run at the same time. Paid up front.
@@ -187,7 +189,7 @@ func _complete(j: Dictionary) -> void:
 		"upgrade":
 			upgrades[j.id] = true
 		"towers":
-			has_towers = true
+			towers_up[int(j.id)] = true
 	job_done.emit(j)
 	changed.emit()
 
@@ -425,7 +427,8 @@ func advance() -> bool:
 
 ## Whether a building could go up now, cost aside: its era is reached and it is
 ## neither built (up to 3 of each military building) nor under way. `kind`
-## is "military", "mine", "camp" or "towers".
+## is "military", "mine", "camp" or "towers" (id: the lane, "0" to "2"; one
+## tower goes up at a time).
 func site_open(kind: String, id: String) -> bool:
 	if is_pending(kind, id):
 		return false
@@ -438,7 +441,7 @@ func site_open(kind: String, id: String) -> bool:
 			return not mines.has(id) and era_index >= mine_era(id)
 		"camp":
 			return not camps.has(id)
-	return not has_towers and era_index >= _cfg.buildings.towers.min_era
+	return not towers_up[int(id)] and pending_count("towers") == 0 and era_index >= _cfg.buildings.towers.min_era
 
 
 func can_build_military(id: String) -> bool:
@@ -453,16 +456,29 @@ func build_military(id: String) -> bool:
 	return true
 
 
-func can_build_towers() -> bool:
-	return site_open("towers", "towers") and can_afford(_cfg.buildings.towers.cost)
+## The lane whose tower would go up next (middle first), or -1.
+func next_tower_lane() -> int:
+	for lane in [1, 0, 2]:
+		if site_open("towers", str(lane)):
+			return lane
+	return -1
 
 
-## All three lane towers at once; the owner raises them on job_done.
-func build_towers() -> bool:
-	if not can_build_towers():
+## `lane` -1: the next one (next_tower_lane).
+func can_build_tower(lane := -1) -> bool:
+	if lane < 0:
+		lane = next_tower_lane()
+	return lane >= 0 and site_open("towers", str(lane)) and can_afford(_cfg.buildings.towers.cost)
+
+
+## One lane tower; the owner raises it on job_done.
+func build_tower(lane := -1) -> bool:
+	if lane < 0:
+		lane = next_tower_lane()
+	if not can_build_tower(lane):
 		return false
 	_pay(_cfg.buildings.towers.cost)
-	_enqueue("build:towers", "towers", "towers", _cfg.buildings.towers.time)
+	_enqueue("build:towers", "towers", str(lane), _cfg.buildings.towers.time)
 	return true
 
 

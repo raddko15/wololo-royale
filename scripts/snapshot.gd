@@ -49,7 +49,7 @@ static func _economy(e: Economy) -> Dictionary:
 	return {
 		"resources": e.resources, "villagers": e.villagers, "army_size": e.army_size, "huts": e.huts,
 		"mines": e.mines, "camps": e.camps, "military": e.military, "upgrades": e.upgrades,
-		"has_towers": e.has_towers, "era_index": e.era_index, "job_speed": e.job_speed,
+		"towers_up": e.towers_up, "era_index": e.era_index, "job_speed": e.job_speed,
 		"workers": e.workers.map(func(w): return [w.job, w.phase, w.t, w.carry, w.spot]),
 		"leaving": e.leaving.map(func(l): return [l.job, l.phase, l.t, l.carry, l.spot, l.from, l.t0]),
 		"jobs": e.jobs.map(func(j): return [j.queue, j.kind, j.id, j.lane, j.t, j.total]),
@@ -92,7 +92,7 @@ static func restore(snap: Dictionary, battle: Battlefield, economies: Array) -> 
 	for local in 2:
 		var e: Economy = economies[local]
 		var s: Dictionary = snap.economies[local]
-		for key in ["resources", "villagers", "army_size", "huts", "mines", "camps", "military", "upgrades", "has_towers", "era_index", "job_speed"]:
+		for key in ["resources", "villagers", "army_size", "huts", "mines", "camps", "military", "upgrades", "towers_up", "era_index", "job_speed"]:
 			e.set(key, s[key])
 		var workers: Array[Dictionary] = []
 		for w in s.workers:

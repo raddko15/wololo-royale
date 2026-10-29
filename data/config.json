@@ -104,10 +104,10 @@
       "name": "Era III",
       "villager_speed": 1.5,
       "advance_cost": {
-        "food": 1000,
-        "wood": 1000,
-        "gold": 500,
-        "stone": 500
+        "food": 800,
+        "wood": 800,
+        "gold": 400,
+        "stone": 350
       },
       "time": 45
     }
@@ -241,7 +241,9 @@
       "range": 0.2,
       "arrow_damage": 6,
       "attack_interval_sec": 1.0,
-      "arrow_flight_sec": 0.35
+      "arrow_flight_sec": 0.35,
+      "regen_delay_sec": 5,
+      "regen_per_sec": 3
     },
     "main": {
       "hp": 1000,
@@ -262,12 +264,13 @@
       "time": 6
     },
     "towers": {
-      "name": "Towers",
+      "name": "Tower",
       "cost": {
-        "wood": 300
+        "wood": 100,
+        "stone": 75
       },
       "min_era": 1,
-      "time": 25
+      "time": 15
     },
     "farm": {
       "name": "Farm",
