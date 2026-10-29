@@ -705,7 +705,8 @@ func villager_died(gone: Dictionary) -> void:
 		var idle: int = economy.idle_at_fire()
 		pos = idle_spot(p, idle, idle + 1) + Vector2(0, 6)
 	var h := randi()
-	corpses.append({"pos": pos, "type": "villager", "tier": 0, "color": VILLAGER_TUNIC,
+	var woman := randi() % 2 == 1
+	corpses.append({"pos": pos, "type": "villager", "tier": 0, "color": VILLAGER_DRESS if woman else VILLAGER_TUNIC, "woman": woman,
 		"born": game_clock, "angle": PI / 2 if h % 2 == 0 else -PI / 2,
 		"weapon_angle": 0.0})
 
@@ -757,7 +758,7 @@ func _draw_body(c: Dictionary, m: Color, rotten: bool, now: float) -> void:
 		draw_set_transform(Vector2.ZERO)
 		p += Vector2(14, 8)
 	draw_set_transform(p, c.angle, Vector2.ONE)
-	_draw_figure(Vector2(0, 10), c.color, [], UNIT_SCALE)
+	_draw_figure(Vector2(0, 10), c.color, [], UNIT_SCALE, -1.0, false, false, WOMAN_LOOK if c.get("woman", false) else {})
 	draw_set_transform(Vector2.ZERO)
 	if c.type != "villager":  # villagers carry no weapon
 		var weapon: Array = {"archer": ["bow", Vector2(16, 30), Vector2(8, 15)], "chariot": ["bow", Vector2(16, 30), Vector2(8, 15)],
@@ -897,7 +898,7 @@ func _draw_city(team: int, now: float) -> void:
 	var helping := _helper_spots(team, e)
 	var at_fire: int = maxi(e.idle_at_fire() - helping.size() - _helper_back[team].size(), 0)
 	for i in at_fire:
-		_draw_figure(idle_spot(team, i, at_fire) + Vector2(0, 6), VILLAGER_TUNIC, [], 0.6)
+		_draw_villager(idle_spot(team, i, at_fire) + Vector2(0, 6), i, 0.6)
 	for w in e.workers:
 		_draw_worker(worker_pos(team, w), w, now, olives)
 	for l in e.leaving:
@@ -1259,14 +1260,14 @@ func _draw_helpers(team: int, spots: Array[Vector2], now: float) -> void:
 			back.remove_at(k)  # sits down at the fire
 			continue
 		back[k] = b
-		_draw_figure(b, VILLAGER_TUNIC, [], 0.6, fmod(now * 12.0 + k * 1.3, TAU))
+		_draw_villager(b, k + 1, 0.6, fmod(now * 12.0 + k * 1.3, TAU))
 	for k in spots.size():
 		var p: Vector2 = pos[k]
 		var arrived := p.distance_to(spots[k]) < 1.0
 		p = p.move_toward(spots[k], 2.5)
 		pos[k] = p
 		var phase := float(k) * 1.3
-		_draw_figure(p, VILLAGER_TUNIC, [], 0.6, -1.0 if arrived else fmod(now * 12.0 + phase, TAU), true)
+		_draw_villager(p, k, 0.6, -1.0 if arrived else fmod(now * 12.0 + phase, TAU), true)
 		if arrived:
 			# Hammer: handle and head, knocking up and down.
 			var hand := p + Vector2(5, -8)
@@ -1363,7 +1364,7 @@ func _draw_scaffold(c: Vector2, sz: Vector2, frac: float, now: float, new_site: 
 	var head := b + Vector2(-2, -6) + Vector2.from_angle(-PI / 2 - 0.6 + swing) * 12
 	draw_line(b + Vector2(-2, -6), head, COLORS.stick, 2)
 	draw_rect(Rect2(head - Vector2(3, 2), Vector2(6, 4)), COLORS.stone)
-	_draw_figure(b + Vector2(0, 4), VILLAGER_TUNIC, [], 0.55)
+	_draw_villager(b + Vector2(0, 4), int(c.x), 0.55)
 	if show_bar:
 		_draw_progress(Vector2(c.x, r.end.y + 12), sz.x, frac, Color("#f9ca24"), label)
 
@@ -1508,6 +1509,32 @@ const OUTLINE := Color("#2b1d10")
 var _mod := Color.WHITE
 ## Civilian tunic color for villagers (soldiers wear their civ color).
 const VILLAGER_TUNIC := Color("#d9c8a0")
+## Village women: a long madder-red dress with an apron, long hair tied back.
+const VILLAGER_DRESS := Color("#a0674b")
+const WOMAN_LOOK := {"body": "dress_tint", "under_head": ["apron", "hair_long"], "over_head": ["kerchief"],
+	"under_head_back": [], "over_head_back": ["hair_long_back"]}
+const SKIN := Color("#e8b98a")
+
+
+## A villager: a man in a tunic with short hair, or a woman in a dress with
+## long hair. `seed` picks which, so the same villager keeps its look.
+func _draw_villager(p: Vector2, seed: int, scale: float, walk := -1.0, back := false) -> void:
+	if posmod(seed, 2) == 1:
+		_draw_figure(p, VILLAGER_DRESS, [], scale, walk, back, false, WOMAN_LOOK)
+	else:
+		_draw_figure(p, VILLAGER_TUNIC, [], scale, walk, back)
+
+
+## A bare hand (for poses that move the hands, like drawing a bow).
+func _draw_hand(at: Vector2, scale: float) -> void:
+	draw_circle(at, 2.3 * scale + 0.65, OUTLINE * _mod)
+	draw_circle(at, 2.3 * scale - 0.2, SKIN * _mod)
+
+
+## An arm in the tunic's color from shoulder to hand.
+func _draw_arm(from: Vector2, to: Vector2, color: Color, scale: float) -> void:
+	draw_line(from, to, OUTLINE * _mod, 3.6 * scale + 1.0)
+	draw_line(from, to, color * _mod, 3.6 * scale - 0.4)
 
 
 ## Top-left of a figure's 32x40 art box when it stands at `p`.
@@ -1521,7 +1548,10 @@ func _figure_origin(p: Vector2, scale: float) -> Vector2:
 ## `back`: seen from behind (the player's troops face the enemy, up the
 ## screen), using the *_back head and gear art where it exists.
 ## `seated`: astride a horse, legs hanging down both sides.
-func _draw_figure(p: Vector2, color: Color, gear: Array, scale := 1.0, walk := -1.0, back := false, seated := false) -> void:
+## `look` changes the outfit: "body" (tinted art instead of the tunic),
+## layers "under_head" / "over_head" (and their "_back" sets for the back
+## view), and "hands": false when the pose draws its own hands.
+func _draw_figure(p: Vector2, color: Color, gear: Array, scale := 1.0, walk := -1.0, back := false, seated := false, look := {}) -> void:
 	var m := _mod
 	if walk >= 0.0:
 		p.y -= absf(sin(walk)) * 1.6 * scale
@@ -1533,9 +1563,8 @@ func _draw_figure(p: Vector2, color: Color, gear: Array, scale := 1.0, walk := -
 			var boot := o + Vector2(16 + side * 10, 37) * scale
 			draw_line(hip, boot, OUTLINE * m, 5.0 * scale)
 			draw_line(hip, boot, LEG * m, 3.0 * scale)
-		var layers := ["unit_tint", "head_back" if back else "head"]
-		for name in layers + gear.map(func(g): return _facing_art(g, back)):
-			draw_texture_rect(_tex(name), box, false, (color if name == "unit_tint" else Color.WHITE) * m)
+		for name in _figure_layers(look, back, false) + gear.map(func(g): return _facing_art(g, back)):
+			draw_texture_rect(_tex(name), box, false, (color if name == look.get("body", "unit_tint") else Color.WHITE) * m)
 		return
 	# Legs: each lifts and swings in turn while walking.
 	for side in [-1, 1]:
@@ -1548,11 +1577,23 @@ func _draw_figure(p: Vector2, color: Color, gear: Array, scale := 1.0, walk := -
 		var leg := Rect2(o + Vector2(16 + side * 3.5 - 2 + swing, 31 - lift) * scale, Vector2(4, 6) * scale)
 		draw_rect(leg, LEG * m)
 		draw_rect(leg, OUTLINE * m, false, 1.0)
-	var head := "head_back" if back else "head"
-	for name in ["unit", "unit_tint", head] + gear.map(func(g): return _facing_art(g, back)):
+	for name in _figure_layers(look, back, true) + gear.map(func(g): return _facing_art(g, back)):
 		var t := _tex(name)
 		if t:
-			draw_texture_rect(t, box, false, (color if name == "unit_tint" else Color.WHITE) * m)
+			draw_texture_rect(t, box, false, (color if name == look.get("body", "unit_tint") else Color.WHITE) * m)
+
+
+## Art layers of a figure, back to front (see _draw_figure's `look`).
+func _figure_layers(look: Dictionary, back: bool, with_base: bool) -> Array:
+	var sfx := "_back" if back else ""
+	var layers := []
+	if with_base:
+		layers.append("unit" if look.get("hands", true) else "unit_nohands")
+	layers.append(look.get("body", "unit_tint"))
+	layers.append_array(look.get("under_head" + sfx, []))
+	layers.append("head_back" if back else "head")
+	layers.append_array(look.get("over_head" + sfx, []))
+	return layers
 
 
 ## Gear art for the side we see: "<name>_back" when seen from behind and it exists.
@@ -1564,11 +1605,12 @@ func _facing_art(name: String, back: bool) -> String:
 
 ## A weapon texture drawn pointing along `angle`, pivoting at `pivot` (in the
 ## texture's own pixels, at 1x) placed on `at`. Textures point up by default.
-func _draw_weapon(name: String, tex_size: Vector2, pivot: Vector2, at: Vector2, angle: float, scale := 1.0) -> void:
+## `length` shortens it along its length (foreshortening).
+func _draw_weapon(name: String, tex_size: Vector2, pivot: Vector2, at: Vector2, angle: float, scale := 1.0, length := 1.0) -> void:
 	var t := _tex(name)
 	if t == null:
 		return
-	draw_set_transform(at, angle + PI / 2, Vector2(scale, scale))
+	draw_set_transform(at, angle + PI / 2, Vector2(scale, scale * length))
 	draw_texture_rect(t, Rect2(-pivot, tex_size), false, _mod)
 	draw_set_transform(Vector2.ZERO)
 
@@ -1586,32 +1628,88 @@ func _draw_shield(at: Vector2, color: Color, scale := 1.0) -> void:
 	draw_texture_rect(_tex("shield_tint"), r, false, color)
 
 
-## Archer: a figure with a bow (hood and quiver at level 2, steel cap and a
-## crossbow at level 3); while attacking, an arrow flies to the target.
+## Archer: holds the bow upright at its side, and when shooting raises it at
+## shoulder height, nocks an arrow and draws the string back to the chin,
+## loosing as the arrow (in flight to the target) sets off again. Hood and
+## quiver at level 2; at level 3 a crossbowman with a steel cap, who carries
+## the crossbow across the chest and shoulders it to shoot.
 func _draw_archer(u: Dictionary, p: Vector2, color: Color, now: float, target: Vector2) -> void:
-	var facing := -PI / 2 if u.team == Battlefield.PLAYER else PI / 2
-	if target != Vector2.INF:
-		facing = (target - p).angle()
 	var tier: int = u.get("tier", 0)
 	var k := UNIT_SCALE
-	var o := _figure_origin(p, k)
+	var back: bool = u.team == Battlefield.PLAYER
+	var walk := _walk_phase(u, now)
+	var shooting := target != Vector2.INF
+	# The flying arrow's progress: it leaves as the string is let go.
+	var flight := fmod(now * 1.2 + u.side, 1.0)
+	# Bow arm toward the target's side of the screen (left when straight on).
+	var side := 1.0 if shooting and target.x > p.x + 4.0 else -1.0
+	var bob := -absf(sin(walk)) * 1.6 * k if walk >= 0.0 else 0.0
+	var o := _figure_origin(p + Vector2(0, bob), k)
+	var at := func(x: float, y: float) -> Vector2: return o + Vector2(x, y) * k
 	if tier >= 1:
-		draw_texture_rect(_tex("quiver"), Rect2(o, FIGURE * k), false)
+		draw_texture_rect(_tex("quiver"), Rect2(_figure_origin(p, k), FIGURE * k), false)
 	var gear := ["hood"] if tier == 1 else (["helmet_1"] if tier >= 2 else [])
-	_draw_figure(p, color, gear, k, _walk_phase(u, now), u.team == Battlefield.PLAYER)
-	var hand := o + Vector2(26, 27) * k
+	var release: Vector2  # where the arrow or bolt leaves from
 	if tier >= 2:
-		_draw_weapon("crossbow", Vector2(18, 30), Vector2(9, 22), hand, facing, k)
+		var aim: Vector2
+		if shooting:
+			aim = (target - at.call(16.0, 20.0)).normalized()
+		else:
+			aim = Vector2.from_angle(-PI / 2 - 0.55)
+		var shoulder: Vector2 = at.call(16.0 + 4.0, 21.0) if shooting else at.call(25.0, 27.0)
+		# Foreshortened when pointing toward or away from the viewer.
+		var reach := lerpf(0.7, 1.0, absf(aim.x)) if shooting else 1.0
+		var behind := shooting and aim.y < -0.3  # aimed up the screen: the body hides the stock
+		if behind:
+			_draw_weapon("crossbow", Vector2(18, 30), Vector2(9, 22), shoulder, aim.angle(), k, reach)
+		_draw_figure(p, color, gear, k, walk, back, false, {"hands": false})
+		if not behind:
+			_draw_weapon("crossbow", Vector2(18, 30), Vector2(9, 22), shoulder, aim.angle(), k, reach)
+		var fore: Vector2 = shoulder + aim * 7.0 * k * reach
+		_draw_hand(shoulder, k)
+		_draw_hand(fore, k)
+		release = shoulder + aim * 14.0 * k * reach
 	else:
-		# The bow's image faces right; turn it so it faces the target.
-		_draw_weapon("bow", Vector2(16, 30), Vector2(5, 15), hand, facing - PI / 2, k)
-	if target != Vector2.INF:
-		var t := fmod(now * 1.2 + u.side, 1.0)
-		var ap := hand.lerp(target, t) + Vector2(0, -sin(PI * t) * 18)
-		var dir := (target - hand).normalized()
+		_draw_figure(p, color, gear, k, walk, back, false, {"hands": false})
+		var pull := smoothstep(0.1, 0.85, flight) if shooting else 0.0
+		var grip: Vector2 = at.call(16.0 + side * 13.0, 19.0) if shooting else at.call(16.0 + side * 10.5, 26.0)
+		var free: Vector2 = at.call(16.0 - side * 10.0, 27.0)
+		if shooting:
+			free = grip - Vector2(side * (4.0 + 9.0 * pull) * k, 0)  # the string hand
+			_draw_arm(at.call(16.0 + side * 5.0, 20.0), grip, color, k)
+			_draw_arm(at.call(16.0 - side * 5.0, 20.0), free, color, k)
+		_draw_bow(grip, side, pull if shooting else 0.0, shooting and flight > 0.1, k)
+		_draw_hand(grip, k)
+		_draw_hand(free, k)
+		release = grip
+	if shooting:
+		var ap := release.lerp(target, flight) + Vector2(0, -sin(PI * flight) * 18)
+		var dir := (target - release).normalized()
 		draw_line(ap - dir * 12, ap, Color("#1b120a"), 2)
 		draw_circle(ap, 2, Color("#d0d0d0"))
 	_draw_hp(p + Vector2(0, -30), u.hp, u.max_hp, 26)
+
+
+## An upright bow held at `grip`, its back bulging toward `side` (-1 left,
+## 1 right); `pull` (0..1) draws the string back, with an arrow on it if `nocked`.
+func _draw_bow(grip: Vector2, side: float, pull: float, nocked: bool, k: float) -> void:
+	var half := 13.0 * k
+	var tip_in := side * 3.0 * k  # the tips curve back toward the archer
+	var top := grip + Vector2(-tip_in, -half)
+	var bottom := grip + Vector2(-tip_in, half)
+	var limb := PackedVector2Array()
+	for i in 13:
+		var t := float(i) / 12.0
+		var a := top.lerp(bottom, t)
+		limb.append(a + Vector2(side * 4.0 * k * sin(PI * t), 0))
+	var nock := grip + Vector2(-side * (4.0 + 9.0 * pull) * k - tip_in, 0)
+	draw_polyline(PackedVector2Array([top, nock, bottom]), Color("#ecf0f1") * _mod, 1.0)
+	draw_polyline(limb, OUTLINE * _mod, 3.4 * k + 0.6)
+	draw_polyline(limb, Color("#a0703f") * _mod, 1.8 * k)
+	if nocked:
+		var head := grip + Vector2(side * 7.0 * k, 0)
+		draw_line(nock, head, Color("#1b120a") * _mod, 1.6)
+		draw_colored_polygon(PackedVector2Array([head + Vector2(side * 3.0, 0), head + Vector2(0, -2), head + Vector2(0, 2)]), Color("#d0d0d0") * _mod)
 
 
 ## Cavalry seen from directly above, so the whole unit can turn: it rotates
@@ -1787,7 +1885,7 @@ func _draw_worker(p: Vector2, w: Dictionary, now: float, olives := false) -> voi
 	if w.phase == "gather" and w.job == "food":
 		p.y += sin(now * 6.0 + phase) * 2.0
 	var walking: bool = w.phase != "gather"
-	_draw_figure(p, VILLAGER_TUNIC, [], 0.6, fmod(now * 12.0 + phase, TAU) if walking else -1.0)
+	_draw_villager(p, w.spot + w.job.length(), 0.6, fmod(now * 12.0 + phase, TAU) if walking else -1.0)
 	var hand := _figure_origin(p, 0.6) + Vector2(26, 27) * 0.6
 	if w.phase == "gather":
 		if w.job == "food":

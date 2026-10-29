@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="80" viewBox="0 0 32 40">
+<!-- The figure's ground shadow without the hands, for poses whose hands the game draws (an archer drawing the bow). -->
+<ellipse cx="16" cy="37" rx="10" ry="2.6" fill="#000" fill-opacity="0.28"/>
+</svg>

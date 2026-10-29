@@ -22,6 +22,8 @@ var my_team := Battlefield.PLAYER
 var _view: BattleView
 var _ui := {}
 var _cards := {}
+## Troop portraits on the cards, by troop type (they change with its level).
+var _icons := {}
 ## Active press on a card: {"card": id, "start": Vector2} or empty.
 var _press := {}
 var _ghost: Card
@@ -148,7 +150,9 @@ func _start_game(civ_id: String, menu: Control, their_civ := "", role := "") -> 
 	bar_col.add_child(_recruit_lanes())
 	for id in ["villager"] + economy.available_units():
 		var title: String = "Villager" if id == "villager" else GameConfig.data().units[id].name
-		var card := Card.new(title, UnitIcon.new(id, Color(economy.civ().color)))
+		var icon := UnitIcon.new(id, Color(economy.civ().color))
+		_icons[id] = icon
+		var card := Card.new(title, icon)
 		card.pressed.connect(_on_card_pressed.bind(id))
 		card.cancel_pressed.connect(_on_card_cancel.bind(id))
 		if id == "villager":
@@ -657,6 +661,12 @@ func _describe(id: String) -> String:
 			parts.append("+%d%% %s" % [roundi(up.unit_bonus[stat] * 100), {"hp": "HP", "damage": "dmg", "range": "range"}[stat]])
 		if up.has("tower_hp_bonus"):
 			parts.append("+%d%% tower HP" % roundi(up.tower_hp_bonus * 100))
+		# A level that renames the troop (archers become crossbowmen).
+		if up.has("unit"):
+			var unit: Dictionary = cfg.units[up.unit]
+			var named: String = unit.get("tier_names", {}).get(str(economy.unit_tier(up.unit) + 1), "")
+			if named != "":
+				parts.push_front("%ss become %ss" % [unit.name, named])
 		return ", ".join(parts)
 	if cfg.military.has(id):
 		var unit := ""
@@ -801,7 +811,10 @@ func _refresh() -> void:
 		_cards[id].set_state(note, economy.can_train(id), dragging == id, game.sides[my_team].auto.has(id))
 		_cards[id].set_queued(queued)
 		var tier := economy.unit_tier(id)
-		_cards[id]._title.text = unit.name + (" Lv%d" % (tier + 1) if tier else "")
+		# Some troops take a new name at a level (archers become crossbowmen).
+		var named: String = unit.get("tier_names", {}).get(str(tier), "")
+		_cards[id]._title.text = named if named != "" else unit.name + (" Lv%d" % (tier + 1) if tier else "")
+		_icons[id].set_tier(tier)
 
 
 func _vbox(parent: Control, margin_px: int) -> VBoxContainer:

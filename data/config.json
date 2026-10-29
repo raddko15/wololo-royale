@@ -134,6 +134,7 @@
     },
     "archer": {
       "name": "Archer",
+      "tier_names": {"2": "Crossbowman"},
       "bonus_vs": {
         "fighter": 1.5,
         "phalanx": 1.5,
@@ -503,7 +504,7 @@
       "time": 20
     },
     "archery_range2": {
-      "name": "Elite Archers",
+      "name": "Crossbowmen",
       "cost": {
         "food": 300,
         "gold": 200

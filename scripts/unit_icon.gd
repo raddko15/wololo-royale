@@ -6,6 +6,8 @@ extends Control
 
 var unit_id: String
 var color: Color
+## The troop's level (0-2): archers carry a crossbow at level 3.
+var tier := 0
 var _tex := {}
 
 
@@ -14,6 +16,12 @@ func _init(id: String, civ_color: Color) -> void:
 	color = civ_color
 	custom_minimum_size = Vector2(0, 46)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+
+func set_tier(t: int) -> void:
+	if t != tier:
+		tier = t
+		queue_redraw()
 
 
 func _t(name: String) -> Texture2D:
@@ -44,7 +52,7 @@ func _draw() -> void:
 func _foot(c: Vector2) -> void:
 	var k := size.y / 40.0
 	var box := Rect2(c - Vector2(16, 21) * k, Vector2(32, 40) * k)
-	var gear: Array = {"fighter": ["helmet_1"], "archer": ["hood"], "phalanx": ["cuirass", "hoplite_helm"], "villager": []}.get(unit_id, [])
+	var gear: Array = {"fighter": ["helmet_1"], "archer": ["helmet_1"] if tier >= 2 else ["hood"], "phalanx": ["cuirass", "hoplite_helm"], "villager": []}.get(unit_id, [])
 	var tunic: Color = Color("#d9c8a0") if unit_id == "villager" else color
 	if unit_id == "archer":
 		_layer("quiver", box)
@@ -61,7 +69,10 @@ func _foot(c: Vector2) -> void:
 			_weapon("club", Vector2(10, 30), Vector2(5, 27), hand, -PI / 2 + 0.45, k)
 			_shield(box.position + Vector2(6, 26) * k, k)
 		"archer":
-			_weapon("bow", Vector2(16, 30), Vector2(5, 15), hand, -PI, k)
+			if tier >= 2:  # crossbow held across the chest
+				_weapon("crossbow", Vector2(18, 30), Vector2(9, 22), hand, -PI / 2 - 0.55, k)
+			else:  # bow upright in the hand, its back facing out
+				_weapon("bow", Vector2(16, 30), Vector2(5, 15), hand + Vector2(1, -2) * k, -PI / 2, k)
 		"phalanx":
 			_weapon("spear", Vector2(6, 70), Vector2(3, 50), hand, -PI / 2 + 0.55, k * 0.5)
 			var sh := Rect2(box.position + Vector2(-1, 17) * k, Vector2(22, 22) * k)
