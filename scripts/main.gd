@@ -532,11 +532,17 @@ func _option(id: String, icon: String, title: String, note: String, enabled: boo
 ## civ-tinted "_tint" layer when one exists; "sails" adds windmill sails at that
 ## hub (fraction of the picture).
 func _icon_art(id: String) -> Dictionary:
-	if _world:  # the 3D world: pictures of its models
-		var spec := _world.model_for(id, economy)
-		if not spec.is_empty():
-			return {"texture": _world.model_icon(spec[0], Color(economy.civ().color), spec[1]), "size": Vector2(180, 150)}
+	# An emblem (assets/art/emblem) for the option, flags and shields in the civ's color.
 	var classical := economy.style() == "classical"
+	var emblem := id
+	if id.begins_with("tower:"):
+		emblem = "towers"
+	elif id == "mill" and classical:
+		emblem = "olive_press"
+	elif id == "mill2" and classical:
+		emblem = "oil_workshop"
+	if ResourceLoader.exists("res://assets/art/emblem/%s.svg" % emblem):
+		return {"emblem": emblem, "tint": Color(economy.civ().color)}
 	var tint := Color(economy.civ().color)
 	var art := func(layers: Array, size_px: Vector2, extra := {}) -> Dictionary:
 		var d := {"layers": layers, "size": size_px, "tint": tint}

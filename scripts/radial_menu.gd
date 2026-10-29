@@ -130,7 +130,23 @@ func _centered_text(font: Font, text: String, at: Vector2, font_size: int, color
 
 
 ## The option's building art, fitted inside the disc; greyed out when locked.
+## Emblems whose civ-colored part lies under the rest (a shield behind swords).
+const TINT_UNDER := ["barracks"]
+
+
 func _draw_icon_art(art: Dictionary, c: Vector2, on: bool) -> void:
+	if art.has("emblem"):  # an emblem, its civ-colored part tinted
+		var shade := Color.WHITE if on else Color(0.55, 0.55, 0.55, 0.85)
+		var rect := Rect2(c - Vector2(31, 31), Vector2(62, 62))
+		var base := _tex("emblem/" + art.emblem)
+		var tint := _tex("emblem/" + art.emblem + "_tint")
+		var under: bool = art.emblem in TINT_UNDER
+		if tint and under:
+			_draw_tex(tint, rect, art.tint * shade)
+		_draw_tex(base, rect, shade)
+		if tint and not under:
+			_draw_tex(tint, rect, art.tint * shade)
+		return
 	if art.has("texture"):  # a picture of the 3D model
 		var tsz: Vector2 = art.size * minf(84.0 / art.size.x, 70.0 / art.size.y)
 		draw_texture_rect(art.texture, Rect2(c - tsz / 2 + Vector2(0, 2), tsz), false, Color.WHITE if on else Color(0.55, 0.55, 0.55, 0.85))
@@ -219,3 +235,8 @@ func _draw_glyph(kind: String, c: Vector2, alpha: float) -> void:
 		"upgrade":  # up arrow
 			draw_colored_polygon(PackedVector2Array([c + Vector2(0, -18), c + Vector2(-14, -2), c + Vector2(14, -2)]), gold)
 			draw_rect(Rect2(c + Vector2(-6, -2), Vector2(12, 16)), gold)
+
+
+func _draw_tex(t: Texture2D, rect: Rect2, modulate: Color) -> void:
+	if t:
+		draw_texture_rect(t, rect, false, modulate)
