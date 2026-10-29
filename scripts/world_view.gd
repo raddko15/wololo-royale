@@ -25,7 +25,7 @@ const FIT_MARGIN := 2.0
 ## Map rendered at this many times its size, so the tilted ground stays sharp.
 const MAP_SUPERSAMPLE := 2.0
 ## Below this frame rate (over a few seconds) quality steps down: a less
-## sharp map, then no edge smoothing, then no shadows.
+## sharp map, then no edge smoothing, then cheaper shadows.
 const MIN_FPS := 40.0
 
 var view: BattleView
@@ -390,7 +390,10 @@ func _watch_speed(delta: float) -> void:
 			2:
 				_world_vp.msaa_3d = Viewport.MSAA_DISABLED
 			3:
-				_sun.shadow_enabled = false
+				# Cheaper shadows, not none: without them this renderer
+				# lights the whole scene noticeably darker.
+				_sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
+				RenderingServer.directional_shadow_atlas_set_size(1024, true)
 	_timed = 0.0
 	_slow_frames = 0.0
 
