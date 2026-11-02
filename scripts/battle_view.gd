@@ -407,6 +407,9 @@ func _heading(u: Dictionary, target: Vector2) -> float:
 		want = (target - _unit_lane_pos(u)).angle()
 	else:
 		var ahead := 0.02 if u.team == Battlefield.PLAYER else -0.02
+		# Walking back home: turned round, facing the way it goes.
+		if battle.current_order(u) == "retreat" and u.get("moving", false):
+			ahead = -ahead
 		# Along the road itself (no sideways spread): drifting to its spot in
 		# the lane slides the unit over instead of swerving it.
 		want = (_lane_pos_at(u.lane, u.y + ahead, 0.0) - _lane_pos_at(u.lane, u.y, 0.0)).angle()
