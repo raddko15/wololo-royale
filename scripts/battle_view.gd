@@ -27,7 +27,7 @@ const FARM_COLS := 4
 const FARM_ROWS := 2
 const TREE_COLS := 4
 const TREE_ROWS := 2
-const LANE_W := 0.07
+const LANE_W := 0.088
 ## Distance (px) from a fort's center to where a road meets it.
 const FORT_SIDE := 100.0
 const FORT_FRONT := 55.0
@@ -396,7 +396,7 @@ func _lane_pos_at(lane: int, y: float, side: float) -> Vector2:
 	# Spread out gently over a long stretch, so it reads as finding a place in
 	# the column rather than dodging something on the road.
 	var fade := smoothstep(0.0, 0.25, minf(y, 1.0 - y))
-	return Vector2(LANE_X[lane] * size.x + side * size.x * 0.025 * fade, sy)
+	return Vector2(LANE_X[lane] * size.x + side * size.x * 0.032 * fade, sy)
 
 
 ## Direction a unit faces on screen: toward its target while fighting,
@@ -424,13 +424,19 @@ func unit_positions() -> Array[Vector2]:
 	var result: Array[Vector2] = []
 	result.resize(battle.units.size())
 	var groups := {}
+	var waiting := {}
 	for i in battle.units.size():
 		var u: Dictionary = battle.units[i]
 		if u.target == "tower" or u.target == "main":
 			var key := "%d:%s:%d" % [u.team, u.target, u.lane]
 			groups[key] = groups.get(key, []) + [i]
+		elif u.waiting and not u.moving and u.target == "" and absf(u.y - battle.rally_y(u)) < 0.02:
+			var key := "%d:home:%d" % [u.team, u.lane]
+			waiting[key] = waiting.get(key, []) + [i]
 		else:
 			result[i] = _unit_lane_pos(u)
+	for key in waiting:
+		_place_waiting(key, waiting[key], result)
 	for key in groups:
 		var idxs: Array = groups[key]
 		var u: Dictionary = battle.units[idxs[0]]
@@ -489,6 +495,40 @@ func unit_positions() -> Array[Vector2]:
 
 
 var _positions_at := 0.0
+
+
+## Troops waiting at home stand as a block just behind their tower (the same
+## on every lane): ranks of WAIT_COLS, filled from the front and the middle
+## outward. Each keeps the place it got on arrival, so nobody shuffles.
+const WAIT_COLS := 7
+
+
+func _place_waiting(key: String, idxs: Array, result: Array[Vector2]) -> void:
+	var u0: Dictionary = battle.units[idxs[0]]
+	var home := 1.0 if u0.team == Battlefield.PLAYER else -1.0  # toward town on screen
+	var anchor := building_pos(u0.team, "tower", u0.lane) + Vector2(0, home * (36.0 if in_3d else 30.0))
+	var dx := 23.0 if in_3d else 19.0
+	var dy := 22.0 if in_3d else 18.0
+	var taken := {}
+	for n in idxs:
+		var m: Dictionary = battle.units[n]
+		if m.get("slot_key", "") == key:
+			taken[m.slot] = true
+	for n in idxs:
+		var m: Dictionary = battle.units[n]
+		if m.get("slot_key", "") != key:
+			var free := 0
+			while taken.has(free):
+				free += 1
+			taken[free] = true
+			m["slot_key"] = key
+			m["slot"] = free
+		var col: int = m.slot % WAIT_COLS
+		var row: int = m.slot / WAIT_COLS
+		var across := (col + 1) / 2 * (1 if col % 2 == 1 else -1)
+		# Horsemen take a little more room.
+		var wide := 1.25 if m.type in MOUNTED else 1.0
+		result[n] = anchor + Vector2(across * dx * wide, home * row * dy)
 
 
 ## Room each figure takes (pixels across): horses and chariots more.
