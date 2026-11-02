@@ -433,7 +433,8 @@ func unit_positions() -> Array[Vector2]:
 		var u: Dictionary = battle.units[idxs[0]]
 		var center: Vector2
 		var front: float
-		var radius := 48.0
+		# In 3D the buildings stand bigger: attackers ring them further out.
+		var radius := 62.0 if in_3d else 48.0
 		if u.target == "tower":
 			center = building_pos(1 - u.team, "tower", u.lane)
 			# Player units attack from below (90°), enemy units from above.
@@ -443,7 +444,7 @@ func unit_positions() -> Array[Vector2]:
 			var path := road(1 - u.team, u.lane)
 			center = path[-1]
 			front = (path[-2] - path[-1]).angle()
-			radius = 26.0
+			radius = 70.0 if in_3d else 26.0
 		# Each attacker keeps the formation slot it got on arrival, so the
 		# others stay put when one of them falls. Slots fill from the middle
 		# outward (0, right, left, further right, ...), 7 per ring.
@@ -466,15 +467,56 @@ func unit_positions() -> Array[Vector2]:
 			var k: int = m.slot % per_ring
 			var side := (k + 1) / 2 * (1 if k % 2 == 1 else -1)
 			var a := front + side * step
-			result[n] = center + Vector2.from_angle(a) * (radius + m.slot / per_ring * 30)
-	# Glide toward the spot instead of jumping (e.g. into or out of an attack
-	# formation): move at most a few pixels per frame.
+			result[n] = center + Vector2.from_angle(a) * (radius + m.slot / per_ring * (36.0 if in_3d else 30.0))
+	_keep_apart(result)
+	# Walk toward the spot instead of jumping (e.g. into or out of an attack
+	# formation): a little faster than the unit's own pace, so it keeps up.
+	var now := Time.get_ticks_msec() / 1000.0
+	var dt := clampf(now - _positions_at, 0.0, 0.1)
+	_positions_at = now
+	var lane_px := absf(tower_line(Battlefield.PLAYER) - tower_line(Battlefield.ENEMY))
 	for n in result.size():
 		var u: Dictionary = battle.units[n]
 		var prev: Vector2 = u.get("view_pos", result[n])
-		u["view_pos"] = prev.move_toward(result[n], clampf(prev.distance_to(result[n]) * 0.15, 3.0, 6.0))
+		var pace := maxf(u.speed * lane_px * 1.4, 40.0)
+		u["view_pos"] = prev.move_toward(result[n], pace * dt)
+		u["gliding"] = u.view_pos.distance_to(result[n]) > 2.0
 		result[n] = u["view_pos"]
 	return result
+
+
+var _positions_at := 0.0
+
+
+## Room each figure takes (pixels across): horses and chariots more.
+func _room(u: Dictionary) -> float:
+	var k := 1.3 if in_3d else 1.0
+	return (30.0 if u.type in MOUNTED else 19.0) * k
+
+
+## Nudge apart any two figures standing closer than their room (within a
+## lane or around a building), so troops keep their own space instead of
+## melting into one another; a few rounds settle a crowd.
+func _keep_apart(pos: Array[Vector2]) -> void:
+	var units := battle.units
+	for round_i in 3:
+		for a in units.size():
+			for b in range(a + 1, units.size()):
+				var ua: Dictionary = units[a]
+				var ub: Dictionary = units[b]
+				if ua.lane != ub.lane:
+					continue
+				var d: Vector2 = pos[b] - pos[a]
+				var need := (_room(ua) + _room(ub)) / 2.0
+				var dist := d.length()
+				if dist >= need:
+					continue
+				# Mostly sideways, so a column spreads across the road.
+				var dir := Vector2(1.0 if (ua.id + ub.id) % 2 == 0 else -1.0, 0.0) if dist < 0.01 else d / dist
+				dir = Vector2(dir.x * 1.6, dir.y).normalized()
+				var push := dir * (need - dist) / 2.0
+				pos[a] -= push
+				pos[b] += push
 
 
 # --- Input --------------------------------------------------------------
@@ -1774,6 +1816,8 @@ func _draw_weapon(name: String, tex_size: Vector2, pivot: Vector2, at: Vector2, 
 
 ## Step phase for a unit on the move, or -1 when it stands or fights.
 func _walk_phase(u: Dictionary, now: float, rate := 11.0) -> float:
+	if u.get("gliding", false):  # walking into its spot
+		return fmod(now * rate + u.side * 5.0, TAU)
 	if u.target != "" or u.speed <= 0.0 or not u.get("moving", true):
 		return -1.0
 	return fmod(now * rate + u.side * 5.0, TAU)

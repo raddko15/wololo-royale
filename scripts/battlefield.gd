@@ -46,8 +46,9 @@ var _next_id := 0
 var lane_orders := [["march", "march", "march"], ["march", "march", "march"]]
 ## A holding unit within this of a foe defends itself.
 const AGGRO := 0.25
-## Rally point distance in front of the tower, and how far back archers stand.
-const RALLY := 0.2
+## Rally point distance in front of the tower (close by, at the edge of town),
+## and how far back archers stand.
+const RALLY := 0.11
 const RALLY_DEPTH := {"archer": 0.035, "chariot": 0.035, "cavalry": 0.015, "knight": 0.015}
 
 ## Whether each side's fort shoots: not in Era I, from Era II on.

@@ -375,7 +375,7 @@ func _init() -> void:
 	var g3 := gf.spawn(Battlefield.PLAYER, "archer", 1)
 	for i in 400:
 		gf.tick(0.1)
-	_check(absf(g1.y - (0.2 - g1.rank)) < 0.001 and g3.y < g1.y + 0.03 and g2.y < g1.y + 0.03 and gf.waiting_count(Battlefield.PLAYER, 1) == 3, "stopped troops wait in formation: infantry in front")
+	_check(absf(g1.y - (Battlefield.RALLY - g1.rank)) < 0.001 and g3.y < g1.y + 0.03 and g2.y < g1.y + 0.03 and gf.waiting_count(Battlefield.PLAYER, 1) == 3, "stopped troops wait in formation: infantry in front")
 	var raider := gf.spawn(Battlefield.ENEMY, "fighter", 1)
 	raider.y = 0.3
 	for i in 100:
