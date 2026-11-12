@@ -27,7 +27,7 @@ const FARM_COLS := 4
 const FARM_ROWS := 2
 const TREE_COLS := 4
 const TREE_ROWS := 2
-const LANE_W := 0.088
+const LANE_W := 0.11
 ## Distance (px) from a fort's center to where a road meets it.
 const FORT_SIDE := 100.0
 const FORT_FRONT := 55.0
@@ -396,7 +396,7 @@ func _lane_pos_at(lane: int, y: float, side: float) -> Vector2:
 	# Spread out gently over a long stretch, so it reads as finding a place in
 	# the column rather than dodging something on the road.
 	var fade := smoothstep(0.0, 0.25, minf(y, 1.0 - y))
-	return Vector2(LANE_X[lane] * size.x + side * size.x * 0.032 * fade, sy)
+	return Vector2(LANE_X[lane] * size.x + side * size.x * 0.04 * fade, sy)
 
 
 ## Direction a unit faces on screen: toward its target while fighting,
