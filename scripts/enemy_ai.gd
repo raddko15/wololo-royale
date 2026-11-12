@@ -224,7 +224,7 @@ func _charges() -> void:
 	if not _d.has("charge_at"):
 		return
 	var need: int = _d.charge_at[mini(economy.era_index, _d.charge_at.size() - 1)]
-	for lane in Battlefield.LANES:
+	for lane in Battlefield.play_lanes():
 		var n := battle.waiting_count(team, lane)
 		_waited[lane] = _waited[lane] + _d.think_interval if n > 0 else 0.0
 		if n >= need or (n > 0 and _waited[lane] > 45.0):
@@ -308,7 +308,7 @@ func _affordable_beyond(cost: Dictionary, reserve: Dictionary) -> bool:
 func _threatened_lane() -> int:
 	var worst := -1
 	var worst_gap := float(_d.defend_threshold_hp)
-	for lane in Battlefield.LANES:
+	for lane in Battlefield.play_lanes():
 		var gap := 0.0
 		for u in battle.units:
 			if u.lane != lane or absf(u.y - Battlefield.TOWER_Y[team]) > 0.55:
@@ -324,13 +324,13 @@ func _threatened_lane() -> int:
 ## plus a share of its tower), kept for a while so units arrive together.
 func _attack_lane() -> int:
 	if not _d.tactics:
-		return randi() % Battlefield.LANES
+		return Battlefield.play_lanes().pick_random()
 	if _focus_lane != -1 and _focus_left > 0:
 		return _focus_lane
 	var foe := 1 - team
-	var best := 0
+	var best: int = Battlefield.play_lanes()[0]
 	var best_score := INF
-	for lane in Battlefield.LANES:
+	for lane in Battlefield.play_lanes():
 		var score: float = battle.buildings[foe].towers[lane] * 0.3 + randf() * 40.0
 		for u in battle.units:
 			if u.lane == lane:

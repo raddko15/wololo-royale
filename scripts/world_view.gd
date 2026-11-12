@@ -167,7 +167,7 @@ func _wanted_buildings() -> Dictionary:
 			for k in mini(e.military[id], 3):
 				want["mil%d_%s_%d" % [team, id, k]] = ["%s_%s" % [id, look], view.military_pos(team, id) + behind[k],
 					color, 1.0 if k == 0 else 0.78, tier >= 2]
-		for lane in Battlefield.LANES:
+		for lane in Battlefield.play_lanes():
 			var hp: float = view.battle.buildings[team].towers[lane]
 			var ruin: bool = view.battle.towers_built[team][lane] and not e.is_pending("towers", str(lane)) \
 				and not (team == Battlefield.PLAYER and e.site_open("towers", str(lane)))

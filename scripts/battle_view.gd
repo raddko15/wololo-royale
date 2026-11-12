@@ -28,6 +28,11 @@ const FARM_ROWS := 2
 const TREE_COLS := 4
 const TREE_ROWS := 2
 const LANE_W := 0.11
+
+
+## Road width (fraction of the map's width): one lane is a wide battlefield.
+func lane_w() -> float:
+	return 0.4 if Battlefield.one_lane() else LANE_W
 ## Distance (px) from a fort's center to where a road meets it.
 const FORT_SIDE := 100.0
 const FORT_FRONT := 55.0
@@ -255,11 +260,11 @@ func _village_blockers() -> Array[Rect2]:
 		r.append(box.call(military_pos(t, id) + Vector2(0, -18), Vector2(76, 64)))
 	for res in ["gold", "stone"]:
 		r.append(box.call(mine_pos(t, res) + Vector2(2, -12), Vector2(54, 44)))
-	for lane in Battlefield.LANES:
+	for lane in Battlefield.play_lanes():
 		r.append(box.call(building_pos(t, "tower", lane) + Vector2(0, -20), Vector2(56, 80)))
 		var path := road(t, lane)
 		for k in path.size() - 1:
-			r.append(Rect2(path[k], Vector2.ZERO).expand(path[k + 1]).grow(size.x * LANE_W / 2 + 5))
+			r.append(Rect2(path[k], Vector2.ZERO).expand(path[k + 1]).grow(size.x * lane_w() / 2 + 5))
 	return r
 
 
@@ -326,6 +331,8 @@ func hut_pos(team: int, i: int) -> Vector2:
 func lane_at(pos: Vector2) -> int:
 	if pos.y < tower_line(Battlefield.ENEMY) - 30 or pos.y > tower_line(Battlefield.PLAYER) + 40:
 		return -1
+	if Battlefield.one_lane():
+		return 1
 	return clampi(int(pos.x / size.x * Battlefield.LANES), 0, Battlefield.LANES - 1)
 
 
@@ -396,7 +403,7 @@ func _lane_pos_at(lane: int, y: float, side: float) -> Vector2:
 	# Spread out gently over a long stretch, so it reads as finding a place in
 	# the column rather than dodging something on the road.
 	var fade := smoothstep(0.0, 0.25, minf(y, 1.0 - y))
-	return Vector2(LANE_X[lane] * size.x + side * size.x * 0.04 * fade, sy)
+	return Vector2(LANE_X[lane] * size.x + side * size.x * (0.15 if Battlefield.one_lane() else 0.04) * fade, sy)
 
 
 ## Direction a unit faces on screen: toward its target while fighting,
@@ -547,8 +554,9 @@ func _place_waiting(key: String, idxs: Array, result: Array[Vector2]) -> void:
 			taken[free] = true
 			m["slot_key"] = key
 			m["slot"] = free
-		var col: int = m.slot % WAIT_COLS
-		var row: int = m.slot / WAIT_COLS
+		var cols := WAIT_COLS * 2 if Battlefield.one_lane() else WAIT_COLS
+		var col: int = m.slot % cols
+		var row: int = m.slot / cols
 		var across := (col + 1) / 2 * (1 if col % 2 == 1 else -1)
 		# Horsemen take a little more room.
 		var wide := 1.25 if m.type in MOUNTED else 1.0
@@ -634,7 +642,7 @@ func _gui_input(event: InputEvent) -> void:
 		if pos.distance_to(b[0]) < 24:
 			upgrade_badge_tapped.emit(b[1])
 			return
-	for lane in Battlefield.LANES:
+	for lane in Battlefield.play_lanes():
 		if pos.distance_to(order_button(lane)) < 28:
 			lane_order_tapped.emit(lane)
 			return
@@ -676,7 +684,7 @@ func _gui_input(event: InputEvent) -> void:
 		if economy.camps.has(Economy.CAMP_FOR[res]) and pos.distance_to(drop_off(Battlefield.PLAYER, res)) < 40:
 			building_tapped.emit("mill" if res == "food" else "lumber_camp", drop_off(Battlefield.PLAYER, res))
 			return
-	for lane in Battlefield.LANES:
+	for lane in Battlefield.play_lanes():
 		var t := building_pos(Battlefield.PLAYER, "tower", lane)
 		if battle.buildings[Battlefield.PLAYER].towers[lane] > 0 and pos.distance_to(t) < 40:
 			building_tapped.emit("towers", t)
@@ -721,7 +729,7 @@ func draw_overlay(canvas: CanvasItem, to_screen: Callable) -> void:
 		var tc := town_center(team)
 		_draw_hp(tc + Vector2(0, 50), battle.buildings[team].main, battle.fort_max_hp[team], 110)
 		_draw_fort_status(team, tc + Vector2(0, 50), now)
-		for lane in Battlefield.LANES:
+		for lane in Battlefield.play_lanes():
 			var hp: float = battle.buildings[team].towers[lane]
 			if hp > 0:
 				var pos := building_pos(team, "tower", lane)
@@ -741,7 +749,7 @@ func draw_overlay(canvas: CanvasItem, to_screen: Callable) -> void:
 	for job in ["food", "wood"]:
 		_draw_unassign_icon(unassign_icon(job), economy.villagers.get(job, 0))
 	_draw_upgrade_badges(economy, now)
-	for lane in Battlefield.LANES:
+	for lane in Battlefield.play_lanes():
 		_draw_order_button(lane)
 	_c = self
 	_xf = Callable()
@@ -794,14 +802,14 @@ func paint_ground(c: CanvasItem) -> void:
 
 ## Dirt lanes and L roads: a darker edge under a lighter fill, then pebbles.
 func _draw_roads(lane_fill: Array[Color]) -> void:
-	var w := size.x * LANE_W
+	var w := size.x * lane_w()
 	var top := tower_line(Battlefield.ENEMY)
 	var lane_rects := []
-	for lane in Battlefield.LANES:
+	for lane in Battlefield.LANES:  # indexed by lane number
 		lane_rects.append(Rect2(LANE_X[lane] * size.x - w / 2, top, w, tower_line(Battlefield.PLAYER) - top))
 	var paths := []
 	for team in [Battlefield.ENEMY, Battlefield.PLAYER]:
-		for lane in Battlefield.LANES:
+		for lane in Battlefield.play_lanes():
 			paths.append(road(team, lane))
 	for pass_i in 2:
 		var edge := pass_i == 0
@@ -810,10 +818,10 @@ func _draw_roads(lane_fill: Array[Color]) -> void:
 			draw_polyline(path, ROAD_EDGE if edge else ROAD, w + grow * 2)
 			for corner in path:  # square joints
 				draw_rect(Rect2(corner - Vector2.ONE * (w / 2 + grow), Vector2.ONE * (w + grow * 2)), ROAD_EDGE if edge else ROAD)
-		for lane in Battlefield.LANES:
+		for lane in Battlefield.play_lanes():
 			draw_rect(lane_rects[lane].grow_individual(grow, 0, grow, 0), ROAD_EDGE if edge else lane_fill[lane])
 	# Pebbles and wheel ruts along the lanes.
-	for lane in Battlefield.LANES:
+	for lane in Battlefield.play_lanes():
 		var r: Rect2 = lane_rects[lane]
 		var y := r.position.y + 14.0
 		var k := 0
@@ -853,7 +861,7 @@ func _draw() -> void:
 	var unit_drag: bool = GameConfig.data().units.has(drag_card)
 	var hover_lane := lane_at(drag_pos) if unit_drag else -1
 	var lane_fill: Array[Color] = []
-	for lane in Battlefield.LANES:
+	for lane in Battlefield.LANES:  # indexed by lane number
 		var c: Color = ROAD
 		if unit_drag:
 			c = Color("#f9ca24") if lane == hover_lane else ROAD.lightened(0.2)
@@ -863,7 +871,7 @@ func _draw() -> void:
 	var top := tower_line(Battlefield.ENEMY) + 40
 	var bottom := tower_line(Battlefield.PLAYER) - 40
 	var shift := fmod(Time.get_ticks_msec() / 1000.0 * 30.0, 90.0)
-	for lane in Battlefield.LANES:
+	for lane in Battlefield.play_lanes():
 		if not active_lanes[lane]:
 			continue
 		var lx: float = LANE_X[lane] * size.x
@@ -923,7 +931,7 @@ func _draw() -> void:
 			else:
 				_draw_arrow(a, positions[idx])
 	# Lane order buttons last, on top of the troops.
-	for lane in Battlefield.LANES:
+	for lane in Battlefield.play_lanes():
 		_draw_order_button(lane)
 
 
@@ -1150,7 +1158,7 @@ func _draw_city(team: int, now: float) -> void:
 	for l in e.leaving:
 		_draw_worker(leaver_pos(team, l), l, now, olives)
 	# Towers last so their health bars stay visible over the fields.
-	for lane in Battlefield.LANES:
+	for lane in Battlefield.play_lanes():
 		var hp: float = battle.buildings[team].towers[lane]
 		# A destroyed tower leaves a ruin, unless it is being rebuilt or its
 		# plot is open again (then the plot shows).
@@ -1231,7 +1239,7 @@ func build_sites(e: Economy) -> Array:
 	if e.pending_count("hut") == 0 and e.max_population() < GameConfig.data().population.max_cap \
 			and e.max_population() - e.population() <= HUT_SITE_ROOM:
 		sites.append(["hut", hut_pos(p, e.huts), "hut"])
-	for lane in Battlefield.LANES:
+	for lane in Battlefield.play_lanes():
 		if e.site_open("towers", str(lane)):
 			sites.append(["tower:%d" % lane, building_pos(p, "tower", lane), "tower"])
 	return sites
@@ -1585,7 +1593,7 @@ func _upgrade_sites(team: int, id: String) -> Array:
 			return [_site("work", drop_off(team, "wood"))]
 		"towers":
 			var t := []
-			for lane in Battlefield.LANES:
+			for lane in Battlefield.play_lanes():
 				if battle.buildings[team].towers[lane] > 0:
 					t.append(_site("tower", building_pos(team, "tower", lane)))
 			return t

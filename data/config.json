@@ -357,6 +357,7 @@
     "max_cap": 120,
     "starting_huts": 1
   },
+  "map": {"one_lane": true},
   "network": {"relay_url": "wss://wololo-royale.onrender.com"},
   "testing": {
     "job_speed": 10,

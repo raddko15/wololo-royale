@@ -151,7 +151,8 @@ func _start_game(civ_id: String, menu: Control, their_civ := "", role := "") -> 
 	var bar := HBoxContainer.new()
 	bar.add_theme_constant_override("separation", 8)
 	bar_col.add_child(bar)
-	bar_col.add_child(_recruit_lanes())
+	if not Battlefield.one_lane():  # one lane: nothing to choose
+		bar_col.add_child(_recruit_lanes())
 	for id in ["villager"] + economy.available_units():
 		var title: String = "Villager" if id == "villager" else GameConfig.data().units[id].name
 		var icon := UnitIcon.new(id, Color(economy.civ().color))
@@ -178,7 +179,7 @@ func _recruit_lanes() -> Control:
 	caption.add_theme_font_override("font", UiStyle.cinzel(700))
 	caption.add_theme_color_override("font_color", UiStyle.CREAM)
 	row.add_child(caption)
-	for lane in Battlefield.LANES:
+	for lane in Battlefield.play_lanes():
 		var chip := LaneChip.new(["LEFT", "MIDDLE", "RIGHT"][lane], game.sides[my_team].lanes_on[lane])
 		chip.toggled.connect(func(on: bool):
 			_do({"op": "lanes_on", "lane": lane, "on": on})
@@ -204,7 +205,7 @@ func _cycle_lane_order(lane: int) -> void:
 ## Chevrons on the map: lanes that are marching.
 func _update_lane_marks() -> void:
 	var marks := [false, false, false]
-	for lane in Battlefield.LANES:
+	for lane in Battlefield.play_lanes():
 		marks[lane] = battle.lane_orders[my_team][lane] == "march"
 	_view.active_lanes = marks
 

@@ -441,7 +441,7 @@ func site_open(kind: String, id: String) -> bool:
 			return not mines.has(id) and era_index >= mine_era(id)
 		"camp":
 			return not camps.has(id)
-	return not towers_up[int(id)] and pending_count("towers") == 0 and era_index >= _cfg.buildings.towers.min_era
+	return int(id) in Battlefield.play_lanes() and not towers_up[int(id)] and pending_count("towers") == 0 and era_index >= _cfg.buildings.towers.min_era
 
 
 func can_build_military(id: String) -> bool:
@@ -459,7 +459,7 @@ func build_military(id: String) -> bool:
 ## The lane whose tower would go up next (middle first), or -1.
 func next_tower_lane() -> int:
 	for lane in [1, 0, 2]:
-		if site_open("towers", str(lane)):
+		if lane in Battlefield.play_lanes() and site_open("towers", str(lane)):
 			return lane
 	return -1
 

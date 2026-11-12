@@ -11,6 +11,16 @@ signal unit_died(team: int)
 signal game_over(winner: int)
 
 const LANES := 3
+
+
+## PROTOTYPE (one lane): the lanes in use, from config map.one_lane: just the
+## middle one as one wide battlefield, or all three.
+static func play_lanes() -> Array:
+	return [1] if GameConfig.data().get("map", {}).get("one_lane", false) else [0, 1, 2]
+
+
+static func one_lane() -> bool:
+	return play_lanes().size() == 1
 const PLAYER := 0
 const ENEMY := 1
 const TOWER_Y := [0.0, 1.0]
@@ -297,7 +307,7 @@ func _unit_act(u: Dictionary, delta: float) -> void:
 		var kind := "tower" if buildings[enemy].towers[u.lane] > 0 else "main"
 		var spot := "%d:%s:%d" % [enemy, kind, u.lane]
 		if u.range < RANGED:
-			if had != spot and _sieging(spot) >= SIEGE_SLOTS:
+			if had != spot and _sieging(spot) >= (SIEGE_SLOTS * 2 if one_lane() else SIEGE_SLOTS):
 				u.target = "queue"
 				return
 			u.siege = spot
