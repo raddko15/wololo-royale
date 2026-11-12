@@ -109,14 +109,15 @@ func _init() -> void:
 	var spawned := []
 	m.job_done.connect(func(j): if j.kind == "unit": spawned.append([j.id, j.lane]))
 	_check(m.train("cavalry", 2) and m.army_size == 0 and m.population() == 6, "queued cavalry reserves population")
-	m.tick(9.1)
-	_check(m.army_size == 1 and spawned == [["cavalry", 2]], "cavalry ready after 9 s, bound for its lane")
+	var unit_time := func(id: String) -> float: return float(GameConfig.data().units[id].time)
+	m.tick(unit_time.call("cavalry") + 0.1)
+	_check(m.army_size == 1 and spawned == [["cavalry", 2]], "cavalry ready after its training time, bound for its lane")
 	m.train("fighter", 0)
 	m.train("fighter", 1)
-	m.tick(10.1)
-	_check(spawned.size() == 2, "one barracks trains one fighter at a time (10 s each)")
+	m.tick(unit_time.call("fighter") + 0.1)
+	_check(spawned.size() == 2, "one barracks trains one fighter at a time")
 	m.job_speed = 10.0
-	m.tick(1.01)
+	m.tick(unit_time.call("fighter") / 10.0 + 0.01)
 	_check(spawned.size() == 3, "testing job speed: 10x faster training")
 	_check(not m.can_train("archer"), "archers need an archery range")
 	m.resources.gold = 1000.0
@@ -270,7 +271,7 @@ func _init() -> void:
 	_check(mb.military.barracks == 3 and not mb.can_build_military("barracks"), "three barracks at most")
 	for i in 3:
 		mb.train("fighter", 1)
-	mb.tick(10.1)
+	mb.tick(float(GameConfig.data().units.fighter.time) + 0.1)
 	_check(mb.army_size == 3, "three barracks train three fighters at once")
 	_check(is_equal_approx(mb.villager_time(), 6.0), "villagers take 6 s in Era I")
 	mb.era_index = 2
@@ -420,7 +421,7 @@ func _init() -> void:
 	duo.apply(Battlefield.ENEMY, {"op": "lanes_on", "lane": 1, "on": false})
 	duo.apply(Battlefield.ENEMY, {"op": "lanes_on", "lane": 2, "on": true})
 	duo.apply(Battlefield.ENEMY, {"op": "auto", "unit": "fighter", "on": true})
-	for i in 110:
+	for i in int(GameConfig.data().units.fighter.time * 10) + 10:
 		duo.tick(0.1)
 	var theirs := duo.battle.units.filter(func(u): return u.team == Battlefield.ENEMY)
 	_check(theirs.size() >= 1 and theirs.all(func(u): return u.lane == 2), "their AUTO fighters come out in the lane they lit")
@@ -533,13 +534,30 @@ func _init() -> void:
 	sg.tick(0.05)
 	var hitting := crowd.filter(func(c): return c.target == "tower").size()
 	var queued := crowd.filter(func(c): return c.target == "queue").size()
-	_check(hitting == Battlefield.SIEGE_SLOTS and queued == 20 - Battlefield.SIEGE_SLOTS, "12 fighters fit at a tower, the rest queue")
+	_check(hitting == Battlefield.SIEGE_SLOTS and queued == 20 - Battlefield.SIEGE_SLOTS, "only the front rank fits at a tower, the rest queue")
 	_check(siege_bow.target == "tower", "archers shoot at it from behind regardless")
 	for fallen_one in crowd.filter(func(c): return c.target == "tower").slice(0, 3):
 		fallen_one.hp = 0.0
 	sg.tick(0.05)
 	sg.tick(0.05)
 	_check(crowd.filter(func(c): return c.hp > 0 and c.target == "tower").size() == Battlefield.SIEGE_SLOTS, "queued fighters step into places that free up")
+
+	# Hand to hand, only a few can reach one foe at a time.
+	var mf := Battlefield.new()
+	mf.buildings[0].main = 1e9
+	mf.buildings[1].main = 1e9
+	var lone := mf.spawn(Battlefield.ENEMY, "fighter", 1)
+	lone.y = 0.5
+	lone.hp = 1e6
+	lone.speed = 0.0
+	var mob := []
+	for i in 6:
+		var mobber := mf.spawn(Battlefield.PLAYER, "fighter", 1)
+		mobber.y = 0.49
+		mob.append(mobber)
+	mf.tick(0.05)
+	mf.tick(0.05)
+	_check(mob.filter(func(x): return x.foe == lone).size() == Battlefield.MAX_ON_FOE, "at most 3 fight one foe hand to hand")
 
 	# Attackers around a tower keep their spots when one of them falls.
 	var vb := Battlefield.new()

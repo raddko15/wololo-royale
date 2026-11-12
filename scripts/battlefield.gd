@@ -237,6 +237,12 @@ func units_in(team: int, lane: int) -> int:
 func tick(delta: float) -> void:
 	if winner != -1:
 		return
+	# How many melee troops each unit has on it (last tick's), so no more than
+	# MAX_ON_FOE pile onto one foe.
+	_melee_on.clear()
+	for u in units:
+		if u.foe != null and u.range < RANGED:
+			_melee_on[u.foe.id] = _melee_on.get(u.foe.id, 0) + 1
 	for u in units:
 		_unit_act(u, delta)
 	_towers_shoot(delta)
@@ -260,8 +266,11 @@ func _unit_act(u: Dictionary, delta: float) -> void:
 	u.siege = ""
 	var dir := 1.0 if u.team == PLAYER else -1.0
 	u.target = ""
+	var prev_foe = u.foe
 	u.foe = null
-	var foe = _best_target(u)
+	var foe = _best_target(u, prev_foe)
+	if foe != null and foe != prev_foe and u.range < RANGED:
+		_melee_on[foe.id] = _melee_on.get(foe.id, 0) + 1
 	var blocker = _blocker(u)
 	if u.trample > 0:
 		_trample(u, foe, delta)
@@ -329,9 +338,13 @@ func _unit_act(u: Dictionary, delta: float) -> void:
 	u.moving = not is_equal_approx(before, u.y)
 
 
-## Melee troops that can hit one building (per lane) at once; ranged ones
-## (range from RANGED up) are never short of room.
-const SIEGE_SLOTS := 12
+## Melee troops that can hit one building (per lane) at once: the front rank
+## right at its walls (the rest queue behind); ranged ones (range from RANGED
+## up) are never short of room. And at most MAX_ON_FOE melee troops fight one
+## unit at a time.
+const SIEGE_SLOTS := 7
+const MAX_ON_FOE := 3
+var _melee_on := {}
 const RANGED := 0.1
 
 
@@ -358,12 +371,17 @@ func _trample(u: Dictionary, target, delta: float) -> void:
 ## The foe this unit hits now: among enemies in its lane within reach (in
 ## front or behind, e.g. riders that charged past), the one it does most
 ## damage to, then the nearest.
-func _best_target(u: Dictionary):
+func _best_target(u: Dictionary, prev = null):
 	var best = null
 	var best_mult := 0.0
 	var best_dist := INF
+	var melee: bool = u.range < RANGED
 	for o in units:
 		if o.team == u.team or o.lane != u.lane or o.hp <= 0:
+			continue
+		# Only so many can reach one foe hand to hand; the rest wait behind
+		# (or pick another foe in reach). Archers shoot over them.
+		if melee and o != prev and _melee_on.get(o.id, 0) >= MAX_ON_FOE:
 			continue
 		var dist := absf(o.y - u.y)
 		if dist > u.range + REACH_EPS:
