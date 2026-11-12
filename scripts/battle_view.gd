@@ -477,7 +477,14 @@ func unit_positions() -> Array[Vector2]:
 			var side := (k + 1) / 2 * (1 if k % 2 == 1 else -1)
 			var a := front + side * step
 			result[n] = center + Vector2.from_angle(a) * (radius + m.slot / per_ring * (36.0 if in_3d else 30.0))
-	_keep_apart(result)
+	# How crowds keep apart (config testing.crowd_mode, to compare styles):
+	# "overlap": like Age of Empires 2, walkers may pass through each other;
+	# only those standing still spread out, slowly. "push": everyone is
+	# pushed apart every frame (the earlier way).
+	if GameConfig.data().get("testing", {}).get("crowd_mode", "overlap") == "push":
+		_keep_apart(result)
+	else:
+		_spread_standing(result)
 	# Walk toward the spot instead of jumping (e.g. into or out of an attack
 	# formation): a little faster than the unit's own pace, so it keeps up.
 	var now := Time.get_ticks_msec() / 1000.0
@@ -529,6 +536,43 @@ func _place_waiting(key: String, idxs: Array, result: Array[Vector2]) -> void:
 		# Horsemen take a little more room.
 		var wide := 1.25 if m.type in MOUNTED else 1.0
 		result[n] = anchor + Vector2(across * dx * wide, home * row * dy)
+
+
+## Units standing still (fighting, or held) that stand too close drift apart
+## a little each frame and keep where they drifted to ("nudge"), so they
+## settle instead of jittering; walkers pass through each other and let their
+## nudge fade.
+func _spread_standing(pos: Array[Vector2]) -> void:
+	var units := battle.units
+	var still := []
+	for i in units.size():
+		var u: Dictionary = units[i]
+		var nudge: Vector2 = u.get("nudge", Vector2.ZERO)
+		if u.moving or u.get("gliding", false):
+			u["nudge"] = nudge * 0.9  # walking: back to its own line
+		else:
+			still.append(i)
+	for a_i in still.size():
+		for b_i in range(a_i + 1, still.size()):
+			var a: int = still[a_i]
+			var b: int = still[b_i]
+			var ua: Dictionary = units[a]
+			var ub: Dictionary = units[b]
+			if ua.lane != ub.lane:
+				continue
+			var pa: Vector2 = pos[a] + ua.get("nudge", Vector2.ZERO)
+			var pb: Vector2 = pos[b] + ub.get("nudge", Vector2.ZERO)
+			var d := pb - pa
+			var need := (_room(ua) + _room(ub)) / 2.0
+			var dist := d.length()
+			if dist >= need:
+				continue
+			var dir := Vector2(1.0 if (ua.id + ub.id) % 2 == 0 else -1.0, 0.0) if dist < 0.01 else d / dist
+			var step := dir * minf(need - dist, 4.0) * 0.25
+			ua["nudge"] = (ua.get("nudge", Vector2.ZERO) - step).limit_length(40.0)
+			ub["nudge"] = (ub.get("nudge", Vector2.ZERO) + step).limit_length(40.0)
+	for i in units.size():
+		pos[i] += units[i].get("nudge", Vector2.ZERO)
 
 
 ## Room each figure takes (pixels across): horses and chariots more.
