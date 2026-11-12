@@ -27,7 +27,7 @@ const FARM_COLS := 4
 const FARM_ROWS := 2
 const TREE_COLS := 4
 const TREE_ROWS := 2
-const LANE_W := 0.11
+const LANE_W := 0.15
 ## Distance (px) from a fort's center to where a road meets it.
 const FORT_SIDE := 100.0
 const FORT_FRONT := 55.0
@@ -372,130 +372,143 @@ func _along(points: PackedVector2Array, frac: float) -> Vector2:
 	return points[-1]
 
 
-## Where a unit stands: on its lane between the tower lines, or past the
-## enemy tower on the road to the enemy fort.
-func _unit_lane_pos(u: Dictionary) -> Vector2:
-	var p := _lane_pos_at(u.lane, u.y, u.side)
-	if u.get("waiting", false) and u.y >= 0.0 and u.y <= 1.0:
-		# Gathered troops use the whole width of the lane (the glide in
-		# unit_positions eases them over as they arrive).
-		p.x = LANE_X[u.lane] * size.x + u.side * size.x * 0.034
-	return p
-
-
 ## Screen point for lane coordinate `y` (beyond 1: on the enemy's road, below
-## 0: on the player's road), with sideways spread `side` on the lane itself.
-func _lane_pos_at(lane: int, y: float, side: float) -> Vector2:
-	if y > 1.0:
-		return _along(road(Battlefield.ENEMY, lane), (y - 1.0) / Battlefield.MAIN_DIST[lane])
-	if y < 0.0:
-		return _along(road(Battlefield.PLAYER, lane), -y / Battlefield.MAIN_DIST[lane])
+## 0: on the player's road), `across` (-1..1) of the way from the road's middle
+## to its edges: the same on the lane and around the roads' bends.
+func _lane_pos_at(lane: int, y: float, across: float) -> Vector2:
+	var half := size.x * LANE_W * 0.4
+	if y > 1.0 or y < 0.0:
+		var team := Battlefield.ENEMY if y > 1.0 else Battlefield.PLAYER
+		var frac: float = (y - 1.0 if y > 1.0 else -y) / Battlefield.MAIN_DIST[lane]
+		var path := road(team, lane)
+		var at := _along(path, frac)
+		var ahead := _along(path, minf(frac + 0.02, 1.0)) - _along(path, maxf(frac - 0.02, 0.0))
+		# Across the road, turning with it, so a figure keeps its side of the
+		# road round the bends (right on the lane is right here too).
+		var normal := Vector2.RIGHT
+		if ahead.length() > 0.01:
+			ahead = ahead.normalized()
+			normal = Vector2(ahead.y, -ahead.x) if team == Battlefield.PLAYER else Vector2(-ahead.y, ahead.x)
+		return at + normal * across * half
 	var sy := lerpf(tower_line(Battlefield.PLAYER), tower_line(Battlefield.ENEMY), y)
-	# Sideways spread fades out near both tower lines, where the roads (which
-	# have no spread) join, so units don't snap sideways there.
-	# Spread out gently over a long stretch, so it reads as finding a place in
-	# the column rather than dodging something on the road.
-	var fade := smoothstep(0.0, 0.25, minf(y, 1.0 - y))
-	return Vector2(LANE_X[lane] * size.x + side * size.x * 0.04 * fade, sy)
+	return Vector2(LANE_X[lane] * size.x + across * half, sy)
 
 
-## Direction a unit faces on screen: toward its target while fighting,
-## otherwise along its path (so it turns at the road corners). Smoothed.
-func _heading(u: Dictionary, target: Vector2) -> float:
-	var want: float
-	if target != Vector2.INF:
-		want = (target - _unit_lane_pos(u)).angle()
-	else:
-		var ahead := 0.02 if u.team == Battlefield.PLAYER else -0.02
-		# Walking back home: turned round, facing the way it goes.
-		if battle.current_order(u) == "retreat" and u.get("moving", false):
-			ahead = -ahead
-		# Along the road itself (no sideways spread): drifting to its spot in
-		# the lane slides the unit over instead of swerving it.
-		want = (_lane_pos_at(u.lane, u.y + ahead, 0.0) - _lane_pos_at(u.lane, u.y, 0.0)).angle()
-	var h: float = lerp_angle(u.get("view_heading", want), want, 0.2)
-	u["view_heading"] = h
-	return h
+## How deep a walking group spreads (pixels): about three ranks.
+const GROUP_DEPTH := 64.0
 
 
-## Screen positions for all units. Walkers spread sideways in their lane;
-## units hitting the same building fan out in an arc on the side they came from.
-func unit_positions() -> Array[Vector2]:
-	var result: Array[Vector2] = []
-	result.resize(battle.units.size())
-	var groups := {}
-	var waiting := {}
-	for i in battle.units.size():
-		var u: Dictionary = battle.units[i]
-		if (u.target == "tower" or u.target == "main") and u.range < Battlefield.RANGED:
-			# Melee attackers ring the building; archers stay where they shoot from.
+## Every troop's figure: walks to where the game wants it (Crowd).
+var crowd := Crowd.new()
+var _positions_at := 0.0
+
+
+## Which way a unit faces on screen (its figure walks or looks that way).
+func _heading(u: Dictionary, _target: Vector2) -> float:
+	return crowd.facing(u.id, -PI / 2 if u.team == Battlefield.PLAYER else PI / 2)
+
+
+## Screen positions of all units: each figure's place as it walks to its goal.
+## Goals: walkers keep their own track across the road; melee attackers a
+## place in a ring round the building, with a queue block behind it; troops
+## held at home a place in a block behind their tower; a fighter steps up to
+## its foe; archers stay where they shoot from. `dt`: seconds since the last
+## call (by default the time that really passed).
+func unit_positions(dt := -1.0) -> Array[Vector2]:
+	var now := Time.get_ticks_msec() / 1000.0
+	if dt < 0.0:
+		dt = clampf(now - _positions_at, 0.0, 0.05)
+	_positions_at = now
+	var units := battle.units
+	var n := units.size()
+	var goals: Array[Vector2] = []
+	var looks: Array[Vector2] = []
+	var paces: Array[float] = []
+	var rooms: Array[float] = []
+	var forwards: Array[Vector2] = []
+	goals.resize(n)
+	looks.resize(n)
+	paces.resize(n)
+	rooms.resize(n)
+	forwards.resize(n)
+	var lane_px := absf(tower_line(Battlefield.PLAYER) - tower_line(Battlefield.ENEMY))
+	var rings := {}
+	var blocks := {}
+	for i in n:
+		var u: Dictionary = units[i]
+		paces[i] = maxf(u.speed * lane_px, 30.0)
+		rooms[i] = _room(u)
+		forwards[i] = Vector2(0, -1 if u.team == Battlefield.PLAYER else 1)
+		looks[i] = Vector2.INF
+		# On the march: its own place in the group, across the road and a
+		# few ranks deep (behind where the game has it, never ahead).
+		var spot := crowd.place(u)
+		goals[i] = _lane_pos_at(u.lane, u.y, spot.x) - forwards[i] * spot.y * GROUP_DEPTH
+		var melee: bool = u.range < Battlefield.RANGED
+		if (u.target == "tower" or u.target == "main") and melee:
 			var key := "%d:%s:%d" % [u.team, u.target, u.lane]
-			groups[key] = groups.get(key, []) + [i]
+			rings[key] = rings.get(key, []) + [i]
 		elif u.target == "queue":
 			var key := "%d:queue:%d" % [u.team, u.lane]
-			waiting[key] = waiting.get(key, []) + [i]
-		elif u.waiting and not u.moving and u.target == "" and absf(u.y - battle.rally_y(u)) < 0.02:
+			blocks[key] = blocks.get(key, []) + [i]
+		elif u.waiting and not u.moving and u.target == "" and absf(u.y - battle.rally_y(u)) < 0.03:
 			var key := "%d:home:%d" % [u.team, u.lane]
-			waiting[key] = waiting.get(key, []) + [i]
-		else:
-			result[i] = _unit_lane_pos(u)
-	for key in waiting:
-		_place_waiting(key, waiting[key], result)
-	for key in groups:
-		var idxs: Array = groups[key]
-		var u: Dictionary = battle.units[idxs[0]]
-		var ring := _siege_ring(u.team, u.target, u.lane)
-		var center: Vector2 = ring[0]
-		var front: float = ring[1]
-		var radius: float = ring[2]
-		# Each attacker keeps the formation slot it got on arrival, so the
-		# others stay put when one of them falls. Slots fill from the middle
-		# outward (0, right, left, further right, ...), 7 per ring.
-		var per_ring := 7
-		var step := deg_to_rad(150.0) / (per_ring - 1)
-		var taken := {}
-		for n in idxs:
-			var m: Dictionary = battle.units[n]
-			if m.get("slot_key", "") == key:
-				taken[m.slot] = true
-		for n in idxs:
-			var m: Dictionary = battle.units[n]
-			if m.get("slot_key", "") != key:
-				var free := 0
-				while taken.has(free):
-					free += 1
-				taken[free] = true
-				m["slot_key"] = key
-				m["slot"] = free
-			var k: int = m.slot % per_ring
-			var side := (k + 1) / 2 * (1 if k % 2 == 1 else -1)
-			var a := front + side * step
-			result[n] = center + Vector2.from_angle(a) * (radius + m.slot / per_ring * (36.0 if in_3d else 30.0))
-	# How crowds keep apart (config testing.crowd_mode, to compare styles):
-	# "overlap": like Age of Empires 2, walkers may pass through each other;
-	# only those standing still spread out, slowly. "push": everyone is
-	# pushed apart every frame (the earlier way).
-	if GameConfig.data().get("testing", {}).get("crowd_mode", "overlap") == "push":
-		_keep_apart(result)
-	else:
-		_spread_standing(result)
-	# Walk toward the spot instead of jumping (e.g. into or out of an attack
-	# formation): a little faster than the unit's own pace, so it keeps up.
-	var now := Time.get_ticks_msec() / 1000.0
-	var dt := clampf(now - _positions_at, 0.0, 0.1)
-	_positions_at = now
-	var lane_px := absf(tower_line(Battlefield.PLAYER) - tower_line(Battlefield.ENEMY))
-	for n in result.size():
-		var u: Dictionary = battle.units[n]
-		var prev: Vector2 = u.get("view_pos", result[n])
-		var pace := maxf(u.speed * lane_px * 1.4, 40.0)
-		u["view_pos"] = prev.move_toward(result[n], pace * dt)
-		u["gliding"] = u.view_pos.distance_to(result[n]) > 2.0
-		result[n] = u["view_pos"]
+			blocks[key] = blocks.get(key, []) + [i]
+		elif u.target == "unit" and u.foe != null:
+			var foe_at := crowd.position(u.foe.id)
+			if foe_at != Vector2.INF:
+				looks[i] = foe_at
+				if melee:
+					# Step up to the foe, just its room away.
+					var me := crowd.position(u.id, goals[i])
+					var away := (me - foe_at)
+					away = away.normalized() if away.length() > 0.5 else forwards[i] * -1.0
+					goals[i] = foe_at + away * (rooms[i] + _room(u.foe)) * 0.5
+		elif u.target == "tower" or u.target == "main":
+			looks[i] = building_pos(1 - u.team, "tower", u.lane) if u.target == "tower" else town_center(1 - u.team)
+	for key in rings:
+		_ring_goals(key, rings[key], goals, looks)
+	for key in blocks:
+		_block_goals(key, blocks[key], goals, looks)
+	var result := crowd.step(units, goals, paces, rooms, looks, forwards, dt)
+	for i in n:
+		units[i]["view_pos"] = result[i]  # where it falls, if it falls
 	return result
 
 
-var _positions_at := 0.0
+## Slots that fill from the middle outward (0, right, left, further right,
+## ...), each attacker keeping the one it got: [unit index] -> slot number.
+func _assign_slots(key: String, idxs: Array) -> void:
+	var taken := {}
+	for k in idxs:
+		var m: Dictionary = battle.units[k]
+		if m.get("slot_key", "") == key:
+			taken[m.slot] = true
+	for k in idxs:
+		var m: Dictionary = battle.units[k]
+		if m.get("slot_key", "") != key:
+			var free := 0
+			while taken.has(free):
+				free += 1
+			taken[free] = true
+			m["slot_key"] = key
+			m["slot"] = free
+
+
+## Melee attackers of one building, a ring of places round its front, 7 a ring.
+func _ring_goals(key: String, idxs: Array, goals: Array[Vector2], looks: Array[Vector2]) -> void:
+	var u0: Dictionary = battle.units[idxs[0]]
+	var ring := _siege_ring(u0.team, u0.target, u0.lane)
+	var per_ring := 7
+	var step := deg_to_rad(150.0) / (per_ring - 1)
+	_assign_slots(key, idxs)
+	for k in idxs:
+		var m: Dictionary = battle.units[k]
+		var c: int = m.slot % per_ring
+		var side := (c + 1) / 2 * (1 if c % 2 == 1 else -1)
+		var a: float = ring[1] + side * step
+		goals[k] = ring[0] + Vector2.from_angle(a) * (ring[2] + m.slot / per_ring * (36.0 if in_3d else 30.0))
+		looks[k] = ring[0]
 
 
 ## Where attackers stand around a building: [center, direction they come
@@ -510,117 +523,48 @@ func _siege_ring(team: int, kind: String, lane: int) -> Array:
 	return [path[-1], (path[-2] - path[-1]).angle(), 70.0 if in_3d else 26.0]
 
 
-## Troops waiting at home stand as a block just behind their tower (the same
-## on every lane): ranks of WAIT_COLS, filled from the front and the middle
-## outward. Each keeps the place it got on arrival, so nobody shuffles.
-const WAIT_COLS := 7
+## Troops held at home stand as a block just behind their tower (the same on
+## every lane), and troops waiting for a place at a building as a block behind
+## the attackers' ring: ranks of WAIT_COLS (wider on the middle lane, where the
+## fort stands close behind the tower), filled from the front and the middle
+## outward, each keeping the place it got.
+const WAIT_COLS := 8
+const WAIT_COLS_MIDDLE := 11
 
 
-func _place_waiting(key: String, idxs: Array, result: Array[Vector2]) -> void:
+func _block_goals(key: String, idxs: Array, goals: Array[Vector2], looks: Array[Vector2]) -> void:
 	var u0: Dictionary = battle.units[idxs[0]]
 	var home := 1.0 if u0.team == Battlefield.PLAYER else -1.0  # toward town on screen
-	var anchor := building_pos(u0.team, "tower", u0.lane) + Vector2(0, home * (36.0 if in_3d else 30.0))
+	var anchor := building_pos(u0.team, "tower", u0.lane) + Vector2(0, home * (30.0 if in_3d else 26.0))
 	var dx := 23.0 if in_3d else 19.0
 	var dy := 22.0 if in_3d else 18.0
 	var across_dir := Vector2(1, 0)
 	var back_dir := Vector2(0, home)
+	var look := Vector2.INF
 	if key.contains(":queue:"):
-		# Waiting for a place at the building it attacks: a block just behind
-		# the attackers' ring (two rows deep).
 		var enemy: int = 1 - u0.team
 		var kind := "tower" if battle.buildings[enemy].towers[u0.lane] > 0 else "main"
 		var ring := _siege_ring(u0.team, kind, u0.lane)
 		back_dir = Vector2.from_angle(ring[1])
 		across_dir = Vector2(-back_dir.y, back_dir.x)
 		anchor = ring[0] + back_dir * (ring[2] + 2.0 * (36.0 if in_3d else 30.0) + dy)
-	var taken := {}
-	for n in idxs:
-		var m: Dictionary = battle.units[n]
-		if m.get("slot_key", "") == key:
-			taken[m.slot] = true
-	for n in idxs:
-		var m: Dictionary = battle.units[n]
-		if m.get("slot_key", "") != key:
-			var free := 0
-			while taken.has(free):
-				free += 1
-			taken[free] = true
-			m["slot_key"] = key
-			m["slot"] = free
-		var col: int = m.slot % WAIT_COLS
-		var row: int = m.slot / WAIT_COLS
+		look = ring[0]
+	_assign_slots(key, idxs)
+	for k in idxs:
+		var m: Dictionary = battle.units[k]
+		var cols := WAIT_COLS_MIDDLE if u0.lane == 1 and not key.contains(":queue:") else WAIT_COLS
+		var col: int = m.slot % cols
+		var row: int = m.slot / cols
 		var across := (col + 1) / 2 * (1 if col % 2 == 1 else -1)
-		# Horsemen take a little more room.
-		var wide := 1.25 if m.type in MOUNTED else 1.0
-		result[n] = anchor + across_dir * (across * dx * wide) + back_dir * (row * dy)
-
-
-## Units standing still (fighting, or held) that stand too close drift apart
-## a little each frame and keep where they drifted to ("nudge"), so they
-## settle instead of jittering; walkers pass through each other and let their
-## nudge fade.
-func _spread_standing(pos: Array[Vector2]) -> void:
-	var units := battle.units
-	var still := []
-	for i in units.size():
-		var u: Dictionary = units[i]
-		var nudge: Vector2 = u.get("nudge", Vector2.ZERO)
-		if u.moving or u.get("gliding", false):
-			u["nudge"] = nudge * 0.9  # walking: back to its own line
-		else:
-			still.append(i)
-	for a_i in still.size():
-		for b_i in range(a_i + 1, still.size()):
-			var a: int = still[a_i]
-			var b: int = still[b_i]
-			var ua: Dictionary = units[a]
-			var ub: Dictionary = units[b]
-			if ua.lane != ub.lane:
-				continue
-			var pa: Vector2 = pos[a] + ua.get("nudge", Vector2.ZERO)
-			var pb: Vector2 = pos[b] + ub.get("nudge", Vector2.ZERO)
-			var d := pb - pa
-			var need := (_room(ua) + _room(ub)) / 2.0
-			var dist := d.length()
-			if dist >= need:
-				continue
-			var dir := Vector2(1.0 if (ua.id + ub.id) % 2 == 0 else -1.0, 0.0) if dist < 0.01 else d / dist
-			var step := dir * minf(need - dist, 4.0) * 0.25
-			ua["nudge"] = (ua.get("nudge", Vector2.ZERO) - step).limit_length(40.0)
-			ub["nudge"] = (ub.get("nudge", Vector2.ZERO) + step).limit_length(40.0)
-	for i in units.size():
-		pos[i] += units[i].get("nudge", Vector2.ZERO)
+		var wide := 1.25 if m.type in MOUNTED else 1.0  # horsemen take more room
+		goals[k] = anchor + across_dir * (across * dx * wide) + back_dir * (row * dy)
+		looks[k] = look
 
 
 ## Room each figure takes (pixels across): horses and chariots more.
 func _room(u: Dictionary) -> float:
 	var k := 1.3 if in_3d else 1.0
 	return (30.0 if u.type in MOUNTED else 19.0) * k
-
-
-## Nudge apart any two figures standing closer than their room (within a
-## lane or around a building), so troops keep their own space instead of
-## melting into one another; a few rounds settle a crowd.
-func _keep_apart(pos: Array[Vector2]) -> void:
-	var units := battle.units
-	for round_i in 3:
-		for a in units.size():
-			for b in range(a + 1, units.size()):
-				var ua: Dictionary = units[a]
-				var ub: Dictionary = units[b]
-				if ua.lane != ub.lane:
-					continue
-				var d: Vector2 = pos[b] - pos[a]
-				var need := (_room(ua) + _room(ub)) / 2.0
-				var dist := d.length()
-				if dist >= need:
-					continue
-				# Mostly sideways, so a column spreads across the road.
-				var dir := Vector2(1.0 if (ua.id + ub.id) % 2 == 0 else -1.0, 0.0) if dist < 0.01 else d / dist
-				dir = Vector2(dir.x * 1.6, dir.y).normalized()
-				var push := dir * (need - dist) / 2.0
-				pos[a] -= push
-				pos[b] += push
 
 
 # --- Input --------------------------------------------------------------
@@ -1920,9 +1864,8 @@ func _draw_weapon(name: String, tex_size: Vector2, pivot: Vector2, at: Vector2, 
 
 ## Step phase for a unit on the move, or -1 when it stands or fights.
 func _walk_phase(u: Dictionary, now: float, rate := 11.0) -> float:
-	if u.get("gliding", false):  # walking into its spot
-		return fmod(now * rate + u.side * 5.0, TAU)
-	if u.target != "" or u.speed <= 0.0 or not u.get("moving", true):
+	# Its figure walks (on its way somewhere), or stands.
+	if crowd.speed(u.id) < 8.0:
 		return -1.0
 	return fmod(now * rate + u.side * 5.0, TAU)
 

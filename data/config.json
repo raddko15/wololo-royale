@@ -361,8 +361,7 @@
   "testing": {
     "job_speed": 10,
     "fast_at_start": false,
-    "bonus_resources": 10000,
-    "crowd_mode": "overlap"
+    "bonus_resources": 10000
   },
   "upgrades": {
     "mill": {

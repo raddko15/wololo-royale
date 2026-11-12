@@ -5,7 +5,7 @@ var _failures := 0
 
 
 func _init() -> void:
-	for path in ["res://scripts/main.gd", "res://scripts/battle_view.gd", "res://scripts/card.gd", "res://scripts/hud_icon.gd", "res://scripts/radial_menu.gd", "res://scripts/lane_chip.gd", "res://scripts/unit_icon.gd", "res://scripts/ui_style.gd", "res://scripts/start_screen.gd", "res://scripts/match.gd", "res://scripts/snapshot.gd", "res://scripts/mirror.gd", "res://scripts/net.gd", "res://scripts/lobby.gd", "res://scripts/world_view.gd", "res://scripts/low_poly.gd", "res://scripts/models.gd", "res://scripts/figures.gd"]:
+	for path in ["res://scripts/main.gd", "res://scripts/battle_view.gd", "res://scripts/card.gd", "res://scripts/hud_icon.gd", "res://scripts/radial_menu.gd", "res://scripts/lane_chip.gd", "res://scripts/unit_icon.gd", "res://scripts/ui_style.gd", "res://scripts/start_screen.gd", "res://scripts/match.gd", "res://scripts/snapshot.gd", "res://scripts/mirror.gd", "res://scripts/net.gd", "res://scripts/lobby.gd", "res://scripts/world_view.gd", "res://scripts/low_poly.gd", "res://scripts/models.gd", "res://scripts/figures.gd", "res://scripts/crowd.gd"]:
 		var script: GDScript = load(path)
 		_check(script != null and script.can_instantiate(), "script compiles: " + path.get_file())
 
@@ -548,14 +548,38 @@ func _init() -> void:
 	view.size = Vector2(720, 1100)
 	for i in 4:
 		vb.spawn(Battlefield.PLAYER, "fighter", 1).target = "tower"
-	for i in 60:
-		view.unit_positions()
-	var before_pos := view.unit_positions()
+	for i in 400:
+		view.unit_positions(0.05)
+	var before_pos := view.unit_positions(0.05)
 	vb.units.remove_at(1)
-	for i in 60:
-		view.unit_positions()
-	var after_pos := view.unit_positions()
-	_check(after_pos[0] == before_pos[0] and after_pos[1] == before_pos[2] and after_pos[2] == before_pos[3], "attackers stay put when one of them dies")
+	for i in 100:
+		view.unit_positions(0.05)
+	var after_pos := view.unit_positions(0.05)
+	_check(after_pos[0].distance_to(before_pos[0]) < 2.0 and after_pos[1].distance_to(before_pos[2]) < 2.0 \
+		and after_pos[2].distance_to(before_pos[3]) < 2.0, "attackers stay put when one of them dies")
+	# Figures walk: never a jump, and they keep their room.
+	var gap := INF
+	var biggest_step := 0.0
+	var crowd_b := Battlefield.new()
+	var cview: BattleView = load("res://scripts/battle_view.gd").new()
+	cview.battle = crowd_b
+	cview.size = Vector2(720, 1100)
+	for i in 20:
+		crowd_b.spawn(Battlefield.PLAYER, "fighter", 1)
+	crowd_b.set_order(Battlefield.PLAYER, 1, "march")
+	var last := cview.unit_positions(0.05)
+	for i in 300:
+		crowd_b.tick(0.05)
+		var now_pos := cview.unit_positions(0.05)
+		for k in mini(now_pos.size(), last.size()):
+			biggest_step = maxf(biggest_step, now_pos[k].distance_to(last[k]))
+		last = now_pos
+	for a_i in last.size():
+		for b_i in range(a_i + 1, last.size()):
+			gap = minf(gap, last[a_i].distance_to(last[b_i]))
+	_check(biggest_step < 12.0, "marching figures never jump (largest step %.1f px)" % biggest_step)
+	_check(gap > 10.0, "and keep apart (closest pair %.1f px)" % gap)
+	cview.free()
 	view.free()
 
 	print("FAILURES: %d" % _failures)
