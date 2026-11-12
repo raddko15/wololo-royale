@@ -427,9 +427,13 @@ func unit_positions() -> Array[Vector2]:
 	var waiting := {}
 	for i in battle.units.size():
 		var u: Dictionary = battle.units[i]
-		if u.target == "tower" or u.target == "main":
+		if (u.target == "tower" or u.target == "main") and u.range < Battlefield.RANGED:
+			# Melee attackers ring the building; archers stay where they shoot from.
 			var key := "%d:%s:%d" % [u.team, u.target, u.lane]
 			groups[key] = groups.get(key, []) + [i]
+		elif u.target == "queue":
+			var key := "%d:queue:%d" % [u.team, u.lane]
+			waiting[key] = waiting.get(key, []) + [i]
 		elif u.waiting and not u.moving and u.target == "" and absf(u.y - battle.rally_y(u)) < 0.02:
 			var key := "%d:home:%d" % [u.team, u.lane]
 			waiting[key] = waiting.get(key, []) + [i]
@@ -440,20 +444,10 @@ func unit_positions() -> Array[Vector2]:
 	for key in groups:
 		var idxs: Array = groups[key]
 		var u: Dictionary = battle.units[idxs[0]]
-		var center: Vector2
-		var front: float
-		# In 3D the buildings stand bigger: attackers ring them further out.
-		var radius := 62.0 if in_3d else 48.0
-		if u.target == "tower":
-			center = building_pos(1 - u.team, "tower", u.lane)
-			# Player units attack from below (90°), enemy units from above.
-			front = PI / 2 if u.team == Battlefield.PLAYER else -PI / 2
-		else:
-			# Fan out at the end of the road, facing the way they came.
-			var path := road(1 - u.team, u.lane)
-			center = path[-1]
-			front = (path[-2] - path[-1]).angle()
-			radius = 70.0 if in_3d else 26.0
+		var ring := _siege_ring(u.team, u.target, u.lane)
+		var center: Vector2 = ring[0]
+		var front: float = ring[1]
+		var radius: float = ring[2]
 		# Each attacker keeps the formation slot it got on arrival, so the
 		# others stay put when one of them falls. Slots fill from the middle
 		# outward (0, right, left, further right, ...), 7 per ring.
@@ -504,6 +498,18 @@ func unit_positions() -> Array[Vector2]:
 var _positions_at := 0.0
 
 
+## Where attackers stand around a building: [center, direction they come
+## from (angle), radius]. Towers are ringed from the attackers' side; the
+## fort at the end of each road.
+func _siege_ring(team: int, kind: String, lane: int) -> Array:
+	if kind == "tower":
+		# Player units attack from below (90°), enemy units from above.
+		return [building_pos(1 - team, "tower", lane), PI / 2 if team == Battlefield.PLAYER else -PI / 2, 62.0 if in_3d else 48.0]
+	# Fan out at the end of the road, facing the way they came.
+	var path := road(1 - team, lane)
+	return [path[-1], (path[-2] - path[-1]).angle(), 70.0 if in_3d else 26.0]
+
+
 ## Troops waiting at home stand as a block just behind their tower (the same
 ## on every lane): ranks of WAIT_COLS, filled from the front and the middle
 ## outward. Each keeps the place it got on arrival, so nobody shuffles.
@@ -516,6 +522,17 @@ func _place_waiting(key: String, idxs: Array, result: Array[Vector2]) -> void:
 	var anchor := building_pos(u0.team, "tower", u0.lane) + Vector2(0, home * (36.0 if in_3d else 30.0))
 	var dx := 23.0 if in_3d else 19.0
 	var dy := 22.0 if in_3d else 18.0
+	var across_dir := Vector2(1, 0)
+	var back_dir := Vector2(0, home)
+	if key.contains(":queue:"):
+		# Waiting for a place at the building it attacks: a block just behind
+		# the attackers' ring (two rows deep).
+		var enemy: int = 1 - u0.team
+		var kind := "tower" if battle.buildings[enemy].towers[u0.lane] > 0 else "main"
+		var ring := _siege_ring(u0.team, kind, u0.lane)
+		back_dir = Vector2.from_angle(ring[1])
+		across_dir = Vector2(-back_dir.y, back_dir.x)
+		anchor = ring[0] + back_dir * (ring[2] + 2.0 * (36.0 if in_3d else 30.0) + dy)
 	var taken := {}
 	for n in idxs:
 		var m: Dictionary = battle.units[n]
@@ -535,7 +552,7 @@ func _place_waiting(key: String, idxs: Array, result: Array[Vector2]) -> void:
 		var across := (col + 1) / 2 * (1 if col % 2 == 1 else -1)
 		# Horsemen take a little more room.
 		var wide := 1.25 if m.type in MOUNTED else 1.0
-		result[n] = anchor + Vector2(across * dx * wide, home * row * dy)
+		result[n] = anchor + across_dir * (across * dx * wide) + back_dir * (row * dy)
 
 
 ## Units standing still (fighting, or held) that stand too close drift apart

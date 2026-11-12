@@ -169,6 +169,8 @@ func spawn(team: int, unit_id: String, lane: int, bonus := {}, tier := 0) -> Dic
 		# `march`: the pace of the group it charged with (the slowest member)
 		# until it meets the enemy. `waiting`: holding still under its order.
 		"released": false, "march": 0.0, "moving": false, "waiting": false,
+		# "siege": its place at a building it hits ("" when none).
+		"siege": "",
 	}
 	if lane_orders[team][lane] != "march":
 		_formation_side(unit)
@@ -253,6 +255,9 @@ func tick(delta: float) -> void:
 ## Horsemen charge: with a foe they counter (archers) a short way ahead, they
 ## ride past whatever stands in front instead of stopping for it.
 func _unit_act(u: Dictionary, delta: float) -> void:
+	# Its place at a building last tick (kept below while it still hits it).
+	var had: String = u.get("siege", "")
+	u.siege = ""
 	var dir := 1.0 if u.team == PLAYER else -1.0
 	u.target = ""
 	u.foe = null
@@ -287,6 +292,15 @@ func _unit_act(u: Dictionary, delta: float) -> void:
 	else:
 		target_y = fort_y(enemy, u.lane)
 	if absf(target_y - u.y) <= u.range + REACH_EPS:
+		# Only so many fighters fit around a building: melee troops beyond
+		# that wait behind for a place (archers and chariots shoot from back).
+		var kind := "tower" if buildings[enemy].towers[u.lane] > 0 else "main"
+		var spot := "%d:%s:%d" % [enemy, kind, u.lane]
+		if u.range < RANGED:
+			if had != spot and _sieging(spot) >= SIEGE_SLOTS:
+				u.target = "queue"
+				return
+			u.siege = spot
 		if buildings[enemy].towers[u.lane] > 0:
 			buildings[enemy].towers[u.lane] -= u.dps * delta
 			tower_quiet[enemy][u.lane] = 0.0
@@ -313,6 +327,20 @@ func _unit_act(u: Dictionary, delta: float) -> void:
 	var before: float = u.y
 	u.y += dir * maxf(minf(step, limit), 0.0)
 	u.moving = not is_equal_approx(before, u.y)
+
+
+## Melee troops that can hit one building (per lane) at once; ranged ones
+## (range from RANGED up) are never short of room.
+const SIEGE_SLOTS := 12
+const RANGED := 0.1
+
+
+func _sieging(spot: String) -> int:
+	var n := 0
+	for o in units:
+		if o.get("siege", "") == spot:
+			n += 1
+	return n
 
 
 ## Hooves and wheels: every foe in its lane right next to it (other than the

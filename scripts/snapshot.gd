@@ -6,7 +6,7 @@ extends RefCounted
 ## teams swap and lane positions y become 1 - y. Lanes keep their letters.
 ## Only plain arrays and dictionaries, so it travels with var_to_bytes.
 
-const TARGETS := ["", "unit", "tower", "main"]
+const TARGETS := ["", "unit", "tower", "main", "queue"]
 
 
 static func capture(game: Match, viewer: int, events: Array) -> Dictionary:

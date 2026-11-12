@@ -517,6 +517,30 @@ func _init() -> void:
 	hb.tick(3.0)
 	_check(hb.huts == 3 and hb.builders().is_empty(), "5 idle villagers build a hut 2.5x faster")
 
+	# Only so many fighters fit at a building; the rest queue and step in.
+	var sg := Battlefield.new()
+	sg.build_towers(Battlefield.ENEMY)
+	sg.buildings[Battlefield.ENEMY].towers[1] = 1e9
+	sg.tower_max_hp[Battlefield.ENEMY] = 1e9
+	var crowd := []
+	for i in 20:
+		var sieger := sg.spawn(Battlefield.PLAYER, "fighter", 1)
+		sieger.y = 0.97
+		sieger.hp = 1e6
+		crowd.append(sieger)
+	var siege_bow := sg.spawn(Battlefield.PLAYER, "archer", 1)
+	siege_bow.y = 0.86
+	sg.tick(0.05)
+	var hitting := crowd.filter(func(c): return c.target == "tower").size()
+	var queued := crowd.filter(func(c): return c.target == "queue").size()
+	_check(hitting == Battlefield.SIEGE_SLOTS and queued == 20 - Battlefield.SIEGE_SLOTS, "12 fighters fit at a tower, the rest queue")
+	_check(siege_bow.target == "tower", "archers shoot at it from behind regardless")
+	for fallen_one in crowd.filter(func(c): return c.target == "tower").slice(0, 3):
+		fallen_one.hp = 0.0
+	sg.tick(0.05)
+	sg.tick(0.05)
+	_check(crowd.filter(func(c): return c.hp > 0 and c.target == "tower").size() == Battlefield.SIEGE_SLOTS, "queued fighters step into places that free up")
+
 	# Attackers around a tower keep their spots when one of them falls.
 	var vb := Battlefield.new()
 	var view: BattleView = load("res://scripts/battle_view.gd").new()
