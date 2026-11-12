@@ -343,6 +343,22 @@ func _sieging(spot: String) -> int:
 	return n
 
 
+## PROTOTYPE (lanes merge): in the middle of the map the three lanes run
+## into one battlefield, from FIELD_FROM to FIELD_TO along the lanes; there
+## everyone fights everyone. Before and after it each keeps to its lane.
+const FIELD_FROM := 0.3
+const FIELD_TO := 0.7
+
+
+static func in_field(u: Dictionary) -> bool:
+	return u.y >= FIELD_FROM and u.y <= FIELD_TO
+
+
+## Whether two units can reach each other: the same lane, or both on the field.
+static func meet(a: Dictionary, b: Dictionary) -> bool:
+	return a.lane == b.lane or (in_field(a) and in_field(b))
+
+
 ## Hooves and wheels: every foe in its lane right next to it (other than the
 ## one it is fighting) takes a share of its damage, also while it rides past.
 const TRAMPLE_REACH := 0.04
@@ -350,7 +366,7 @@ const TRAMPLE_REACH := 0.04
 
 func _trample(u: Dictionary, target, delta: float) -> void:
 	for o in units:
-		if o.team != u.team and o.lane == u.lane and o.hp > 0 and o != target \
+		if o.team != u.team and meet(u, o) and o.hp > 0 and o != target \
 				and absf(o.y - u.y) <= TRAMPLE_REACH:
 			o.hp -= u.dps * u.trample * delta
 
@@ -363,7 +379,7 @@ func _best_target(u: Dictionary):
 	var best_mult := 0.0
 	var best_dist := INF
 	for o in units:
-		if o.team == u.team or o.lane != u.lane or o.hp <= 0:
+		if o.team == u.team or not meet(u, o) or o.hp <= 0:
 			continue
 		var dist := absf(o.y - u.y)
 		if dist > u.range + REACH_EPS:
@@ -384,7 +400,7 @@ func _blocker(u: Dictionary):
 	var dir := 1.0 if u.team == PLAYER else -1.0
 	var charge: float = u.get("charge", 0.0)
 	for o in units:
-		if o.team == u.team or o.lane != u.lane or o.hp <= 0:
+		if o.team == u.team or not meet(u, o) or o.hp <= 0:
 			continue
 		var ahead: float = (o.y - u.y) * dir
 		if ahead < -0.01:

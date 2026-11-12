@@ -396,7 +396,15 @@ func _lane_pos_at(lane: int, y: float, side: float) -> Vector2:
 	# Spread out gently over a long stretch, so it reads as finding a place in
 	# the column rather than dodging something on the road.
 	var fade := smoothstep(0.0, 0.25, minf(y, 1.0 - y))
-	return Vector2(LANE_X[lane] * size.x + side * size.x * 0.04 * fade, sy)
+	# Toward the middle of the map the lanes run into one wide battlefield.
+	var merge := field_merge(y)
+	var x := lerpf(LANE_X[lane], 0.5, merge * 0.72) * size.x
+	return Vector2(x + side * size.x * (0.04 + 0.1 * merge) * fade, sy)
+
+
+## How far a lane has run into the battlefield at `y` (0 on its own, 1 on the field).
+static func field_merge(y: float) -> float:
+	return smoothstep(Battlefield.FIELD_FROM - 0.12, Battlefield.FIELD_FROM, y) * (1.0 - smoothstep(Battlefield.FIELD_TO, Battlefield.FIELD_TO + 0.12, y))
 
 
 ## Direction a unit faces on screen: toward its target while fighting,
@@ -810,21 +818,16 @@ func _draw_roads(lane_fill: Array[Color]) -> void:
 			draw_polyline(path, ROAD_EDGE if edge else ROAD, w + grow * 2)
 			for corner in path:  # square joints
 				draw_rect(Rect2(corner - Vector2.ONE * (w / 2 + grow), Vector2.ONE * (w + grow * 2)), ROAD_EDGE if edge else ROAD)
+		# The battlefield in the middle, then each lane bending into it.
+		var top_y := lerpf(tower_line(Battlefield.PLAYER), tower_line(Battlefield.ENEMY), Battlefield.FIELD_TO)
+		var bottom_y := lerpf(tower_line(Battlefield.PLAYER), tower_line(Battlefield.ENEMY), Battlefield.FIELD_FROM)
+		var field := Rect2(Vector2(size.x * 0.11, top_y), Vector2(size.x * 0.78, bottom_y - top_y))
+		draw_rect(field.grow(grow + w * 0.15), ROAD_EDGE if edge else ROAD)
 		for lane in Battlefield.LANES:
-			draw_rect(lane_rects[lane].grow_individual(grow, 0, grow, 0), ROAD_EDGE if edge else lane_fill[lane])
-	# Pebbles and wheel ruts along the lanes.
-	for lane in Battlefield.LANES:
-		var r: Rect2 = lane_rects[lane]
-		var y := r.position.y + 14.0
-		var k := 0
-		while y < r.end.y:
-			var x := r.position.x + r.size.x * (0.25 + 0.5 * float((k * 37) % 7) / 6.0)
-			draw_circle(Vector2(x, y), 1.8, ROAD_EDGE)
-			y += 23.0
-			k += 1
-		draw_line(Vector2(r.position.x + w * 0.3, r.position.y), Vector2(r.position.x + w * 0.3, r.end.y), Color(0, 0, 0, 0.06), 2)
-		draw_line(Vector2(r.position.x + w * 0.7, r.position.y), Vector2(r.position.x + w * 0.7, r.end.y), Color(0, 0, 0, 0.06), 2)
-
+			var line := PackedVector2Array()
+			for k in 41:
+				line.append(_lane_pos_at(lane, k / 40.0, 0.0))
+			draw_polyline(line, ROAD_EDGE if edge else lane_fill[lane], w + grow * 2)
 
 func _tex(name: String) -> Texture2D:
 	if not _art.has(name):
@@ -1171,7 +1174,8 @@ func _draw_city(team: int, now: float) -> void:
 ## The order button for each lane, in the middle of the lane halfway between
 ## the two sides' towers: GO / BACK for the player's troops there.
 func order_button(lane: int) -> Vector2:
-	return _lane_pos_at(lane, 0.5, 0.0)
+	# Below the battlefield, on the player's own stretch of the lane.
+	return _lane_pos_at(lane, Battlefield.FIELD_FROM * 0.55, 0.0)
 
 
 ## Fill and rim per order: GO green with an arrow up the lane, BACK blue with
