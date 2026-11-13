@@ -114,12 +114,20 @@ func shrines_held(team: int) -> int:
 ## Damage a lane's shrine; broken, it becomes `by`'s.
 func _hit_shrine(lane: int, by: int, amount: float) -> void:
 	var s: Dictionary = shrines[lane]
-	s.hp -= amount
 	s.quiet = 0.0
+	var fence: float = s.get("fence", 0.0)
+	if fence > 0.0:
+		s["fence"] = fence - amount
+		if s.fence >= 0.0:
+			return
+		amount = -s.fence
+		s.fence = 0.0
+	s.hp -= amount
 	if s.hp <= 0.0:
 		s.owner = by
 		s.max_hp = shrine_hp(by)
 		s.hp = s.max_hp
+		s["fence"] = fence_hp[by]
 		shrine_taken.emit(lane, by)
 
 
@@ -137,11 +145,17 @@ func _repair_forts(delta: float) -> void:
 			var hp: float = buildings[team].towers[lane]
 			if hp > 0 and hp < tower_max_hp[team] and tower_quiet[team][lane] >= tower.regen_delay_sec:
 				buildings[team].towers[lane] = minf(hp + tower.regen_per_sec * delta, tower_max_hp[team])
+			if hp > 0 and tower_quiet[team][lane] >= tower.regen_delay_sec:
+				fences[team][lane] = minf(fences[team][lane] + _fence_regen() * delta, fence_hp[team])
+			elif hp <= 0:
+				fences[team][lane] = 0.0
 	var sc := _shrine_cfg()
 	for sh in shrines:
 		sh.quiet += delta
 		if sh.quiet >= sc.regen_delay_sec:
 			sh.hp = minf(sh.hp + sc.regen_per_sec * delta, sh.max_hp)
+			if sh.owner != -1:
+				sh["fence"] = minf(sh.get("fence", 0.0) + _fence_regen() * delta, fence_hp[sh.owner])
 
 
 func fort_repairing(team: int) -> bool:
@@ -174,6 +188,7 @@ func fort_civ_bonus(team: int, bonus: Dictionary) -> void:
 ## A lane tower of `team` goes up (again) at full health.
 func build_tower(team: int, lane: int) -> void:
 	buildings[team].towers[lane] = tower_max_hp[team]
+	fences[team][lane] = fence_hp[team]
 	towers_built[team][lane] = true
 	tower_quiet[team][lane] = 0.0
 
@@ -191,6 +206,27 @@ func upgrade_towers(team: int, hp_bonus: float) -> void:
 	for lane in LANES:
 		if buildings[team].towers[lane] > 0:
 			buildings[team].towers[lane] += extra
+
+
+## Palisades (forge upgrade): a fence round each tower and held shrine that
+## takes the blows first. fence_hp: a full fence's health per team (0: none);
+## fences[team][lane]: what is left of each tower's.
+var fence_hp := [0.0, 0.0]
+var fences := [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
+
+
+func raise_fences(team: int, hp: float) -> void:
+	fence_hp[team] = hp
+	for lane in LANES:
+		if buildings[team].towers[lane] > 0:
+			fences[team][lane] = hp
+	for sh in shrines:
+		if sh.owner == team:
+			sh["fence"] = hp
+
+
+func _fence_regen() -> float:
+	return float(_cfg.get("upgrades", {}).get("palisade", {}).get("fence_regen_per_sec", 8.0))
 
 
 ## Arrow damage multiplier from `team`'s forge upgrades (towers, fort, shrines).
@@ -399,7 +435,12 @@ func _unit_act(u: Dictionary, delta: float) -> void:
 				return
 			u.siege = spot
 		if buildings[enemy].towers[u.lane] > 0:
-			buildings[enemy].towers[u.lane] -= u.dps * delta
+			var blow: float = u.dps * delta
+			var fence: float = fences[enemy][u.lane]
+			if fence > 0.0:
+				fences[enemy][u.lane] = maxf(fence - blow, 0.0)
+				blow = maxf(blow - fence, 0.0)
+			buildings[enemy].towers[u.lane] -= blow
 			tower_quiet[enemy][u.lane] = 0.0
 			u.target = "tower"
 		else:

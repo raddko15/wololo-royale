@@ -27,9 +27,9 @@ var camps := {}
 var gather_bonus := 0.0
 ## Which camp each gathered resource needs.
 const CAMP_FOR := {"food": "farm", "wood": "lumberjack"}
-## The forge's upgrades, in order: each makes every arrow hit harder (towers,
-## fort, shrines, archers and chariots).
-const FORGE_UPGRADES := ["fletching", "bodkin", "bracer"]
+## The forge's upgrades: Fletching (every arrow hits harder: towers, fort,
+## shrines, archers, chariots) and Palisades (fences round towers and shrines).
+const FORGE_UPGRADES := ["fletching", "palisade"]
 const ARCHERS := ["archer", "chariot"]
 ## Military buildings built so far, e.g. {"barracks": true}; each unlocks a unit.
 var military := {}

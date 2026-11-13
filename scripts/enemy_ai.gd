@@ -51,6 +51,8 @@ func _on_job_done(job: Dictionary) -> void:
 		"upgrade":
 			if job.id == "stone_towers":
 				battle.upgrade_towers(team, _cfg.upgrades.stone_towers.tower_hp_bonus)
+			elif job.id == "palisade":
+				battle.raise_fences(team, _cfg.upgrades.palisade.fence_hp)
 
 
 func tick(delta: float) -> void:
@@ -91,11 +93,11 @@ func _next_goal() -> Dictionary:
 		["military", "barracks:2", 0], ["era", "1", 0], ["mine", "stone", 1], ["towers", "", 1], ["upgrade", "lumber_camp", 1], ["upgrade", "mill", 1],
 		["military", "archery_range", 1], ["military", "barracks:2", 1], ["military", "stables", 1],
 		["upgrade", "barracks1", 1], ["upgrade", "archery_range1", 1], ["upgrade", "stables1", 1],
-		["military", "archery_range:2", 1], ["camp", "forge", 1], ["upgrade", "fletching", 1], ["era", "2", 1], ["upgrade", "stone_towers", 2],
+		["military", "archery_range:2", 1], ["camp", "forge", 1], ["upgrade", "fletching", 1], ["upgrade", "palisade", 1], ["era", "2", 1], ["upgrade", "stone_towers", 2],
 		["military", "stables:2", 2], ["upgrade", "mill2", 2], ["upgrade", "lumber_camp2", 2],
 		["upgrade", "barracks2", 2], ["upgrade", "archery_range2", 2], ["upgrade", "stables2", 2],
 		["military", "barracks:3", 2], ["military", "stables:3", 2], ["military", "archery_range:3", 2],
-		["upgrade", "bodkin", 2], ["upgrade", "bracer", 2], ["upgrade", "gold_mine2", 2], ["upgrade", "stone_mine2", 2],
+		["upgrade", "gold_mine2", 2], ["upgrade", "stone_mine2", 2],
 	]
 	for step in steps:
 		var kind: String = step[0]

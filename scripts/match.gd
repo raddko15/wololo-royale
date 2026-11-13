@@ -183,3 +183,5 @@ func _on_job_done(job: Dictionary, team: int) -> void:
 		"upgrade":
 			if job.id == "stone_towers":
 				battle.upgrade_towers(team, GameConfig.data().upgrades.stone_towers.tower_hp_bonus)
+			elif job.id == "palisade":
+				battle.raise_fences(team, GameConfig.data().upgrades.palisade.fence_hp)

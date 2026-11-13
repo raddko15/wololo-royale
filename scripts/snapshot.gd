@@ -27,10 +27,10 @@ static func capture(game: Match, viewer: int, events: Array) -> Dictionary:
 		"economies": [], "sides": [],
 		"events": events.filter(func(e): return e.team == viewer),
 	}
-	for key in ["buildings", "towers_built", "tower_max_hp", "fort_armor", "fort_max_hp", "fort_quiet", "fort_armed", "lane_orders"]:
+	for key in ["buildings", "towers_built", "tower_max_hp", "fort_armor", "fort_max_hp", "fort_quiet", "fort_armed", "lane_orders", "fences", "fence_hp"]:
 		var pair: Array = b.get(key)
 		snap[key] = [pair[1], pair[0]] if flip else [pair[0], pair[1]]
-	snap["shrines"] = b.shrines.map(func(sh): return [sh.owner if sh.owner == -1 else _t(sh.owner, flip), sh.hp, sh.max_hp])
+	snap["shrines"] = b.shrines.map(func(sh): return [sh.owner if sh.owner == -1 else _t(sh.owner, flip), sh.hp, sh.max_hp, sh.get("fence", 0.0)])
 	for local in 2:
 		var team := _t(local, flip)
 		snap.economies.append(_economy(game.economies[team]))
@@ -87,12 +87,12 @@ static func restore(snap: Dictionary, battle: Battlefield, economies: Array) -> 
 		if by_id.has(int(row[3])):
 			arrows.append({"team": int(row[0]), "lane": int(row[1]), "from": row[2], "target": by_id[int(row[3])], "t": row[4]})
 	battle.arrows = arrows
-	for key in ["buildings", "towers_built", "tower_max_hp", "fort_armor", "fort_max_hp", "fort_quiet", "fort_armed", "lane_orders"]:
+	for key in ["buildings", "towers_built", "tower_max_hp", "fort_armor", "fort_max_hp", "fort_quiet", "fort_armed", "lane_orders", "fences", "fence_hp"]:
 		battle.set(key, snap[key])
 	battle.winner = snap.winner
 	for lane in snap.get("shrines", []).size():
 		var row: Array = snap.shrines[lane]
-		battle.shrines[lane].merge({"owner": int(row[0]), "hp": row[1], "max_hp": row[2]}, true)
+		battle.shrines[lane].merge({"owner": int(row[0]), "hp": row[1], "max_hp": row[2], "fence": row[3]}, true)
 	for local in 2:
 		var e: Economy = economies[local]
 		var s: Dictionary = snap.economies[local]

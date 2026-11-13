@@ -727,8 +727,31 @@ func _test_forge() -> void:
 	fe.finish_jobs()
 	_check(fe.buy_upgrade("fletching"), "fletching at the forge")
 	fe.finish_jobs()
-	_check(is_equal_approx(fe.arrow_bonus(), 0.2) and is_equal_approx(fe.unit_bonus("archer").get("damage", 0.0), 0.2), "fletching: +20% for every arrow, archers' too")
+	_check(is_equal_approx(fe.arrow_bonus(), 0.3) and is_equal_approx(fe.unit_bonus("archer").get("damage", 0.0), 0.3), "fletching: +30% for every arrow, archers' too")
 	var fm := Match.new("romans", "franks", "human")
 	fm.economies[0].upgrades["fletching"] = true
 	fm.tick(0.01)
-	_check(is_equal_approx(fm.battle.arrow_bonus(0), 1.2), "the battle's towers, fort and shrines shoot harder")
+	_check(is_equal_approx(fm.battle.arrow_bonus(0), 1.3), "the battle's towers, fort and shrines shoot harder")
+	# Palisades: the fence takes the blows before the tower.
+	var pb := Battlefield.new()
+	pb.build_towers(Battlefield.ENEMY)
+	pb.raise_fences(Battlefield.ENEMY, 200.0)
+	var axe := pb.spawn(Battlefield.PLAYER, "fighter", 1)
+	axe.y = 0.97
+	axe.hp = 1e6
+	pb.tick(1.0)
+	_check(pb.fences[Battlefield.ENEMY][1] < 200.0 and is_equal_approx(pb.buildings[Battlefield.ENEMY].towers[1], pb.tower_max_hp[Battlefield.ENEMY]), "palisade: the fence takes the blows, the tower is untouched")
+	for i in 400:
+		pb.tick(0.1)
+	_check(pb.fences[Battlefield.ENEMY][1] <= 0.0 and pb.buildings[Battlefield.ENEMY].towers[1] < pb.tower_max_hp[Battlefield.ENEMY], "once the fence is down the tower takes damage")
+	var ps := Battlefield.new()
+	ps.raise_fences(Battlefield.PLAYER, 200.0)
+	ps.shrines[0].owner = Battlefield.ENEMY
+	var pilgrim := ps.spawn(Battlefield.PLAYER, "fighter", 0)
+	pilgrim.y = Battlefield.SHRINE_Y - 0.02
+	pilgrim.hp = 1e6
+	for i in 1200:
+		ps.tick(0.1)
+		if ps.shrines[0].owner == Battlefield.PLAYER:
+			break
+	_check(ps.shrines[0].owner == Battlefield.PLAYER and is_equal_approx(ps.shrines[0].get("fence", 0.0), 200.0), "a shrine taken by a side with palisades gets its fence")

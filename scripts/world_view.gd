@@ -181,6 +181,9 @@ func _wanted_buildings() -> Dictionary:
 			if hp > 0:
 				var look := "tower_wood" if not e.upgrades.has("stone_towers") else ("tower_marble" if classical else "tower_stone")
 				want["tower%d_%d" % [team, lane]] = [look, view.building_pos(team, "tower", lane), color]
+				if view.battle.fences[team][lane] > 0.0:
+					# The gate faces its own town.
+					want["fence%d_%d" % [team, lane]] = ["palisade", view.building_pos(team, "tower", lane), color, 1.0, false, 0 if team == Battlefield.PLAYER else 1]
 			elif ruin:
 				want["tower%d_%d" % [team, lane]] = ["tower_ruin", view.building_pos(team, "tower", lane), color]
 	# The lanes' shrines: an obelisk, or the holder's shrine in its era.
@@ -192,6 +195,9 @@ func _wanted_buildings() -> Dictionary:
 			else:
 				var e := view.econ(owner)
 				want["shrine%d" % lane] = ["shrine_%s_%d" % [e.civ_id, mini(e.era_index, 2)], view.shrine_pos(lane), Color(e.civ().color), SHRINE_SCALE]
+				if view.battle.shrines[lane].get("fence", 0.0) > 0.0:
+					# The gate faces the lane.
+					want["sfence%d" % lane] = ["palisade", view.shrine_pos(lane), Color.WHITE, SHRINE_SCALE * 1.05, false, 3 if lane == 2 else 2]
 	return want
 
 
@@ -238,7 +244,7 @@ func model_for(id: String, e: Economy) -> Array:
 			return ["granary", false]
 		"lumberjack":
 			return ["lean_to", false]
-		"forge", "fletching", "bodkin", "bracer":
+		"forge", "fletching":
 			return ["forge", false]
 		"hut":
 			return ["hut_era0" if e.era_index == 0 else ("hut_classical" if classical else "hut_medieval"), false]

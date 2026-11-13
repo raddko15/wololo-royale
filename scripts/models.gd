@@ -81,6 +81,8 @@ static func make(id: String, tint: Color, variant := 0) -> Node3D:
 			_obelisk(m)
 		"forge":
 			_forge(m, tint)
+		"palisade":
+			_palisade(m, variant)
 		_:
 			if id.begins_with("shrine_"):
 				var parts := id.split("_")
@@ -483,6 +485,40 @@ static func _campfire(m: Node3D) -> void:
 	mat.emission = Color("#f5b041")
 	mat.emission_energy_multiplier = 1.5
 	flame.material_override = mat
+
+
+# --- Palisade ------------------------------------------------------------------
+
+## A ring of sharpened stakes round a tower or shrine, with a gate. `facing`:
+## where the gate is, 0 front (+z), 1 back, 2 right (+x), 3 left.
+static func _palisade(m: Node3D, facing: int, r := 0.24) -> void:
+	var gate_at: float = [PI / 2, -PI / 2, 0.0, PI][facing]
+	var n := 30
+	var stake := LowPoly.prism(0.013, 0.08, 5)
+	var tip := LowPoly.cone(0.013, 0.03, 5)
+	for i in n:
+		var a := TAU * i / n
+		if absf(angle_difference(a, gate_at)) < 0.32:
+			continue
+		var p := Vector3(cos(a) * r, 0, sin(a) * r)
+		var k := 1.0 + 0.15 * sin(i * 2.3)
+		_add(m, stake, LOG, p + Vector3(0, 0.04 * k, 0)).scale = Vector3(1, k, 1)
+		_add(m, tip, WOOD_DARK, p + Vector3(0, 0.08 * k + 0.015, 0))
+	# Two rails round it, and the gate between two posts.
+	for i in n:
+		var a := TAU * (i + 0.5) / n
+		if absf(angle_difference(a, gate_at)) < 0.3:
+			continue
+		var rail := _add(m, LowPoly.box(Vector3(TAU * r / n + 0.004, 0.01, 0.008)), WOOD_DARK, Vector3(cos(a) * (r + 0.012), 0.05, sin(a) * (r + 0.012)))
+		rail.rotation.y = -a + PI / 2
+	var g := Vector3(cos(gate_at), 0, sin(gate_at)) * r
+	var across := Vector3(-sin(gate_at), 0, cos(gate_at))
+	for side in [-1.0, 1.0]:
+		_post(m, 0.016, 0.12, WOOD_DARK, g + across * side * 0.075, 5)
+	var door := _add(m, LowPoly.box(Vector3(0.13, 0.08, 0.012)), Color("#6b4022"), g + Vector3(0, 0.045, 0))
+	door.rotation.y = -gate_at + PI / 2
+	var beam := _add(m, LowPoly.box(Vector3(0.17, 0.014, 0.02)), WOOD_DARK, g + Vector3(0, 0.118, 0))
+	beam.rotation.y = -gate_at + PI / 2
 
 
 # --- Forge ---------------------------------------------------------------------

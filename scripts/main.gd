@@ -703,6 +703,8 @@ func _describe(id: String) -> String:
 			parts.append("+%d%% %s" % [roundi(up.unit_bonus[stat] * 100), {"hp": "HP", "damage": "dmg", "range": "range"}[stat]])
 		if up.has("arrow_bonus"):
 			parts.append("+%d%% arrow damage: towers, fort, shrines, archers" % roundi(up.arrow_bonus * 100))
+		if up.has("fence_hp"):
+			parts.append("fences round towers and shrines (%d HP)" % up.fence_hp)
 		if up.has("tower_hp_bonus"):
 			parts.append("+%d%% tower HP" % roundi(up.tower_hp_bonus * 100))
 		# A level that renames the troop (archers become crossbowmen).

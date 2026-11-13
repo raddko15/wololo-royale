@@ -716,8 +716,10 @@ func draw_overlay(canvas: CanvasItem, to_screen: Callable) -> void:
 	if battle.shrines_on:
 		for lane in Battlefield.LANES:
 			var sh: Dictionary = battle.shrines[lane]
-			if sh.hp < sh.max_hp - 0.5:
+			if sh.hp < sh.max_hp - 0.5 or (sh.owner != -1 and sh.get("fence", 0.0) < battle.fence_hp[sh.owner] - 0.5):
 				_draw_hp(shrine_pos(lane) + Vector2(0, 34), sh.hp, sh.max_hp, 56)
+				if sh.owner != -1 and battle.fence_hp[sh.owner] > 0.0:
+					_draw_fence_bar(shrine_pos(lane) + Vector2(0, 43), sh.get("fence", 0.0), battle.fence_hp[sh.owner], 56)
 	for team in [Battlefield.ENEMY, Battlefield.PLAYER]:
 		var e := econ(team)
 		var tc := town_center(team)
@@ -727,7 +729,10 @@ func draw_overlay(canvas: CanvasItem, to_screen: Callable) -> void:
 			var hp: float = battle.buildings[team].towers[lane]
 			if hp > 0:
 				var pos := building_pos(team, "tower", lane)
-				_draw_hp(pos + Vector2(0, 40 if pos.y < size.y / 2 else -60), hp, battle.tower_max_hp[team])
+				var bar_at := pos + Vector2(0, 40 if pos.y < size.y / 2 else -60)
+				_draw_hp(bar_at, hp, battle.tower_max_hp[team])
+				if battle.fence_hp[team] > 0.0:
+					_draw_fence_bar(bar_at + Vector2(0, 9), battle.fences[team][lane], battle.fence_hp[team])
 		for id in e.military:
 			if e.military[id] > 1:
 				_draw_mil_count(military_pos(team, id) + Vector2(30, 10), e.military[id])
@@ -1761,6 +1766,17 @@ func _draw_arrow(a: Dictionary, target: Vector2) -> void:
 	draw_colored_polygon(PackedVector2Array([pos + dir * 8, pos + side * 5, pos - side * 5]), Color("#1b120a"))
 	draw_line(pos - dir * 22, pos - dir * 15 + side * 5, Color.WHITE, 2.5)
 	draw_line(pos - dir * 22, pos - dir * 15 - side * 5, Color.WHITE, 2.5)
+
+
+## A palisade's health: a thin wooden-brown bar under the building's.
+func _draw_fence_bar(center: Vector2, hp: float, max_hp: float, width := 70.0) -> void:
+	if _ui_skip():
+		return
+	center = _sp(center)
+	var r := Rect2(center - Vector2(width / 2, 3), Vector2(width, 6))
+	_c.draw_rect(r, Color("#2d3436"))
+	if hp > 0:
+		_c.draw_rect(Rect2(r.position, Vector2(r.size.x * hp / max_hp, r.size.y)), Color("#c8873a"))
 
 
 func _draw_hp(center: Vector2, hp: float, max_hp: float, width := 70.0) -> void:
