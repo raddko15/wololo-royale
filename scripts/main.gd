@@ -76,6 +76,22 @@ func _show_civ_select() -> void:
 	add_child(screen)
 
 
+## Show "Loading…" first and let it reach the screen, then build the game
+## (a few seconds on the web), then fade it out once the world has drawn.
+func _start_game(civ_id: String, menu: Control, their_civ := "", role := "") -> void:
+	if menu.has_meta("starting"):
+		return  # a second tap while it loads
+	menu.set_meta("starting", true)
+	var loading := Loading.new("Starting the battle…")
+	add_child(loading)
+	for i in 2:
+		await get_tree().process_frame
+	_build_game(civ_id, menu, their_civ, role)
+	for i in 8:  # the 3D view fits its camera over its first frames
+		await get_tree().process_frame
+	loading.finish()
+
+
 ## Host or join a game with a friend; it starts once both are in.
 func _show_lobby(civ_id: String, screen: Control) -> void:
 	if net == null:
@@ -91,7 +107,7 @@ func _show_lobby(civ_id: String, screen: Control) -> void:
 
 ## `role`: "" against the computer, or "host" / "guest" with a friend. The
 ## host's device runs the match; the guest's shows the host's snapshots.
-func _start_game(civ_id: String, menu: Control, their_civ := "", role := "") -> void:
+func _build_game(civ_id: String, menu: Control, their_civ := "", role := "") -> void:
 	menu.queue_free()
 	if role == "guest":
 		game = Mirror.new(civ_id, their_civ, net.send_command)

@@ -26,7 +26,7 @@ func _init() -> void:
 		root.get_texture().get_image().save_png(args[0])
 		quit()
 		return
-	main._start_game(args[2] if args.size() > 2 else "romans", main.get_child(0))
+	main._build_game(args[2] if args.size() > 2 else "romans", main.get_child(0))
 	if args.size() > 3:
 		main.game.ai.economy = Economy.new(args[3])
 		main.game.economies[Battlefield.ENEMY] = main.game.ai.economy
