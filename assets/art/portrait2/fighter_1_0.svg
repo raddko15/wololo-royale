@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="128" height="128"><defs>
+<radialGradient id="skin" cx="0.4" cy="0.35" r="0.75"><stop offset="0" stop-color="#f8d7b4"/><stop offset="1" stop-color="#d49a6c"/></radialGradient>
+<linearGradient id="cloth" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#a9a9a9"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#e9edf1"/><stop offset="0.45" stop-color="#a7afb8"/><stop offset="1" stop-color="#5d646d"/></linearGradient>
+<linearGradient id="bronze" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#ffe29a"/><stop offset="0.5" stop-color="#c98f2e"/><stop offset="1" stop-color="#7a4f14"/></linearGradient>
+<linearGradient id="wood" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#b07a45"/><stop offset="1" stop-color="#6b4022"/></linearGradient>
+<linearGradient id="hairb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7a4a22"/><stop offset="1" stop-color="#4a2a12"/></linearGradient>
+<linearGradient id="horse" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#b8743c"/><stop offset="1" stop-color="#6e3e1a"/></linearGradient>
+<linearGradient id="hood" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5f9a4a"/><stop offset="1" stop-color="#2f5a28"/></linearGradient>
+<linearGradient id="straw" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f3d77c"/><stop offset="1" stop-color="#c9a23e"/></linearGradient>
+</defs><path d="M70 100 L76 46 L74 30 C75 22 85 22 86 30 L84 46 L78 100 Z" fill="url(#wood)" stroke="#2b160a" stroke-width="2" stroke-linejoin="round"/><circle cx="77" cy="34" r="1.6" fill="#4a2a12"/><circle cx="82" cy="40" r="1.6" fill="#4a2a12"/></svg>
