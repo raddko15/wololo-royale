@@ -840,10 +840,10 @@ func _draw() -> void:
 			var target := _target_pos(u, positions)
 			var fight := -1.0
 			if u.target != "":
-				var rate: float = {"fighter": 1.8, "phalanx": 1.27, "chariot": 1.4}.get(u.type, 1.2)
+				var rate: float = {"fighter": 1.35, "phalanx": 0.95, "chariot": 1.05}.get(u.type, 0.9)
 				fight = fmod(now * rate + u.side * (3.0 if u.type == "fighter" else 1.0) + 10.0, 1.0)
 			figures_3d.append({"kind": "unit", "u": u, "pos": positions[i], "target": target, "color": color,
-				"heading": _heading(u, target), "walk": _walk_phase(u, now, 12.0 if u.type in MOUNTED else 11.0), "fight": fight})
+				"heading": _heading(u, target), "walk": _walk_phase(u, now, 9.0 if u.type in MOUNTED else 8.5), "fight": fight})
 			continue
 		match u.type:
 			"archer":
@@ -2104,7 +2104,7 @@ func _draw_fighter(u: Dictionary, p: Vector2, color: Color, now: float) -> void:
 	var angle := -PI / 2 + 0.45
 	var grip := Vector2(26, 27)
 	if u.target != "":
-		var t := fmod(now * 1.8 + u.side * 3.0 + 10.0, 1.0)
+		var t := fmod(now * 1.35 + u.side * 3.0 + 10.0, 1.0)
 		var raised := -PI / 2 - 0.5
 		var struck := 0.35
 		if t < 0.25:

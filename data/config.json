@@ -126,8 +126,8 @@
         "gold": 10
       },
       "hp": 60,
-      "speed": 0.05,
-      "damage_per_sec": 10,
+      "speed": 0.0375,
+      "damage_per_sec": 7.5,
       "range": 0.04,
       "requires": "barracks",
       "time": 14
@@ -147,9 +147,9 @@
         "gold": 25
       },
       "hp": 40,
-      "damage_per_sec": 7,
+      "damage_per_sec": 5.25,
       "range": 0.15,
-      "speed": 0.05,
+      "speed": 0.0375,
       "requires": "archery_range",
       "time": 10
     },
@@ -166,9 +166,9 @@
         "gold": 40
       },
       "hp": 110,
-      "damage_per_sec": 11,
+      "damage_per_sec": 8.25,
       "range": 0.04,
-      "speed": 0.11,
+      "speed": 0.0825,
       "requires": "stables",
       "time": 12
     },
@@ -187,9 +187,9 @@
         "gold": 80
       },
       "hp": 230,
-      "damage_per_sec": 16,
+      "damage_per_sec": 12,
       "range": 0.04,
-      "speed": 0.1,
+      "speed": 0.075,
       "requires": "stables",
       "upgrades_as": "cavalry",
       "time": 16
@@ -204,9 +204,9 @@
         "gold": 70
       },
       "hp": 170,
-      "damage_per_sec": 13,
+      "damage_per_sec": 9.75,
       "range": 0.2,
-      "speed": 0.085,
+      "speed": 0.0638,
       "requires": "stables",
       "upgrades_as": "cavalry",
       "time": 16
@@ -227,9 +227,9 @@
         "gold": 40
       },
       "hp": 90,
-      "damage_per_sec": 8,
+      "damage_per_sec": 6,
       "range": 0.06,
-      "speed": 0.043,
+      "speed": 0.0323,
       "requires": "barracks",
       "upgrades_as": "fighter",
       "time": 16

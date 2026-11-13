@@ -18,7 +18,7 @@ func _init() -> void:
 	_check(f.style() == "medieval" and is_equal_approx(f.unit_bonus("cavalry").get("hp", 0.0), 0.2) and is_equal_approx(f.unit_bonus("knight").get("hp", 0.0), 0.2), "franks: medieval style, horsemen +20% HP")
 	_check(is_equal_approx(e.rate_per_villager("wood"), 1.3 * 1.05) and is_equal_approx(e.unit_bonus("fighter").get("speed", 0.0), 0.1) and e.unit_bonus("cavalry").is_empty(), "romans: +5% wood, foot soldiers +10% speed")
 	var fast := Battlefield.new().spawn(Battlefield.PLAYER, "fighter", 1, e.unit_bonus("fighter"))
-	_check(is_equal_approx(fast.speed, 0.05 * 1.1), "a Roman fighter walks 10% faster")
+	_check(is_equal_approx(fast.speed, float(GameConfig.data().units.fighter.speed) * 1.1), "a Roman fighter walks 10% faster")
 	_check(g.style() == "classical" and g.upgrade_name("mill") == "Olive Press" and e.upgrade_name("mill") == "Olive Press" and f.upgrade_name("mill") == "Windmill", "romans and greeks press olives; franks build a windmill")
 
 	_check(not e.reassign("idle", "food") and not e.reassign("idle", "wood"), "no gathering before the farm and lumberjack stand")
@@ -128,7 +128,7 @@ func _init() -> void:
 	_check(m.unit_tier("fighter") == 1 and is_equal_approx(m.unit_bonus("fighter").hp, 0.4), "veteran fighters: tier 1, +40% HP")
 	var bv := Battlefield.new()
 	var vet := bv.spawn(Battlefield.PLAYER, "fighter", 0, m.unit_bonus("fighter"), m.unit_tier("fighter"))
-	_check(is_equal_approx(vet.max_hp, 84) and is_equal_approx(vet.dps, 13) and vet.tier == 1, "upgraded fighter spawns stronger")
+	_check(is_equal_approx(vet.max_hp, 84) and is_equal_approx(vet.dps, float(GameConfig.data().units.fighter.damage_per_sec) * 1.3) and vet.tier == 1, "upgraded fighter spawns stronger")
 
 	var ba := Battlefield.new()
 	var archer := ba.spawn(Battlefield.PLAYER, "archer", 1)
@@ -183,7 +183,7 @@ func _init() -> void:
 	_check(b.buildings[Battlefield.ENEMY].towers.size() == 3 and b.towers_built[Battlefield.ENEMY], "build_towers raises all 3 at once")
 	var u := b.spawn(Battlefield.PLAYER, "fighter", 2)
 	_check(is_equal_approx(u.y, -0.5), "fighter starts at its own fort, at the start of the L road")
-	for i in 340:
+	for i in 454:
 		b.tick(0.1)
 	_check(u.y < 1.0 and u.y > 0.9 and b.buildings[Battlefield.ENEMY].towers[2] < b.max_hp("tower"), "fighter walks up and hits the enemy tower")
 	_check(u.hp < 60, "enemy tower shoots the fighter")
@@ -228,7 +228,9 @@ func _init() -> void:
 	var won := []
 	b4.game_over.connect(func(w): won.append(w))
 	b4.buildings[Battlefield.ENEMY].main = 5.0
-	for i in 600:
+	for i in 800:
+		if runner.y < 1.3:
+			b4.buildings[Battlefield.ENEMY].main = 5.0  # no repairs during the long walk
 		b4.tick(0.1)
 	_check(runner.y > 1.4 and won == [Battlefield.PLAYER], "past a fallen outer tower, fighter takes the L road and destroys the main building")
 
@@ -314,7 +316,7 @@ func _init() -> void:
 	horse.y = 0.53
 	var knight_hp: float = horse.hp
 	duel.tick(1.0)
-	_check(is_equal_approx(knight_hp - horse.hp, 24.0), "hoplites deal triple damage to horsemen")
+	_check(is_equal_approx(knight_hp - horse.hp, float(GameConfig.data().units.phalanx.damage_per_sec) * 3.0), "hoplites deal triple damage to horsemen")
 	var joust := Battlefield.new()
 	var kn := joust.spawn(Battlefield.PLAYER, "knight", 1)
 	var ft := joust.spawn(Battlefield.ENEMY, "fighter", 1)
@@ -322,7 +324,7 @@ func _init() -> void:
 	ft.y = 0.53
 	var ft_hp: float = ft.hp
 	joust.tick(1.0)
-	_check(is_equal_approx(ft_hp - ft.hp, 32.0), "knights deal double damage to fighters")
+	_check(is_equal_approx(ft_hp - ft.hp, float(GameConfig.data().units.knight.damage_per_sec) * 2.0), "knights deal double damage to fighters")
 	var volley := Battlefield.new()
 	var bowman := volley.spawn(Battlefield.PLAYER, "archer", 1)
 	var swords := volley.spawn(Battlefield.ENEMY, "fighter", 0)
@@ -332,7 +334,7 @@ func _init() -> void:
 	swords.lane = 1
 	var sw_hp: float = swords.hp
 	volley.tick(1.0)
-	_check(is_equal_approx(sw_hp - swords.hp, 10.5), "archers deal 1.5x damage to fighters")
+	_check(is_equal_approx(sw_hp - swords.hp, float(GameConfig.data().units.archer.damage_per_sec) * 1.5), "archers deal 1.5x damage to fighters")
 	volley.units.erase(swords)
 	rider.lane = 1
 	rider.y = 0.6
@@ -383,7 +385,7 @@ func _init() -> void:
 		gf.tick(0.1)
 	_check(not gf.units.has(raider) and gf.waiting_count(Battlefield.PLAYER, 1) == 3, "stopped troops fight off a raider and keep holding")
 	gf.charge(Battlefield.PLAYER, 1)
-	for i in 50:
+	for i in 67:
 		gf.tick(0.1)
 	_check(g2.y > 0.3 and absf(g2.y - g1.y) < 0.03, "after a charge the group marches together at the slowest pace")
 	gf.set_order(Battlefield.PLAYER, 1, "stop")
@@ -408,7 +410,7 @@ func _init() -> void:
 		stand.dps = 0.0
 		stand.speed = 0.0
 	tr.tick(1.0)
-	_check(is_equal_approx(f1.hp, 60.0 - 11.0) and is_equal_approx(f2.hp, 60.0 - 11.0 * 0.3), "cavalry trample: full damage to its target, 30% to the foe beside it")
+	_check(is_equal_approx(f1.hp, 60.0 - float(GameConfig.data().units.cavalry.damage_per_sec)) and is_equal_approx(f2.hp, 60.0 - float(GameConfig.data().units.cavalry.damage_per_sec) * 0.3), "cavalry trample: full damage to its target, 30% to the foe beside it")
 
 	# A two-player match: both sides play through commands.
 	var duo := Match.new("romans", "franks", "human")
