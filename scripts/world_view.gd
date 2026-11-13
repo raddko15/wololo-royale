@@ -367,6 +367,8 @@ static func _ghost_material() -> StandardMaterial3D:
 
 ## Troop figures are drawn a little larger than life, to read at a distance.
 const FIGURE_SCALE := 1.25
+## Gods stand this many times a soldier's height.
+const GOD_SCALE := 2.4
 
 
 ## Place and pose a 3D figure for everyone the map recorded this frame
@@ -386,14 +388,16 @@ func _sync_figures() -> void:
 			"unit":
 				var u: Dictionary = f.u
 				var key := "u%d" % u.id
-				var spec := "%s:%d:%s" % [u.type, u.get("tier", 0), (f.color as Color).to_html()]
-				var fig: Node3D = _figure(key, spec, func(): return _make_troop(u.type, u.get("tier", 0), f.color))
+				var spec := "%s:%d:%s:%s" % [u.type, u.get("tier", 0), (f.color as Color).to_html(), u.get("civ", "")]
+				var fig: Node3D = _figure(key, spec, func(): return Figures.god(u.civ, f.color) if u.type == "god" else _make_troop(u.type, u.get("tier", 0), f.color))
 				fig.position = map_to_world(f.pos)
 				var d := Vector2.from_angle(f.heading)
 				fig.rotation.y = atan2(d.x, d.y)
 				Figures.animate(fig, {"walk": f.walk, "fight": f.fight, "type": u.type}, now)
 				seen[key] = true
 				var tall := 0.5 if u.type in BattleView.MOUNTED else 0.45
+				if u.type == "god":
+					tall = 0.45 * GOD_SCALE
 				_bars.append([camera.unproject_position(fig.position + Vector3(0, tall, 0)), u.hp, u.max_hp, u.team])
 				if f.fight >= 0.0 and u.type in ["archer", "chariot"] and f.target != Vector2.INF:
 					var from := fig.position + Vector3(0, 0.25, 0)
@@ -432,6 +436,7 @@ func _sync_figures() -> void:
 			_figures.erase(key)
 	_draw_parts()
 	_fly_arrows(flights)
+	_show_bolts()
 
 
 ## Draw every visible part of every figure: one batch per mesh.
@@ -482,7 +487,7 @@ func _figure(key: String, spec: String, make: Callable) -> Node3D:
 		Figures.compact(fig, spec)
 		fig.set_meta("spec", spec)
 		if not key.begins_with("v"):
-			fig.scale = Vector3.ONE * FIGURE_SCALE
+			fig.scale = Vector3.ONE * FIGURE_SCALE * (GOD_SCALE if spec.begins_with("god") else 1.0)
 		_figure_root.add_child(fig)
 		_figures[key] = fig
 	return fig
@@ -495,6 +500,95 @@ func _make_troop(type: String, tier: int, color: Color) -> Node3D:
 		"chariot":
 			return Figures.chariot(tier, color)
 	return Figures.soldier(type, tier, color)
+
+
+## Gods' strikes: Zeus's lightning from the sky, Mars's flaming spear
+## flying from his hand, Michael's pillar of light; each flashes and fades.
+var _bolt_nodes: Array[Node3D] = []
+
+
+func _bolt_mesh(civ: String) -> Node3D:
+	var root := Node3D.new()
+	var glow := func(color: Color) -> StandardMaterial3D:
+		var m := StandardMaterial3D.new()
+		m.albedo_color = color
+		m.emission_enabled = true
+		m.emission = color
+		m.emission_energy_multiplier = 2.5
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		return m
+	match civ:
+		"greeks":
+			# A zigzag from high above down to the ground at the origin.
+			var pts := [Vector3(0, 0, 0), Vector3(0.06, 0.3, 0), Vector3(-0.05, 0.55, 0), Vector3(0.07, 0.85, 0), Vector3(-0.03, 1.2, 0), Vector3(0.02, 1.6, 0)]
+			for i in pts.size() - 1:
+				var seg := MeshInstance3D.new()
+				var a: Vector3 = pts[i]
+				var b: Vector3 = pts[i + 1]
+				seg.mesh = LowPoly.box(Vector3(0.07, a.distance_to(b) + 0.03, 0.07))
+				seg.material_override = glow.call(Color("#fff7a8"))
+				seg.position = (a + b) / 2.0
+				seg.rotation.z = -atan2(b.x - a.x, b.y - a.y)
+				root.add_child(seg)
+		"romans":
+			var spear := MeshInstance3D.new()
+			spear.mesh = LowPoly.box(Vector3(0.06, 0.06, 0.55))
+			spear.material_override = glow.call(Color("#ff8c1a"))
+			spear.name = "Spear"
+			root.add_child(spear)
+		_:
+			var beam := MeshInstance3D.new()
+			beam.mesh = LowPoly.prism(0.07, 1.6, 8)
+			beam.material_override = glow.call(Color("#fff2b0"))
+			beam.position.y = 0.8
+			root.add_child(beam)
+	var ring := MeshInstance3D.new()
+	ring.mesh = LowPoly.prism(0.12, 0.01, 12)
+	ring.material_override = glow.call(Color("#ffffff"))
+	ring.name = "Flash"
+	root.add_child(ring)
+	for mi in root.find_children("*", "MeshInstance3D", true, false):
+		(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	root.set_meta("civ", civ)
+	return root
+
+
+func _show_bolts() -> void:
+	var bolts: Array = view.battle.bolts
+	for i in _bolt_nodes.size():
+		_bolt_nodes[i].visible = false
+	for i in bolts.size():
+		var b: Dictionary = bolts[i]
+		if i >= _bolt_nodes.size() or _bolt_nodes[i].get_meta("civ") != b.civ:
+			var made := _bolt_mesh(b.civ)
+			_figure_root.add_child(made)
+			if i < _bolt_nodes.size():
+				_bolt_nodes[i].queue_free()
+				_bolt_nodes[i] = made
+			else:
+				_bolt_nodes.append(made)
+		var n := _bolt_nodes[i]
+		n.visible = true
+		var t: float = b.age / Battlefield.BOLT_SHOWN
+		var at := map_to_world(view.lane_point(b.lane, b.y))
+		var fade := 1.0 - t
+		for mi in n.find_children("*", "MeshInstance3D", true, false):
+			var mat: StandardMaterial3D = (mi as MeshInstance3D).material_override
+			mat.albedo_color.a = fade
+		var flash := n.get_node("Flash")
+		flash.scale = Vector3.ONE * (1.0 + t * 2.0)
+		if b.civ == "romans":
+			# The spear flies from the god's raised hand to its target.
+			var from := map_to_world(view.lane_point(b.lane, b.from_y)) + Vector3(0, 0.8, 0)
+			var fly := clampf(t * 2.5, 0.0, 1.0)
+			var spear: Node3D = n.get_node("Spear")
+			n.position = at
+			spear.global_position = from.lerp(at + Vector3(0, 0.05, 0), fly)
+			spear.look_at(at + Vector3(0, -0.2, 0) if fly >= 1.0 else at, Vector3.UP)
+			flash.visible = fly >= 1.0
+		else:
+			n.position = at
 
 
 ## Arrows in flight: each rises and falls along an arc from `from` to `to`.

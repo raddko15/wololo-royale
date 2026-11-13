@@ -306,6 +306,19 @@
       "time": 15
     }
   },
+  "god": {
+    "faith": 1000,
+    "lifetime_sec": 60,
+    "hp": 1500,
+    "speed": 0.03,
+    "range": 0.22,
+    "strike_interval_sec": 1.6,
+    "strike_damage": 45,
+    "building_damage": 70,
+    "splash": 0.06,
+    "splash_share": 0.5,
+    "names": {"greeks": "Zeus", "romans": "Mars", "franks": "Archangel Michael"}
+  },
   "shrine": {
     "name": "Obelisk",
     "neutral_hp": 400,

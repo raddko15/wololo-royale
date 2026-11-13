@@ -398,6 +398,11 @@ func shrine_pos(lane: int) -> Vector2:
 const SHRINE_GAP := 40.0
 
 
+## The middle of lane `lane` at lane coordinate `y`, in map pixels.
+func lane_point(lane: int, y: float) -> Vector2:
+	return _lane_pos_at(lane, y, 0.0)
+
+
 ## A lane's (and its roads') width in pixels.
 func lane_width(lane: int) -> float:
 	return size.x * LANE_W * (1.0 if lane == 1 else SIDE_LANE)
@@ -613,6 +618,8 @@ const SHRINE_ROOM := 34.0
 ## Room each figure takes (pixels across): horses and chariots more.
 func _room(u: Dictionary) -> float:
 	var k := 1.3 if in_3d else 1.0
+	if u.type == "god":
+		return 44.0 * k
 	return (30.0 if u.type in MOUNTED else 19.0) * k
 
 
@@ -907,7 +914,10 @@ func _draw() -> void:
 		if in_3d:
 			var target := _target_pos(u, positions)
 			var fight := -1.0
-			if u.target != "":
+			if u.type == "god":
+				if u.target != "":
+					fight = clampf(1.0 - u.get("cooldown", 0.0) / 1.6, 0.0, 1.0)
+			elif u.target != "":
 				var rate: float = {"fighter": 1.35, "phalanx": 0.95, "chariot": 1.05}.get(u.type, 0.9)
 				fight = fmod(now * rate + u.side * (3.0 if u.type == "fighter" else 1.0) + 10.0, 1.0)
 			figures_3d.append({"kind": "unit", "u": u, "pos": positions[i], "target": target, "color": color,

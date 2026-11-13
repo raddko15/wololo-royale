@@ -60,6 +60,8 @@ func tick(delta: float) -> void:
 		ai.tick(delta)
 	battle.tick(delta)
 	for team in 2:
+		if not is_human(team) and economies[team].resources.get("faith", 0.0) >= GameConfig.data().god.faith:
+			apply(team, {"op": "god"})  # the computer calls its god as soon as it can
 		battle.arrow_bonuses[team] = 1.0 + economies[team].arrow_bonus()
 		var r: Dictionary = economies[team].resources
 		r["faith"] = r.get("faith", 0.0) + battle.faith_rate(team) * delta
@@ -122,6 +124,14 @@ func apply(team: int, cmd: Dictionary) -> Dictionary:
 			if not gone.is_empty():
 				event.emit({"team": team, "type": "villager_died", "gone": gone})
 			return {"ok": not gone.is_empty()}
+		"god":  # summon the side's god with faith
+			var cost: float = GameConfig.data().god.faith
+			if e.resources.get("faith", 0.0) < cost or battle.god_of(team) != null:
+				return {"ok": false}
+			e.resources.faith -= cost
+			battle.spawn_god(team, e.civ_id)
+			e.changed.emit()
+			return {"ok": true}
 		"pause":
 			paused = cmd.on
 			return {"ok": true}

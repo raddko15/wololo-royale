@@ -229,6 +229,110 @@ func _fence_regen() -> float:
 	return float(_cfg.get("upgrades", {}).get("palisade", {}).get("fence_regen_per_sec", 8.0))
 
 
+## Gods summoned with faith: one giant per side at a time, on the middle lane,
+## striking from afar (lightning, a flaming spear, a beam of light) and gone
+## after a while. bolts: strikes to show, {"team", "lane", "from_y", "y",
+## "age"} (seconds since it struck).
+var bolts: Array[Dictionary] = []
+const BOLT_SHOWN := 0.45
+
+
+func god_of(team: int):
+	for u in units:
+		if u.team == team and u.type == "god" and u.hp > 0:
+			return u
+	return null
+
+
+func _god_cfg() -> Dictionary:
+	return _cfg.get("god", {"faith": 1000, "lifetime_sec": 60, "hp": 1500, "speed": 0.03, "range": 0.22,
+		"strike_interval_sec": 1.6, "strike_damage": 45, "building_damage": 70, "splash": 0.06, "splash_share": 0.5})
+
+
+## A god walks out of `team`'s middle tower (`civ` picks which god).
+func spawn_god(team: int, civ: String) -> Dictionary:
+	var g := _god_cfg()
+	_next_id += 1
+	var god := {
+		"id": _next_id, "team": team, "type": "god", "civ": civ, "lane": 1, "y": TOWER_Y[team], "hp": float(g.hp),
+		"max_hp": float(g.hp), "speed": float(g.speed), "dps": 0.0, "range": float(g.range), "tier": 0,
+		"bonus_vs": {}, "charge": 0.0, "trample": 0.0, "target": "", "foe": null, "side": 0.0,
+		"released": true, "march": 0.0, "moving": false, "waiting": false, "siege": "",
+		"life": float(g.lifetime_sec), "cooldown": 0.5,
+	}
+	units.append(god)
+	return god
+
+
+## A god: marches on (no orders hold it), strikes the nearest foe in reach
+## (and those beside it), else whatever building stands in its way.
+func _god_act(u: Dictionary, delta: float) -> void:
+	var g := _god_cfg()
+	u.life -= delta
+	if u.life <= 0.0:
+		u.hp = 0.0
+		return
+	u.cooldown = maxf(u.cooldown - delta, 0.0)
+	u.target = ""
+	u.foe = null
+	u.moving = false
+	var dir := 1.0 if u.team == PLAYER else -1.0
+	var enemy: int = 1 - u.team
+	var foe = null
+	for o in units:
+		if o.team != u.team and o.lane == u.lane and o.hp > 0 and absf(o.y - u.y) <= u.range:
+			if foe == null or absf(o.y - u.y) < absf(foe.y - u.y):
+				foe = o
+	var at_y := INF
+	var hit := ""
+	if foe == null:
+		var shrine: Dictionary = shrines[u.lane]
+		if shrines_on and shrine.owner != u.team and (SHRINE_Y - u.y) * dir > -0.01 and absf(SHRINE_Y - u.y) <= u.range:
+			hit = "shrine"
+			at_y = SHRINE_Y
+		elif buildings[enemy].towers[u.lane] > 0 and absf(TOWER_Y[enemy] - u.y) <= u.range:
+			hit = "tower"
+			at_y = TOWER_Y[enemy]
+		elif buildings[enemy].towers[u.lane] <= 0 and absf(fort_y(enemy, u.lane) - u.y) <= u.range:
+			hit = "main"
+			at_y = fort_y(enemy, u.lane)
+	if foe != null:
+		u.target = "unit"
+		u.foe = foe
+		if u.cooldown <= 0.0:
+			foe.hp -= g.strike_damage
+			for o in units:
+				if o != foe and o.team != u.team and o.lane == u.lane and o.hp > 0 and absf(o.y - foe.y) <= g.splash:
+					o.hp -= g.strike_damage * g.splash_share
+			_bolt(u, foe.y)
+		return
+	if hit != "":
+		u.target = hit
+		if u.cooldown <= 0.0:
+			var dmg: float = g.building_damage
+			match hit:
+				"shrine":
+					_hit_shrine(u.lane, u.team, dmg)
+				"tower":
+					var fence: float = fences[enemy][u.lane]
+					fences[enemy][u.lane] = maxf(fence - dmg, 0.0)
+					buildings[enemy].towers[u.lane] -= maxf(dmg - fence, 0.0)
+					tower_quiet[enemy][u.lane] = 0.0
+				"main":
+					buildings[enemy].main -= dmg * (1.0 - fort_armor[enemy])
+					fort_quiet[enemy] = 0.0
+			_bolt(u, at_y)
+		return
+	var before: float = u.y
+	u.y += dir * u.speed * delta
+	u.moving = not is_equal_approx(before, u.y)
+
+
+func _bolt(u: Dictionary, y: float) -> void:
+	u.cooldown = _god_cfg().strike_interval_sec
+	bolts.append({"team": u.team, "lane": u.lane, "from_y": u.y, "y": y, "age": 0.0, "civ": u.civ})
+
+
 ## Arrow damage multiplier from `team`'s forge upgrades (towers, fort, shrines).
 var arrow_bonuses := [1.0, 1.0]
 
@@ -352,6 +456,10 @@ func tick(delta: float) -> void:
 			_melee_on[u.foe.id] = _melee_on.get(u.foe.id, 0) + 1
 	for u in units:
 		_unit_act(u, delta)
+	for i in range(bolts.size() - 1, -1, -1):
+		bolts[i].age += delta
+		if bolts[i].age > BOLT_SHOWN:
+			bolts.remove_at(i)
 	_towers_shoot(delta)
 	_remove_dead()
 	_repair_forts(delta)
@@ -368,6 +476,9 @@ func tick(delta: float) -> void:
 ## Horsemen charge: with a foe they counter (archers) a short way ahead, they
 ## ride past whatever stands in front instead of stopping for it.
 func _unit_act(u: Dictionary, delta: float) -> void:
+	if u.type == "god":
+		_god_act(u, delta)
+		return
 	# Its place at a building last tick (kept below while it still hits it).
 	var had: String = u.get("siege", "")
 	u.siege = ""

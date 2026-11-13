@@ -7,7 +7,7 @@ var _failures := 0
 func _init() -> void:
 	# Battles below run without the lane shrines (they have their own tests).
 	GameConfig.data().shrine["enabled"] = false
-	for path in ["res://scripts/main.gd", "res://scripts/battle_view.gd", "res://scripts/card.gd", "res://scripts/hud_icon.gd", "res://scripts/radial_menu.gd", "res://scripts/lane_chip.gd", "res://scripts/unit_icon.gd", "res://scripts/ui_style.gd", "res://scripts/start_screen.gd", "res://scripts/match.gd", "res://scripts/snapshot.gd", "res://scripts/mirror.gd", "res://scripts/net.gd", "res://scripts/lobby.gd", "res://scripts/world_view.gd", "res://scripts/low_poly.gd", "res://scripts/models.gd", "res://scripts/figures.gd", "res://scripts/crowd.gd", "res://scripts/loading.gd"]:
+	for path in ["res://scripts/main.gd", "res://scripts/battle_view.gd", "res://scripts/card.gd", "res://scripts/hud_icon.gd", "res://scripts/radial_menu.gd", "res://scripts/lane_chip.gd", "res://scripts/unit_icon.gd", "res://scripts/ui_style.gd", "res://scripts/start_screen.gd", "res://scripts/match.gd", "res://scripts/snapshot.gd", "res://scripts/mirror.gd", "res://scripts/net.gd", "res://scripts/lobby.gd", "res://scripts/world_view.gd", "res://scripts/low_poly.gd", "res://scripts/models.gd", "res://scripts/figures.gd", "res://scripts/crowd.gd", "res://scripts/loading.gd", "res://scripts/power_button.gd"]:
 		var script: GDScript = load(path)
 		_check(script != null and script.can_instantiate(), "script compiles: " + path.get_file())
 
@@ -608,6 +608,7 @@ func _init() -> void:
 	_test_fort_defense()
 	_test_volleys()
 	_test_forge()
+	_test_gods()
 	print("FAILURES: %d" % _failures)
 	quit(1 if _failures else 0)
 
@@ -755,3 +756,34 @@ func _test_forge() -> void:
 		if ps.shrines[0].owner == Battlefield.PLAYER:
 			break
 	_check(ps.shrines[0].owner == Battlefield.PLAYER and is_equal_approx(ps.shrines[0].get("fence", 0.0), 200.0), "a shrine taken by a side with palisades gets its fence")
+
+
+func _test_gods() -> void:
+	var gm := Match.new("greeks", "franks", "human")
+	var faith: float = GameConfig.data().god.faith
+	_check(not gm.apply(0, {"op": "god"}).ok, "no god without enough faith")
+	gm.economies[0].resources["faith"] = faith + 5.0
+	_check(gm.apply(0, {"op": "god"}).ok and gm.battle.god_of(0) != null and is_equal_approx(gm.economies[0].resources.faith, 5.0), "1000 faith calls Zeus onto the middle lane")
+	gm.economies[0].resources["faith"] = faith
+	_check(not gm.apply(0, {"op": "god"}).ok, "one god at a time")
+	var gb := Battlefield.new()
+	gb.buildings[1].main = 1e9
+	var zeus := gb.spawn_god(0, "greeks")
+	_check(zeus.lane == 1 and zeus.civ == "greeks", "the god walks out on the middle lane")
+	var a := gb.spawn(1, "fighter", 1)
+	var b := gb.spawn(1, "fighter", 1)
+	a.y = 0.15
+	b.y = 0.17
+	var struck := 0
+	for i in 10:
+		gb.tick(0.1)
+		struck = maxi(struck, gb.bolts.size())
+	_check(struck >= 1 and a.hp < 60.0 and b.hp < 60.0, "a bolt strikes a foe and hurts the one beside it")
+	for i in 700:
+		gb.tick(0.1)
+	_check(gb.god_of(0) == null, "the god is gone after its time")
+	# The computer calls its god when it has the faith.
+	var am := Match.new("romans", "franks", "ai:normal")
+	am.economies[1].resources["faith"] = faith
+	am.tick(0.05)
+	_check(am.battle.god_of(1) != null and am.battle.god_of(1).civ == "franks", "the computer summons its god")

@@ -18,7 +18,7 @@ signal snapshot_received(snap: Dictionary)
 
 ## Commands the host accepts from the guest (no testing aids).
 const GUEST_OPS := ["recruit", "recruit_to", "train", "auto", "lanes_on", "lane_order", "reassign", "hut", "advance",
-	"upgrade", "military", "mine", "camp", "towers", "cancel", "kill_villager", "pause"]
+	"upgrade", "military", "mine", "camp", "towers", "cancel", "kill_villager", "pause", "god"]
 
 var role := ""
 var _ws := WebSocketPeer.new()

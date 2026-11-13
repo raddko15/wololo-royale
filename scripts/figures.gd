@@ -163,6 +163,58 @@ static func soldier(type: String, tier: int, color: Color) -> Node3D:
 	return p
 
 
+## A god, by civ: Zeus (white robe and beard, a thunderbolt), Mars (red
+## cloak, bronze armor, crested helmet, spear and shield) or the Archangel
+## Michael (white and gold, wings, a halo and a shining sword). Built at
+## a soldier's size; WorldView makes it a giant.
+static func god(civ: String, color: Color) -> Node3D:
+	var gold := Color("#f4c542")
+	match civ:
+		"greeks":
+			var z := person(Color("#f3efe4"), {"dress": true, "long_hair": true})
+			var head: Node3D = z.get_node("Body/Head")
+			head.get_node("Hair").set_meta("color", Color("#eeeeee"))
+			_box(head, Vector3(0.07, 0.06, 0.03), Color("#e8e8e8"), Vector3(0, -0.045, 0.03))
+			_part(head, _m("laurel", func(): return LowPoly.prism(0.05, 0.012, 9)), Color("#8bbf4a"), Vector3(0, 0.028, 0))
+			_box(z.get_node("Body"), Vector3(0.13, 0.025, 0.02), color, Vector3(0, 0.22, 0.045))
+			var bolt := _pivot(z.get_node("Body/ArmR/Hand"), "Weapon", Vector3.ZERO)
+			for k in 3:
+				var seg := _box(bolt, Vector3(0.018, 0.06, 0.012), Color("#fff27a"), Vector3((k % 2) * 0.02 - 0.01, -0.03 - k * 0.05, 0.01))
+				seg.rotation.z = 0.5 if k % 2 == 0 else -0.5
+			return z
+		"romans":
+			var m := person(Color("#b8312f"))
+			var body: Node3D = m.get_node("Body")
+			var head: Node3D = m.get_node("Body/Head")
+			_part(body, _m("cuirass", func(): return LowPoly.prism(0.064, 0.08, 6, 0.05)), BRONZE, Vector3(0, 0.19, 0))
+			_part(head, _m("hoplite_helm", func(): return LowPoly.blob(0.052, 1.0, 7, 4)), BRONZE, Vector3(0, 0.006, -0.004))
+			_box(head, Vector3(0.016, 0.06, 0.1), Color("#c0392b"), Vector3(0, 0.065, -0.01))
+			_box(body, Vector3(0.12, 0.17, 0.012), color.darkened(0.2), Vector3(0, 0.15, -0.06))
+			var shield := _pivot(m.get_node("Body/ArmL/Hand"), "Shield", Vector3(0, 0.01, 0.02))
+			var disc := _part(shield, _m("aspis", func(): return LowPoly.prism(0.085, 0.016, 10)), BRONZE, Vector3.ZERO)
+			disc.rotation.x = PI / 2
+			var spear := _pivot(m.get_node("Body/ArmR/Hand"), "Weapon", Vector3.ZERO)
+			var shaft := _part(spear, _m("spear", func(): return LowPoly.prism(0.008, 0.5, 5)), WOOD, Vector3(0, -0.05, 0))
+			_part(spear, _m("spear_fire", func(): return LowPoly.cone(0.022, 0.07, 5)), Color("#ff8c1a"), Vector3(0, 0.23, 0))
+			shaft.rotation.x = 0.0
+			return m
+	var a := person(Color("#f6f3ea"), {"dress": true, "long_hair": true})
+	var ab: Node3D = a.get_node("Body")
+	a.get_node("Body/Head/Hair").set_meta("color", Color("#e0b85a"))
+	_part(ab, _m("cuirass", func(): return LowPoly.prism(0.064, 0.08, 6, 0.05)), gold, Vector3(0, 0.19, 0))
+	var halo := _part(a.get_node("Body/Head"), _m("halo", func(): return LowPoly.prism(0.055, 0.008, 12)), Color("#ffe680"), Vector3(0, 0.07, -0.02))
+	halo.rotation.x = -0.4
+	for side in [-1, 1]:
+		var wing := _pivot(ab, "Wing%d" % (side + 1), Vector3(side * 0.03, 0.23, -0.05))
+		var w := _box(wing, Vector3(0.16, 0.09, 0.01), Color("#fbfaf5"), Vector3(side * 0.08, 0.03, 0))
+		w.rotation.z = side * 0.45
+		_box(wing, Vector3(0.12, 0.05, 0.012), color.lightened(0.5), Vector3(side * 0.07, -0.02, 0.001)).rotation.z = side * 0.6
+	var sword := _pivot(a.get_node("Body/ArmR/Hand"), "Weapon", Vector3.ZERO)
+	_box(sword, Vector3(0.022, 0.2, 0.008), Color("#fff7c2"), Vector3(0, -0.12, 0))
+	_box(sword, Vector3(0.07, 0.014, 0.016), gold, Vector3(0, -0.015, 0))
+	return a
+
+
 static func _helmet(head: Node3D, great: bool) -> void:
 	if great:
 		_part(head, _m("great_helm", func(): return LowPoly.prism(0.05, 0.075, 8)), IRON, Vector3(0, 0.005, 0))
@@ -359,6 +411,14 @@ static func animate(fig: Node3D, info: Dictionary, now: float) -> void:
 			arm_l.rotation.x = -1.2
 			if fight >= 0.0:
 				arm_r.position.z = maxf(sin(fight * TAU), 0.0) * 0.05
+		"god":
+			# Raised high, brought down as it strikes.
+			if fight >= 0.0:
+				arm_r.rotation.x = lerpf(-2.9, -1.2, ease(clampf((fight - 0.8) / 0.2, 0.0, 1.0), 2.0))
+				arm_l.rotation.x = -0.6
+			else:
+				arm_r.rotation.x = -0.8 - swing * 0.3
+				arm_l.rotation.x = -0.4
 		"villager":
 			var tool: Node3D = body.get_node("ArmR/Hand/Tool")
 			var job: String = info.get("tool", "")

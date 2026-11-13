@@ -12,7 +12,7 @@ const TARGETS := ["", "unit", "tower", "main", "queue", "shrine"]
 static func capture(game: Match, viewer: int, events: Array) -> Dictionary:
 	var flip := viewer == Battlefield.ENEMY
 	var b := game.battle
-	var types: Array = GameConfig.data().units.keys()
+	var types: Array = GameConfig.data().units.keys() + ["god"]
 	var units := []
 	for u in b.units:
 		var foe_id: int = u.foe.id if u.foe != null else 0
@@ -30,6 +30,8 @@ static func capture(game: Match, viewer: int, events: Array) -> Dictionary:
 	for key in ["buildings", "towers_built", "tower_max_hp", "fort_armor", "fort_max_hp", "fort_quiet", "fort_armed", "lane_orders", "fences", "fence_hp"]:
 		var pair: Array = b.get(key)
 		snap[key] = [pair[1], pair[0]] if flip else [pair[0], pair[1]]
+	snap["bolts"] = b.bolts.map(func(o): return [_t(o.team, flip), o.lane, _y(o.from_y, flip), _y(o.y, flip), o.age, o.civ])
+	snap["gods"] = b.units.filter(func(u): return u.type == "god").map(func(u): return [u.id, u.civ, u.life])
 	snap["shrines"] = b.shrines.map(func(sh): return [sh.owner if sh.owner == -1 else _t(sh.owner, flip), sh.hp, sh.max_hp, sh.get("fence", 0.0)])
 	for local in 2:
 		var team := _t(local, flip)
@@ -61,7 +63,7 @@ static func _economy(e: Economy) -> Dictionary:
 ## their dictionaries between snapshots (the view keeps glide and heading
 ## state in them); units gone since the last snapshot fell (corpses).
 static func restore(snap: Dictionary, battle: Battlefield, economies: Array) -> void:
-	var types: Array = GameConfig.data().units.keys()
+	var types: Array = GameConfig.data().units.keys() + ["god"]
 	var known := {}
 	for u in battle.units:
 		known[u.id] = u
@@ -90,6 +92,13 @@ static func restore(snap: Dictionary, battle: Battlefield, economies: Array) -> 
 	for key in ["buildings", "towers_built", "tower_max_hp", "fort_armor", "fort_max_hp", "fort_quiet", "fort_armed", "lane_orders", "fences", "fence_hp"]:
 		battle.set(key, snap[key])
 	battle.winner = snap.winner
+	var bolts: Array[Dictionary] = []
+	for row in snap.get("bolts", []):
+		bolts.append({"team": int(row[0]), "lane": int(row[1]), "from_y": row[2], "y": row[3], "age": row[4], "civ": row[5]})
+	battle.bolts = bolts
+	for row in snap.get("gods", []):
+		if by_id.has(int(row[0])):
+			by_id[int(row[0])].merge({"civ": row[1], "life": row[2]}, true)
 	for lane in snap.get("shrines", []).size():
 		var row: Array = snap.shrines[lane]
 		battle.shrines[lane].merge({"owner": int(row[0]), "hp": row[1], "max_hp": row[2], "fence": row[3]}, true)

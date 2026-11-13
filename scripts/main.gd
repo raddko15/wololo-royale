@@ -65,6 +65,17 @@ func _do(cmd: Dictionary) -> Dictionary:
 	return result
 
 
+var _god_button: PowerButton
+
+
+func _summon_god() -> void:
+	var cfg: Dictionary = GameConfig.data().god
+	if battle.god_of(my_team) != null:
+		_flash_hint("%s is already on the field" % cfg.names.get(economy.civ_id, "Your god"))
+	elif not _do({"op": "god"}).ok:
+		_flash_hint("%s needs %d faith: hold shrines to gather it" % [cfg.names.get(economy.civ_id, "Your god"), cfg.faith])
+
+
 func _show_civ_select() -> void:
 	var screen := StartScreen.new(_difficulty)
 	screen.chosen.connect(func(civ_id: String, level: String):
@@ -157,6 +168,18 @@ func _build_game(civ_id: String, menu: Control, their_civ := "", role := "") -> 
 	_world = WorldView.new(_view)
 	_world.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	box.add_child(_world)
+	# Powers that spend faith, down the battlefield's right edge.
+	var powers := VBoxContainer.new()
+	powers.set_anchors_and_offsets_preset(Control.PRESET_CENTER_RIGHT)
+	powers.position.x -= 100
+	powers.offset_left = -100
+	powers.offset_right = -6
+	powers.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_world.add_child(powers)
+	var god_cfg: Dictionary = GameConfig.data().god
+	_god_button = PowerButton.new("god_" + economy.civ_id, god_cfg.faith, god_cfg.names.get(economy.civ_id, "God"))
+	_god_button.pressed.connect(_summon_god)
+	powers.add_child(_god_button)
 
 	var bar_panel := PanelContainer.new()
 	bar_panel.add_theme_stylebox_override("panel", UiStyle.wood_bar(true))
@@ -836,6 +859,9 @@ func _refresh() -> void:
 	_ui.villagers.text = "%d (%d idle)" % [economy.total_villagers(), economy.villagers.get("idle", 0)]
 	_ui.pop.text = "%d/%d" % [economy.population(), economy.max_population()]
 	_ui.faith.text = "%d" % r.get("faith", 0.0)
+	if _god_button:
+		var god = battle.god_of(my_team)
+		_god_button.set_state(r.get("faith", 0.0), god.life if god != null else -1.0, GameConfig.data().god.lifetime_sec)
 	var full := not economy.has_room()
 	_ui.pop.add_theme_color_override("font_color", Color("#e55039") if full else UiStyle.CREAM)
 	if Time.get_ticks_msec() > _ui.get("hint_until", 0):
