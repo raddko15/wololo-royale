@@ -18,6 +18,8 @@ const FOV := 32.0
 ## Buildings are modeled a little small; this brings them to the size the
 ## flat map drew them.
 const BUILDING_SCALE := 1.3
+## Shrines are modeled small; this sizes them to fill their lane's middle.
+const SHRINE_SCALE := 1.7
 ## Lanes are this share of the length they would have on the tall map.
 const LANE_SHARE := 0.9
 ## Slack when checking that the tilted map fills the view (pixels).
@@ -179,6 +181,15 @@ func _wanted_buildings() -> Dictionary:
 				want["tower%d_%d" % [team, lane]] = [look, view.building_pos(team, "tower", lane), color]
 			elif ruin:
 				want["tower%d_%d" % [team, lane]] = ["tower_ruin", view.building_pos(team, "tower", lane), color]
+	# The lanes' shrines: an obelisk, or the holder's shrine in its era.
+	if view.battle.shrines_on:
+		for lane in Battlefield.LANES:
+			var owner: int = view.battle.shrines[lane].owner
+			if owner == -1:
+				want["shrine%d" % lane] = ["obelisk", view.shrine_pos(lane), Color.WHITE, SHRINE_SCALE]
+			else:
+				var e := view.econ(owner)
+				want["shrine%d" % lane] = ["shrine_%s_%d" % [e.civ_id, mini(e.era_index, 2)], view.shrine_pos(lane), Color(e.civ().color), SHRINE_SCALE]
 	return want
 
 

@@ -271,7 +271,7 @@ func _header() -> Control:
 	pause.pressed.connect(_set_paused.bind(true))
 	top.add_child(pause)
 	top.add_child(restart)
-	for row_keys in [Economy.RESOURCES, ["villagers", "pop"]]:
+	for row_keys in [Economy.RESOURCES, ["villagers", "pop", "faith"]]:
 		var row := HBoxContainer.new()
 		col.add_child(row)
 		for key in row_keys:
@@ -824,6 +824,7 @@ func _refresh() -> void:
 		_ui[res].text = "%d" % r[res]
 	_ui.villagers.text = "%d (%d idle)" % [economy.total_villagers(), economy.villagers.get("idle", 0)]
 	_ui.pop.text = "%d/%d" % [economy.population(), economy.max_population()]
+	_ui.faith.text = "%d" % r.get("faith", 0.0)
 	var full := not economy.has_room()
 	_ui.pop.add_theme_color_override("font_color", Color("#e55039") if full else UiStyle.CREAM)
 	if Time.get_ticks_msec() > _ui.get("hint_until", 0):

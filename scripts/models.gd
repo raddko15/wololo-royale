@@ -77,7 +77,13 @@ static func make(id: String, tint: Color, variant := 0) -> Node3D:
 			_mine(m, id.begins_with("gold"), id.ends_with("2"))
 		"campfire":
 			_campfire(m)
+		"obelisk":
+			_obelisk(m)
 		_:
+			if id.begins_with("shrine_"):
+				var parts := id.split("_")
+				_shrine(m, parts[1], int(parts[2]), tint)
+				return m
 			if id.begins_with("barracks_") or id.begins_with("archery_range_") or id.begins_with("stables_"):
 				var parts := id.rsplit("_", true, 1)
 				_military(m, parts[0], parts[1], tint)
@@ -475,6 +481,171 @@ static func _campfire(m: Node3D) -> void:
 	mat.emission = Color("#f5b041")
 	mat.emission_energy_multiplier = 1.5
 	flame.material_override = mat
+
+
+# --- Shrines --------------------------------------------------------------------
+
+## A lane's neutral shrine: a tall stone obelisk with a gilded tip on steps.
+static func _obelisk(m: Node3D) -> void:
+	_box(m, Vector3(0.26, 0.04, 0.26), STONE_DARK, Vector3.ZERO)
+	_box(m, Vector3(0.19, 0.04, 0.19), STONE, Vector3(0, 0.04, 0))
+	var shaft := LowPoly.prism(0.055, 0.42, 4, 0.035)
+	var mi := _add(m, shaft, Color("#c9bfa6"), Vector3(0, 0.08 + 0.21, 0), PI / 4)
+	mi.rotation.y = PI / 4
+	_add(m, LowPoly.pyramid(0.05, 0.05, 0.06), GOLD, Vector3(0, 0.5, 0))
+	_add(m, LowPoly.blob(0.035, 0.7, 5, 3), STONE_DARK, Vector3(0.13, 0.0, 0.1))
+	_add(m, LowPoly.blob(0.025, 0.7, 5, 3), STONE_DARK, Vector3(-0.12, 0.0, 0.12))
+
+
+## A taken shrine, in its holder's civ and era (0 shrine, 1 church/temple, 2
+## cathedral/great temple), its banners in the civ color.
+static func _shrine(m: Node3D, civ: String, tier: int, tint: Color) -> void:
+	match civ:
+		"romans":
+			[_roman_shrine, _roman_temple, _pantheon][tier].call(m, tint)
+		"greeks":
+			[_greek_altar, _greek_temple, _tholos][tier].call(m, tint)
+		_:
+			[_chapel, _church, _cathedral][tier].call(m, tint)
+
+
+static func _glow(m: Node3D, pos: Vector3, r := 0.025) -> void:
+	var f := _add(m, LowPoly.cone(r, r * 2.6, 5), Color("#f39c12"), pos)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color("#f5a623")
+	mat.emission_enabled = true
+	mat.emission = Color("#f5b041")
+	mat.emission_energy_multiplier = 1.4
+	f.material_override = mat
+
+
+static func _columns(m: Node3D, xs: Array, z: float, y: float, h: float, r := 0.018, color := MARBLE) -> void:
+	for x in xs:
+		_post(m, r, h, color, Vector3(x, y, z), 8)
+
+
+## Romans I: a lararium, a little shrine of two columns over an altar fire.
+static func _roman_shrine(m: Node3D, tint: Color) -> void:
+	_box(m, Vector3(0.24, 0.06, 0.2), STONE, Vector3.ZERO)
+	_box(m, Vector3(0.18, 0.18, 0.08), PLASTER, Vector3(0, 0.06, -0.05))
+	_columns(m, [-0.07, 0.07], 0.05, 0.06, 0.16)
+	_box(m, Vector3(0.21, 0.025, 0.16), MARBLE_SHADE, Vector3(0, 0.22, 0))
+	_add(m, LowPoly.gable(0.22, 0.18, 0.07), TERRACOTTA, Vector3(0, 0.245, 0))
+	_box(m, Vector3(0.21, 0.02, 0.01), tint, Vector3(0, 0.225, 0.08))
+	_box(m, Vector3(0.05, 0.05, 0.05), MARBLE, Vector3(0, 0.06, 0.04))
+	_glow(m, Vector3(0, 0.125, 0.04), 0.016)
+
+
+## Romans II: a temple on a high podium, steps in front, four columns.
+static func _roman_temple(m: Node3D, tint: Color) -> void:
+	_box(m, Vector3(0.26, 0.08, 0.36), MARBLE_SHADE, Vector3(0, 0, -0.02))
+	for i in 3:
+		_box(m, Vector3(0.16, 0.027 * (3 - i), 0.04), MARBLE, Vector3(0, 0, 0.18 + i * 0.03))
+	_box(m, Vector3(0.22, 0.2, 0.2), PLASTER, Vector3(0, 0.08, -0.08))
+	_columns(m, [-0.09, -0.03, 0.03, 0.09], 0.1, 0.08, 0.2, 0.016)
+	_box(m, Vector3(0.26, 0.03, 0.34), MARBLE_SHADE, Vector3(0, 0.28, -0.01))
+	_box(m, Vector3(0.26, 0.022, 0.01), tint, Vector3(0, 0.285, 0.16))
+	_add(m, LowPoly.gable(0.34, 0.27, 0.08), TERRACOTTA, Vector3(0, 0.31, -0.01), PI / 2)
+	_flag(m, Vector3(0.15, 0.08, 0.14), 0.32, tint)
+
+
+## Romans III: the Pantheon: a round drum under a dome behind a portico.
+static func _pantheon(m: Node3D, tint: Color) -> void:
+	_box(m, Vector3(0.36, 0.04, 0.4), MARBLE_SHADE, Vector3(0, 0, -0.01))
+	_post(m, 0.15, 0.2, PLASTER, Vector3(0, 0.04, -0.06), 12)
+	_add(m, LowPoly.blob(0.15, 0.62, 12, 5), MARBLE, Vector3(0, 0.24, -0.06))
+	_post(m, 0.03, 0.02, MARBLE_SHADE, Vector3(0, 0.33, -0.06), 8)
+	_columns(m, [-0.1, -0.035, 0.035, 0.1], 0.14, 0.04, 0.2, 0.016)
+	_box(m, Vector3(0.26, 0.03, 0.14), MARBLE_SHADE, Vector3(0, 0.24, 0.1))
+	_box(m, Vector3(0.26, 0.02, 0.01), tint, Vector3(0, 0.245, 0.17))
+	_add(m, LowPoly.gable(0.27, 0.16, 0.07), TERRACOTTA, Vector3(0, 0.27, 0.1))
+	_add(m, LowPoly.blob(0.035, 1.0, 6, 3), GOLD, Vector3(0, 0.35, -0.06))
+	_flag(m, Vector3(-0.18, 0.04, 0.16), 0.4, tint)
+	_flag(m, Vector3(0.18, 0.04, 0.16), 0.4, tint)
+
+
+## Greeks I: an open-air altar fire beside a column with a bronze statue.
+static func _greek_altar(m: Node3D, tint: Color) -> void:
+	_post(m, 0.13, 0.03, STONE, Vector3.ZERO, 10)
+	_box(m, Vector3(0.1, 0.07, 0.07), MARBLE, Vector3(0.03, 0.03, 0.03))
+	_box(m, Vector3(0.12, 0.012, 0.09), tint, Vector3(0.03, 0.1, 0.03))
+	_glow(m, Vector3(0.03, 0.12, 0.03), 0.02)
+	_post(m, 0.02, 0.26, MARBLE, Vector3(-0.07, 0.03, -0.05), 10)
+	_box(m, Vector3(0.05, 0.02, 0.05), MARBLE_SHADE, Vector3(-0.07, 0.29, -0.05))
+	_post(m, 0.013, 0.06, Color("#b0763a"), Vector3(-0.07, 0.31, -0.05), 6)
+	_add(m, LowPoly.blob(0.014, 1.0, 6, 3), Color("#b0763a"), Vector3(-0.07, 0.385, -0.05))
+
+
+## Greeks II: a Doric temple ringed by columns on three marble steps.
+static func _greek_temple(m: Node3D, tint: Color) -> void:
+	for i in 3:
+		var k := 1.0 - i * 0.07
+		_box(m, Vector3(0.34 * k, 0.025, 0.4 * k), MARBLE_SHADE if i % 2 == 0 else MARBLE, Vector3(0, i * 0.025, 0))
+	var y := 0.075
+	_box(m, Vector3(0.14, 0.18, 0.22), MARBLE_SHADE, Vector3(0, y, 0))
+	for x in [-0.12, -0.04, 0.04, 0.12]:
+		for z in [-0.15, 0.15]:
+			_post(m, 0.016, 0.19, MARBLE, Vector3(x, y, z), 8)
+	for z in [-0.075, 0.0, 0.075]:
+		for x in [-0.12, 0.12]:
+			_post(m, 0.016, 0.19, MARBLE, Vector3(x, y, z), 8)
+	_box(m, Vector3(0.3, 0.035, 0.36), MARBLE, Vector3(0, y + 0.19, 0))
+	_box(m, Vector3(0.3, 0.018, 0.01), tint, Vector3(0, y + 0.2, 0.181))
+	_add(m, LowPoly.gable(0.38, 0.31, 0.07), MARBLE_SHADE, Vector3(0, y + 0.225, 0), PI / 2)
+
+
+## Greeks III: a tholos, a round temple: a ring of columns, a cone roof.
+static func _tholos(m: Node3D, tint: Color) -> void:
+	_post(m, 0.2, 0.03, MARBLE_SHADE, Vector3.ZERO, 14)
+	_post(m, 0.18, 0.03, MARBLE, Vector3(0, 0.03, 0), 14)
+	_post(m, 0.1, 0.24, MARBLE_SHADE, Vector3(0, 0.06, 0), 12)
+	for i in 10:
+		var a := TAU * i / 10.0
+		_post(m, 0.014, 0.24, MARBLE, Vector3(cos(a) * 0.155, 0.06, sin(a) * 0.155), 8)
+	_post(m, 0.175, 0.03, MARBLE, Vector3(0, 0.3, 0), 14)
+	_post(m, 0.178, 0.016, tint, Vector3(0, 0.312, 0), 14)
+	_add(m, LowPoly.cone(0.18, 0.12, 14), TERRACOTTA, Vector3(0, 0.39, 0))
+	_add(m, LowPoly.blob(0.022, 1.0, 6, 3), GOLD, Vector3(0, 0.46, 0))
+	_glow(m, Vector3(0, 0.06, 0.12), 0.016)
+
+
+## Franks I: a wooden wayside chapel with a cross and a bell.
+static func _chapel(m: Node3D, tint: Color) -> void:
+	_box(m, Vector3(0.16, 0.13, 0.2), WOOD, Vector3(0, 0, -0.02))
+	_box(m, Vector3(0.05, 0.08, 0.01), DOOR, Vector3(0, 0, 0.081))
+	_add(m, LowPoly.gable(0.24, 0.2, 0.1), ROOF_BROWN, Vector3(0, 0.13, -0.02), PI / 2)
+	_box(m, Vector3(0.012, 0.09, 0.012), WOOD_DARK, Vector3(0, 0.22, 0.08))
+	_box(m, Vector3(0.05, 0.012, 0.012), WOOD_DARK, Vector3(0, 0.28, 0.08))
+	_post(m, 0.012, 0.18, WOOD_DARK, Vector3(0.13, 0, 0.06), 5)
+	_add(m, LowPoly.cone(0.02, 0.03, 6), Color("#b0763a"), Vector3(0.13, 0.16, 0.06))
+	_box(m, Vector3(0.1, 0.02, 0.006), tint, Vector3(0, 0.1, 0.082))
+
+
+## Franks II: a stone church, a nave and a bell tower with a cross.
+static func _church(m: Node3D, tint: Color) -> void:
+	_box(m, Vector3(0.18, 0.16, 0.3), STONE, Vector3(0, 0, -0.06))
+	_add(m, LowPoly.gable(0.34, 0.21, 0.1), ROOF_BROWN, Vector3(0, 0.16, -0.06), PI / 2)
+	_box(m, Vector3(0.12, 0.3, 0.12), STONE, Vector3(0, 0, 0.12))
+	_box(m, Vector3(0.045, 0.08, 0.01), DOOR, Vector3(0, 0, 0.181))
+	_box(m, Vector3(0.03, 0.05, 0.01), DOOR, Vector3(0, 0.22, 0.181))
+	_add(m, LowPoly.pyramid(0.14, 0.14, 0.12), tint, Vector3(0, 0.3, 0.12))
+	_box(m, Vector3(0.012, 0.07, 0.012), GOLD, Vector3(0, 0.42, 0.12))
+	_box(m, Vector3(0.04, 0.012, 0.012), GOLD, Vector3(0, 0.46, 0.12))
+
+
+## Franks III: a cathedral: a tall nave, two spired towers, a rose window.
+static func _cathedral(m: Node3D, tint: Color) -> void:
+	_box(m, Vector3(0.22, 0.24, 0.34), STONE, Vector3(0, 0, -0.07))
+	_add(m, LowPoly.gable(0.38, 0.25, 0.12), ROOF_BROWN, Vector3(0, 0.24, -0.07), PI / 2)
+	for x in [-0.15, 0.15]:
+		_box(m, Vector3(0.03, 0.16, 0.05), STONE_DARK, Vector3(x * 0.85, 0, -0.07))
+	_box(m, Vector3(0.24, 0.26, 0.06), STONE, Vector3(0, 0, 0.12))
+	for x in [-0.1, 0.1]:
+		_box(m, Vector3(0.08, 0.36, 0.08), STONE, Vector3(x, 0, 0.13))
+		_add(m, LowPoly.pyramid(0.09, 0.09, 0.16), tint, Vector3(x, 0.36, 0.13))
+		_box(m, Vector3(0.008, 0.04, 0.008), GOLD, Vector3(x, 0.52, 0.13))
+	_box(m, Vector3(0.05, 0.1, 0.01), DOOR, Vector3(0, 0, 0.151))
+	_add(m, LowPoly.prism(0.035, 0.012, 10), Color("#4a6fa5"), Vector3(0, 0.18, 0.152)).rotation.x = PI / 2
 
 
 # --- Military -------------------------------------------------------------------

@@ -374,6 +374,11 @@ func _along(points: PackedVector2Array, frac: float) -> Vector2:
 	return points[-1]
 
 
+## Where a lane's shrine stands (the middle of the lane).
+func shrine_pos(lane: int) -> Vector2:
+	return _lane_pos_at(lane, Battlefield.SHRINE_Y, 0.0)
+
+
 ## A lane's (and its roads') width in pixels.
 func lane_width(lane: int) -> float:
 	return size.x * LANE_W * (1.0 if lane == 1 else SIDE_LANE)
@@ -452,7 +457,7 @@ func unit_positions(dt := -1.0) -> Array[Vector2]:
 		var spot := crowd.place(u)
 		goals[i] = _lane_pos_at(u.lane, u.y, spot.x) - forwards[i] * spot.y * GROUP_DEPTH
 		var melee: bool = u.range < Battlefield.RANGED
-		if (u.target == "tower" or u.target == "main") and melee:
+		if (u.target == "tower" or u.target == "main" or u.target == "shrine") and melee:
 			var key := "%d:%s:%d" % [u.team, u.target, u.lane]
 			rings[key] = rings.get(key, []) + [i]
 		elif u.target == "queue":
@@ -471,13 +476,19 @@ func unit_positions(dt := -1.0) -> Array[Vector2]:
 					var away := (me - foe_at)
 					away = away.normalized() if away.length() > 0.5 else forwards[i] * -1.0
 					goals[i] = foe_at + away * (rooms[i] + _room(u.foe)) * 0.5
-		elif u.target == "tower" or u.target == "main":
-			looks[i] = building_pos(1 - u.team, "tower", u.lane) if u.target == "tower" else town_center(1 - u.team)
+		elif u.target == "tower" or u.target == "main" or u.target == "shrine":
+			looks[i] = shrine_pos(u.lane) if u.target == "shrine" else (building_pos(1 - u.team, "tower", u.lane) if u.target == "tower" else town_center(1 - u.team))
 	for key in rings:
 		_ring_goals(key, rings[key], goals, looks)
 	for key in blocks:
 		_block_goals(key, blocks[key], goals, looks)
-	var result := crowd.step(units, goals, paces, rooms, looks, forwards, dt)
+	# Everyone walks round the shrines.
+	var obstacles: Array[Vector3] = []
+	if battle.shrines_on:
+		for lane in Battlefield.LANES:
+			var at := shrine_pos(lane)
+			obstacles.append(Vector3(at.x, at.y, SHRINE_ROOM * (1.3 if in_3d else 1.0)))
+	var result := crowd.step(units, goals, paces, rooms, looks, forwards, dt, obstacles)
 	for i in n:
 		units[i]["view_pos"] = result[i]  # where it falls, if it falls
 	return result
@@ -522,6 +533,8 @@ func _ring_goals(key: String, idxs: Array, goals: Array[Vector2], looks: Array[V
 ## from (angle), radius]. Towers are ringed from the attackers' side; the
 ## fort at the end of each road.
 func _siege_ring(team: int, kind: String, lane: int) -> Array:
+	if kind == "shrine":
+		return [shrine_pos(lane), PI / 2 if team == Battlefield.PLAYER else -PI / 2, SHRINE_ROOM * (1.3 if in_3d else 1.0) + 16.0]
 	if kind == "tower":
 		# Player units attack from below (90°), enemy units from above.
 		return [building_pos(1 - team, "tower", lane), PI / 2 if team == Battlefield.PLAYER else -PI / 2, 62.0 if in_3d else 48.0]
@@ -551,6 +564,9 @@ func _block_goals(key: String, idxs: Array, goals: Array[Vector2], looks: Array[
 	if key.contains(":queue:"):
 		var enemy: int = 1 - u0.team
 		var kind := "tower" if battle.buildings[enemy].towers[u0.lane] > 0 else "main"
+		var ahead: float = (Battlefield.SHRINE_Y - u0.y) * (1.0 if u0.team == Battlefield.PLAYER else -1.0)
+		if battle.shrines_on and battle.shrines[u0.lane].owner != u0.team and ahead > -0.05:
+			kind = "shrine"
 		var ring := _siege_ring(u0.team, kind, u0.lane)
 		back_dir = Vector2.from_angle(ring[1])
 		across_dir = Vector2(-back_dir.y, back_dir.x)
@@ -566,6 +582,10 @@ func _block_goals(key: String, idxs: Array, goals: Array[Vector2], looks: Array[
 		var wide := 1.25 if m.type in MOUNTED else 1.0  # horsemen take more room
 		goals[k] = anchor + across_dir * (across * dx * wide) + back_dir * (row * dy)
 		looks[k] = look
+
+
+## Room a shrine takes (pixels across the middle of it).
+const SHRINE_ROOM := 34.0
 
 
 ## Room each figure takes (pixels across): horses and chariots more.
@@ -667,6 +687,12 @@ func draw_overlay(canvas: CanvasItem, to_screen: Callable) -> void:
 	_xf = to_screen
 	_ui_pass = true
 	var now := Time.get_ticks_msec() / 1000.0
+	# A shrine under attack shows its health.
+	if battle.shrines_on:
+		for lane in Battlefield.LANES:
+			var sh: Dictionary = battle.shrines[lane]
+			if sh.hp < sh.max_hp - 0.5:
+				_draw_hp(shrine_pos(lane) + Vector2(0, 34), sh.hp, sh.max_hp, 56)
 	for team in [Battlefield.ENEMY, Battlefield.PLAYER]:
 		var e := econ(team)
 		var tc := town_center(team)
@@ -1124,10 +1150,10 @@ func _draw_city(team: int, now: float) -> void:
 		_draw_upgrade_badges(e, now)
 
 
-## The order button for each lane, in the middle of the lane halfway between
-## the two sides' towers: GO / BACK for the player's troops there.
+## The order button for each lane, on the player's half of the lane (the
+## shrine stands in the middle): GO / BACK for the player's troops there.
 func order_button(lane: int) -> Vector2:
-	return _lane_pos_at(lane, 0.5, 0.0)
+	return _lane_pos_at(lane, 0.3, 0.0)
 
 
 ## Fill and rim per order: GO green with an arrow up the lane, BACK blue with
@@ -1753,6 +1779,8 @@ func _target_pos(u: Dictionary, positions: Array[Vector2]) -> Vector2:
 			return building_pos(1 - u.team, "tower", u.lane)
 		"main":
 			return town_center(1 - u.team)
+		"shrine":
+			return shrine_pos(u.lane)
 	return Vector2.INF
 
 

@@ -47,8 +47,9 @@ func speed(id: int) -> float:
 ## Move every figure one step of `dt` seconds. Per unit (same order as
 ## `units`): its goal, pace (pixels/s), room (pixels across), what it looks at
 ## when standing (Vector2.INF: nothing) and which way is forward for it.
-## Returns the figures' positions.
-func step(units: Array, goals: Array[Vector2], paces: Array[float], rooms: Array[float], looks: Array[Vector2], forwards: Array[Vector2], dt: float) -> Array[Vector2]:
+## Returns the figures' positions. `obstacles`: things standing on the map
+## that everyone walks round, [x, y, room across].
+func step(units: Array, goals: Array[Vector2], paces: Array[float], rooms: Array[float], looks: Array[Vector2], forwards: Array[Vector2], dt: float, obstacles: Array[Vector3] = []) -> Array[Vector2]:
 	var n := units.size()
 	var ids: Array[int] = []
 	var seen := {}
@@ -100,6 +101,17 @@ func step(units: Array, goals: Array[Vector2], paces: Array[float], rooms: Array
 						l = 1.0
 					var squeeze := (need - l) / need
 					push += d / l * squeeze * (1.0 + squeeze)
+		# And round the things standing on the map, harder.
+		for ob in obstacles:
+			var d: Vector2 = a.pos - Vector2(ob.x, ob.y)
+			var need: float = (ob.z + rooms[i]) * 0.5
+			var l := d.length()
+			if l < need:
+				if l < 0.01:
+					d = Vector2(1.0 if ids[i] % 2 == 0 else -1.0, 0.0)
+					l = 1.0
+				var squeeze := (need - l) / need
+				push += d / l * squeeze * (1.0 + squeeze) * 2.0
 		want += push * maxf(pace, 30.0) * PUSH
 		wants[i] = want
 	var out: Array[Vector2] = []

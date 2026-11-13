@@ -5,6 +5,8 @@ var _failures := 0
 
 
 func _init() -> void:
+	# Battles below run without the lane shrines (they have their own tests).
+	GameConfig.data().shrine["enabled"] = false
 	for path in ["res://scripts/main.gd", "res://scripts/battle_view.gd", "res://scripts/card.gd", "res://scripts/hud_icon.gd", "res://scripts/radial_menu.gd", "res://scripts/lane_chip.gd", "res://scripts/unit_icon.gd", "res://scripts/ui_style.gd", "res://scripts/start_screen.gd", "res://scripts/match.gd", "res://scripts/snapshot.gd", "res://scripts/mirror.gd", "res://scripts/net.gd", "res://scripts/lobby.gd", "res://scripts/world_view.gd", "res://scripts/low_poly.gd", "res://scripts/models.gd", "res://scripts/figures.gd", "res://scripts/crowd.gd", "res://scripts/loading.gd"]:
 		var script: GDScript = load(path)
 		_check(script != null and script.can_instantiate(), "script compiles: " + path.get_file())
@@ -602,6 +604,7 @@ func _init() -> void:
 	cview.free()
 	view.free()
 
+	_test_shrines()
 	print("FAILURES: %d" % _failures)
 	quit(1 if _failures else 0)
 
@@ -627,3 +630,41 @@ func _check(ok: bool, name: String) -> void:
 	print(("PASS " if ok else "FAIL ") + name)
 	if not ok:
 		_failures += 1
+
+
+func _test_shrines() -> void:
+	GameConfig.data().shrine["enabled"] = true
+	var cfg: Dictionary = GameConfig.data().shrine
+	var sb := Battlefield.new()
+	sb.buildings[Battlefield.ENEMY].main = 1e9
+	_check(sb.shrines.size() == 3 and sb.shrines.all(func(s): return s.owner == -1), "three neutral obelisks, one per lane")
+	var taken := []
+	sb.shrine_taken.connect(func(lane, team): taken.append([lane, team]))
+	var pilgrims: Array = []
+	for i in 7:
+		pilgrims.append(sb.spawn(Battlefield.PLAYER, "fighter", 2))
+	for i in 600:
+		sb.tick(0.1)
+		if not taken.is_empty():
+			break
+	_check(pilgrims[0].y < Battlefield.SHRINE_Y + 0.01 and taken == [[2, Battlefield.PLAYER]], "troops stop at the obelisk and break it: it is theirs")
+	_check(is_equal_approx(sb.shrines[2].hp, float(cfg.hp[0])) and is_equal_approx(sb.faith_rate(Battlefield.PLAYER), float(cfg.faith_per_sec[0])), "their shrine stands at full health and earns faith")
+	sb.fort_new_era(Battlefield.PLAYER, 1)
+	_check(is_equal_approx(sb.shrines[2].max_hp, float(cfg.hp[1])) and is_equal_approx(sb.faith_rate(Battlefield.PLAYER), float(cfg.faith_per_sec[1])), "a new era: a church, sturdier, more faith")
+	var y_then: float = pilgrims[0].y
+	for i in 20:
+		sb.tick(0.1)
+	_check(pilgrims[0].y > y_then + 0.01, "own shrine: they march on past it")
+	# The enemy takes it back by breaking it.
+	var sb2 := Battlefield.new()
+	sb2.shrines[1].merge({"owner": Battlefield.PLAYER, "hp": 50.0, "max_hp": 500.0}, true)
+	var raid := sb2.spawn(Battlefield.ENEMY, "fighter", 1)
+	raid.y = Battlefield.SHRINE_Y + 0.02
+	for i in 200:
+		sb2.tick(0.1)
+	_check(sb2.shrines[1].owner == Battlefield.ENEMY, "the enemy breaks the shrine and takes it")
+	# Faith flows into the holder's stock in a match.
+	var fm := Match.new("romans", "franks", "human")
+	fm.battle.shrines[0].owner = Battlefield.PLAYER
+	fm.tick(1.0)
+	_check(is_equal_approx(fm.economies[Battlefield.PLAYER].resources.get("faith", 0.0), float(cfg.faith_per_sec[0])), "a shrine gives its holder faith every second")

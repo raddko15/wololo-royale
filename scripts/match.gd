@@ -59,6 +59,9 @@ func tick(delta: float) -> void:
 	if ai:
 		ai.tick(delta)
 	battle.tick(delta)
+	for team in 2:
+		var r: Dictionary = economies[team].resources
+		r["faith"] = r.get("faith", 0.0) + battle.faith_rate(team) * delta
 
 
 # --- Commands -----------------------------------------------------------------

@@ -299,6 +299,15 @@
       "time": 15
     }
   },
+  "shrine": {
+    "name": "Obelisk",
+    "neutral_hp": 400,
+    "hp": [500, 800, 1200],
+    "faith_per_sec": [1, 2, 3],
+    "regen_delay_sec": 5,
+    "regen_per_sec": 3,
+    "names": {"classical": ["Shrine", "Temple", "Great Temple"], "medieval": ["Chapel", "Church", "Cathedral"]}
+  },
   "corpse": {
     "fresh_sec": 6,
     "rotten_sec": 8,

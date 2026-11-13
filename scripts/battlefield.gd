@@ -9,6 +9,8 @@ extends RefCounted
 
 signal unit_died(team: int)
 signal game_over(winner: int)
+## A lane's shrine changed hands (team: its new owner).
+signal shrine_taken(lane: int, team: int)
 
 const LANES := 3
 const PLAYER := 0
@@ -62,6 +64,15 @@ var fort_max_hp := [0.0, 0.0]
 var _fort_extra_armor := [0.0, 0.0]
 
 var _cfg: Dictionary
+## Each lane's shrine, halfway along it: {"owner": -1 (a neutral obelisk) or
+## the team holding it, "hp", "max_hp", "quiet"}. Troops marching on the
+## enemy stop to break any shrine that isn't theirs; whoever breaks it takes
+## it and raises their own (sturdier with each era), and it earns them faith.
+const SHRINE_Y := 0.5
+var shrines: Array = []
+## Off (config shrine.enabled false): troops ignore the shrines (tests).
+var shrines_on := true
+var eras := [0, 0]
 
 
 func _init(cfg: Dictionary = GameConfig.data()) -> void:
@@ -70,6 +81,46 @@ func _init(cfg: Dictionary = GameConfig.data()) -> void:
 		buildings.append({"towers": [0.0, 0.0, 0.0], "main": float(_cfg.buildings.main.hp)})
 		fort_max_hp[team] = float(_cfg.buildings.main.hp)
 		tower_max_hp[team] = float(_cfg.buildings.tower.hp)
+	shrines_on = _shrine_cfg().get("enabled", true)
+	var hp: float = _shrine_cfg().neutral_hp
+	for lane in LANES:
+		shrines.append({"owner": -1, "hp": hp, "max_hp": hp, "quiet": 0.0})
+
+
+func _shrine_cfg() -> Dictionary:
+	return _cfg.get("shrine", {"neutral_hp": 400, "hp": [500, 800, 1200], "faith_per_sec": [1, 2, 3], "regen_delay_sec": 5, "regen_per_sec": 3})
+
+
+## Health of `team`'s shrine in its era.
+func shrine_hp(team: int) -> float:
+	var hp: Array = _shrine_cfg().hp
+	return float(hp[mini(eras[team], hp.size() - 1)])
+
+
+## Faith per second `team` earns from the shrines it holds.
+func faith_rate(team: int) -> float:
+	var per: Array = _shrine_cfg().faith_per_sec
+	var n := 0
+	for s in shrines:
+		if s.owner == team:
+			n += 1
+	return n * float(per[mini(eras[team], per.size() - 1)])
+
+
+func shrines_held(team: int) -> int:
+	return shrines.filter(func(s): return s.owner == team).size()
+
+
+## Damage a lane's shrine; broken, it becomes `by`'s.
+func _hit_shrine(lane: int, by: int, amount: float) -> void:
+	var s: Dictionary = shrines[lane]
+	s.hp -= amount
+	s.quiet = 0.0
+	if s.hp <= 0.0:
+		s.owner = by
+		s.max_hp = shrine_hp(by)
+		s.hp = s.max_hp
+		shrine_taken.emit(lane, by)
 
 
 ## A fort or tower left alone for regen_delay_sec repairs itself slowly
@@ -86,6 +137,11 @@ func _repair_forts(delta: float) -> void:
 			var hp: float = buildings[team].towers[lane]
 			if hp > 0 and hp < tower_max_hp[team] and tower_quiet[team][lane] >= tower.regen_delay_sec:
 				buildings[team].towers[lane] = minf(hp + tower.regen_per_sec * delta, tower_max_hp[team])
+	var sc := _shrine_cfg()
+	for sh in shrines:
+		sh.quiet += delta
+		if sh.quiet >= sc.regen_delay_sec:
+			sh.hp = minf(sh.hp + sc.regen_per_sec * delta, sh.max_hp)
 
 
 func fort_repairing(team: int) -> bool:
@@ -94,6 +150,13 @@ func fort_repairing(team: int) -> bool:
 
 ## A new era: the fort shoots (from Era II), gets tougher and is patched up.
 func fort_new_era(team: int, era: int) -> void:
+	eras[team] = era
+	# Its shrines are rebuilt grander (a temple, a church...): new health.
+	for sh in shrines:
+		if sh.owner == team:
+			var extra: float = shrine_hp(team) - sh.max_hp
+			sh.max_hp += extra
+			sh.hp += extra
 	var fort: Dictionary = _cfg.buildings.main
 	fort_armed[team] = era >= 1
 	fort_armor[team] = fort.era_armor[mini(era, fort.era_armor.size() - 1)] + _fort_extra_armor[team]
@@ -300,7 +363,21 @@ func _unit_act(u: Dictionary, delta: float) -> void:
 		target_y = TOWER_Y[enemy]
 	else:
 		target_y = fort_y(enemy, u.lane)
-	if absf(target_y - u.y) <= u.range + REACH_EPS:
+	# A shrine not its own, not yet passed: break it first.
+	var shrine: Dictionary = shrines[u.lane]
+	if shrines_on and shrine.owner != u.team and (SHRINE_Y - u.y) * dir > -(u.range + REACH_EPS):
+		target_y = SHRINE_Y
+		if absf(target_y - u.y) <= u.range + REACH_EPS:
+			var at := "shrine:%d" % u.lane
+			if u.range < RANGED:
+				if had != at and _sieging(at) >= SIEGE_SLOTS:
+					u.target = "queue"
+					return
+				u.siege = at
+			_hit_shrine(u.lane, u.team, u.dps * delta)
+			u.target = "shrine"
+			return
+	elif absf(target_y - u.y) <= u.range + REACH_EPS:
 		# Only so many fighters fit around a building: melee troops beyond
 		# that wait behind for a place (archers and chariots shoot from back).
 		var kind := "tower" if buildings[enemy].towers[u.lane] > 0 else "main"
