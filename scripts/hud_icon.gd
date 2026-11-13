@@ -3,16 +3,26 @@ extends Control
 ## Small drawn icon for the header: food, wood, gold, stone, villagers or pop.
 
 var kind: String
+## The icon's picture, if it has one (loaded here: loading inside _draw
+## leaves it blank on the web renderer).
+var _art: Texture2D
 
 
 func _init(icon_kind: String) -> void:
 	kind = icon_kind
+	var path := "res://assets/art/res/%s.svg" % kind
+	if ResourceLoader.exists(path):
+		_art = load(path)
 	custom_minimum_size = Vector2(30, 30)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 
 func _draw() -> void:
 	var c := size / 2
+	if _art:
+		var side := minf(size.x, size.y) + 4.0
+		draw_texture_rect(_art, Rect2(c - Vector2(side, side) / 2.0, Vector2(side, side)), false)
+		return
 	match kind:
 		"food":  # wheat bundle
 			for dx in [-6, 0, 6]:
