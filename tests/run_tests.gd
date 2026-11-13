@@ -605,6 +605,8 @@ func _init() -> void:
 	view.free()
 
 	_test_shrines()
+	_test_fort_defense()
+	_test_volleys()
 	print("FAILURES: %d" % _failures)
 	quit(1 if _failures else 0)
 
@@ -668,3 +670,48 @@ func _test_shrines() -> void:
 	fm.battle.shrines[0].owner = Battlefield.PLAYER
 	fm.tick(1.0)
 	_check(is_equal_approx(fm.economies[Battlefield.PLAYER].resources.get("faith", 0.0), float(cfg.faith_per_sec[0])), "a shrine gives its holder faith every second")
+
+
+func _test_fort_defense() -> void:
+	# Raiders hack at the fort from the middle lane; recruits for a side lane,
+	# sent home (BACK), cross over to fight them, then go back to their lane.
+	var fd := Battlefield.new()
+	fd.lane_orders[Battlefield.PLAYER] = ["retreat", "retreat", "retreat"]
+	var raider := fd.spawn(Battlefield.ENEMY, "fighter", 1)
+	raider.y = fd.fort_y(Battlefield.PLAYER, 1) + 0.02
+	raider.hp = 25.0
+	var guard := fd.spawn(Battlefield.PLAYER, "fighter", 0)
+	fd.tick(0.1)
+	_check(guard.lane == 1 and guard.target == "unit", "a recruit crosses to the lane the fort is attacked from and fights")
+	for i in 100:
+		fd.tick(0.1)
+	_check(not fd.units.has(raider) and guard.lane == 0 and not guard.has("home_lane"), "the raider falls; the recruit goes back to its own lane")
+	# Sent home, troops on their own side fight a raider they meet.
+	var fh := Battlefield.new()
+	fh.lane_orders[Battlefield.PLAYER] = ["retreat", "retreat", "retreat"]
+	var walker := fh.spawn(Battlefield.PLAYER, "fighter", 0)
+	walker.y = -0.25
+	var intruder := fh.spawn(Battlefield.ENEMY, "fighter", 0)
+	intruder.y = -0.23
+	fh.tick(0.1)
+	_check(walker.target == "unit", "walking home behind its tower, a unit fights the raider it meets")
+
+
+func _test_volleys() -> void:
+	var fv := Battlefield.new()
+	fv.fort_new_era(Battlefield.PLAYER, 1)
+	for lane in [0, 1, 2]:
+		fv.spawn(Battlefield.ENEMY, "fighter", lane).y = fv.fort_y(Battlefield.PLAYER, lane) + 0.05
+	fv.tick(0.05)
+	_check(fv.arrows.filter(func(a): return a.from == "main").size() == 2, "Era II fort looses two arrows at once")
+	fv.arrows.clear()
+	fv.main_cooldowns[Battlefield.PLAYER] = 0.0
+	fv.fort_new_era(Battlefield.PLAYER, 2)
+	fv.tick(0.05)
+	_check(fv.arrows.filter(func(a): return a.from == "main").size() == 3, "Era III fort: three arrows")
+	var ss := Battlefield.new()
+	ss.shrines[0].owner = Battlefield.PLAYER
+	var foe := ss.spawn(Battlefield.ENEMY, "fighter", 0)
+	foe.y = Battlefield.SHRINE_Y + 0.08
+	ss.tick(0.05)
+	_check(ss.arrows.size() == 1 and ss.arrows[0].from == "shrine" and ss.arrows[0].team == Battlefield.PLAYER, "a held shrine shoots at foes passing it")

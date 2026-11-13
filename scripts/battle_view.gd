@@ -374,6 +374,13 @@ func _along(points: PackedVector2Array, frac: float) -> Vector2:
 	return points[-1]
 
 
+## Where an arrow was shot from: a tower, the fort or a shrine.
+func _arrow_start(a: Dictionary) -> Vector2:
+	if a.from == "shrine":
+		return shrine_pos(a.lane)
+	return building_pos(a.team, "tower" if a.from == "tower" else "main", a.lane)
+
+
 ## Where a lane's shrine stands: on the grass beside the middle of the lane
 ## (the side lanes' on the outside, the middle lane's on the left).
 func shrine_pos(lane: int) -> Vector2:
@@ -909,7 +916,7 @@ func _draw() -> void:
 		var idx := battle.units.find(a.target)
 		if idx != -1:
 			if in_3d:
-				var start := building_pos(a.team, "tower" if a.from == "tower" else "main", a.lane)
+				var start := _arrow_start(a)
 				figures_3d.append({"kind": "arrow", "from": start, "to": positions[idx], "t": a.t, "high": true})
 			else:
 				_draw_arrow(a, positions[idx])
@@ -1722,7 +1729,7 @@ func _draw_tower(pos: Vector2, color: Color, hp: float, stone: bool, style: Stri
 
 ## Arrow from a tower's slit to its target, rising and falling in a short arc.
 func _draw_arrow(a: Dictionary, target: Vector2) -> void:
-	var start := building_pos(a.team, "tower" if a.from == "tower" else "main", a.lane) + Vector2(0, -12)
+	var start := _arrow_start(a) + Vector2(0, -12)
 	var lift := Vector2(0, -start.distance_to(target) * 0.25)
 	var pos := start.lerp(target, a.t) + lift * sin(PI * a.t)
 	var ahead := start.lerp(target, minf(a.t + 0.05, 1.0)) + lift * sin(PI * minf(a.t + 0.05, 1.0))

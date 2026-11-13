@@ -193,6 +193,14 @@ func upgrade_towers(team: int, hp_bonus: float) -> void:
 			buildings[team].towers[lane] += extra
 
 
+## Arrow damage multiplier from `team`'s forge upgrades (towers, fort, shrines).
+var arrow_bonuses := [1.0, 1.0]
+
+
+func arrow_bonus(team: int) -> float:
+	return arrow_bonuses[team]
+
+
 ## Lane coordinate of `team`'s fort at the end of a lane's road.
 func fort_y(team: int, lane: int) -> float:
 	return TOWER_Y[team] + (-1.0 if team == PLAYER else 1.0) * MAIN_DIST[lane]
@@ -331,6 +339,7 @@ func _unit_act(u: Dictionary, delta: float) -> void:
 	u.target = ""
 	var prev_foe = u.foe
 	u.foe = null
+	_defend_fort(u)
 	var foe = _best_target(u, prev_foe)
 	if foe != null and foe != prev_foe and u.range < RANGED:
 		_melee_on[foe.id] = _melee_on.get(foe.id, 0) + 1
@@ -344,7 +353,9 @@ func _unit_act(u: Dictionary, delta: float) -> void:
 	u.moving = false
 	var what := current_order(u)
 	u.waiting = what != "march"
-	if what == "retreat":
+	# Behind its own tower line it is home: there it fights whatever comes.
+	var at_home: bool = (u.y - TOWER_Y[u.team]) * dir <= 0.0
+	if what == "retreat" and not (foe and at_home):
 		# Walking back to the rally point: no stopping to fight on the way.
 		var home := rally_y(u)
 		if absf(home - u.y) > 0.002:
@@ -413,6 +424,34 @@ func _unit_act(u: Dictionary, delta: float) -> void:
 	var before: float = u.y
 	u.y += dir * maxf(minf(step, limit), 0.0)
 	u.moving = not is_equal_approx(before, u.y)
+
+
+## Every lane's road ends at the fort, so troops standing there (new
+## recruits) cross to whichever lane the enemy attacks the fort from, and go
+## back to their own lane once it is clear.
+const FORT_GUARD := 0.06
+const FORT_THREAT := 0.12
+
+
+func _defend_fort(u: Dictionary) -> void:
+	if absf(u.y - fort_y(u.team, u.lane)) > FORT_GUARD:
+		return
+	var threat = null
+	for o in units:
+		if o.team != u.team and o.hp > 0 and absf(o.y - fort_y(u.team, o.lane)) <= FORT_THREAT:
+			if o.lane == u.lane:
+				return  # its own lane is under attack: it fights there
+			if threat == null or absf(o.y - fort_y(u.team, o.lane)) < absf(threat.y - fort_y(u.team, threat.lane)):
+				threat = o
+	if threat != null:
+		if not u.has("home_lane"):
+			u["home_lane"] = u.lane
+		u.y = fort_y(u.team, threat.lane) + (u.y - fort_y(u.team, u.lane))
+		u.lane = threat.lane
+	elif u.has("home_lane"):
+		u.y = fort_y(u.team, u.home_lane) + (u.y - fort_y(u.team, u.lane))
+		u.lane = u.home_lane
+		u.erase("home_lane")
 
 
 ## Melee troops that can hit one building (per lane) at once: the front rank
@@ -501,15 +540,32 @@ func _towers_shoot(delta: float) -> void:
 		main_cooldowns[team] = maxf(main_cooldowns[team] - delta, 0.0)
 		if not fort_armed[team] or buildings[team].main <= 0 or main_cooldowns[team] > 0:
 			continue
-		var target = null
-		for o in units:
-			var dist := absf(o.y - fort_y(team, o.lane))
-			if o.team != team and o.hp > 0 and dist <= fort.range:
-				if target == null or dist < absf(target.y - fort_y(team, target.lane)):
-					target = o
-		if target:
-			arrows.append({"team": team, "lane": target.lane, "from": "main", "target": target, "t": 0.0, "damage": fort.arrow_damage})
+		# One arrow a volley in Era II, more later, each at a different foe
+		# (the nearest first).
+		var near: Array = units.filter(func(o): return o.team != team and o.hp > 0 and absf(o.y - fort_y(team, o.lane)) <= fort.range)
+		near.sort_custom(func(a, b): return absf(a.y - fort_y(team, a.lane)) < absf(b.y - fort_y(team, b.lane)))
+		var volley: Array = fort.get("arrows_per_era", [1, 1, 1])
+		for o in near.slice(0, volley[mini(eras[team], volley.size() - 1)]):
+			arrows.append({"team": team, "lane": o.lane, "from": "main", "target": o, "t": 0.0, "damage": fort.arrow_damage * arrow_bonus(team)})
+		if not near.is_empty():
 			main_cooldowns[team] = fort.attack_interval_sec
+	# A held shrine shoots at foes in its lane near it.
+	var sc := _shrine_cfg()
+	if shrines_on:
+		for lane in LANES:
+			var sh: Dictionary = shrines[lane]
+			sh["cooldown"] = maxf(sh.get("cooldown", 0.0) - delta, 0.0)
+			if sh.owner == -1 or sh.cooldown > 0:
+				continue
+			var mark = null
+			for o in units:
+				var dist := absf(o.y - SHRINE_Y)
+				if o.team != sh.owner and o.hp > 0 and o.lane == lane and dist <= sc.get("range", 0.15):
+					if mark == null or dist < absf(mark.y - SHRINE_Y):
+						mark = o
+			if mark:
+				arrows.append({"team": sh.owner, "lane": lane, "from": "shrine", "target": mark, "t": 0.0, "damage": sc.get("arrow_damage", 5) * arrow_bonus(sh.owner)})
+				sh.cooldown = sc.get("attack_interval_sec", 1.2)
 	var stats: Dictionary = _cfg.buildings.tower
 	for team in 2:
 		for lane in LANES:
@@ -523,7 +579,7 @@ func _towers_shoot(delta: float) -> void:
 					if best == null or dist < absf(best.y - TOWER_Y[team]):
 						best = o
 			if best:
-				arrows.append({"team": team, "lane": lane, "from": "tower", "target": best, "t": 0.0, "damage": stats.arrow_damage})
+				arrows.append({"team": team, "lane": lane, "from": "tower", "target": best, "t": 0.0, "damage": stats.arrow_damage * arrow_bonus(team)})
 				cooldowns[team][lane] = stats.attack_interval_sec
 	for i in range(arrows.size() - 1, -1, -1):
 		var a: Dictionary = arrows[i]

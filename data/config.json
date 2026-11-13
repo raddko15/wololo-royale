@@ -251,6 +251,7 @@
       "regen_per_sec": 5,
       "era_armor": [0.0, 0.2, 0.35],
       "era_heal": 0.4,
+      "arrows_per_era": [1, 2, 3],
       "arrow_damage": 8,
       "attack_interval_sec": 1.0,
       "range": 0.25
@@ -306,6 +307,9 @@
     "faith_per_sec": [1, 2, 3],
     "regen_delay_sec": 5,
     "regen_per_sec": 3,
+    "range": 0.15,
+    "arrow_damage": 5,
+    "attack_interval_sec": 1.2,
     "names": {"classical": ["Shrine", "Temple", "Great Temple"], "medieval": ["Chapel", "Church", "Cathedral"]}
   },
   "corpse": {
