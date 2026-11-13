@@ -374,9 +374,15 @@ func _along(points: PackedVector2Array, frac: float) -> Vector2:
 	return points[-1]
 
 
-## Where a lane's shrine stands (the middle of the lane).
+## Where a lane's shrine stands: on the grass beside the middle of the lane
+## (the side lanes' on the outside, the middle lane's on the left).
 func shrine_pos(lane: int) -> Vector2:
-	return _lane_pos_at(lane, Battlefield.SHRINE_Y, 0.0)
+	var side := 1.0 if lane == 2 else -1.0
+	return _lane_pos_at(lane, Battlefield.SHRINE_Y, 0.0) + Vector2(side * (lane_width(lane) / 2.0 + SHRINE_GAP), 0)
+
+
+## How far the shrine stands from its lane's edge (to its middle).
+const SHRINE_GAP := 40.0
 
 
 ## A lane's (and its roads') width in pixels.
@@ -534,7 +540,10 @@ func _ring_goals(key: String, idxs: Array, goals: Array[Vector2], looks: Array[V
 ## fort at the end of each road.
 func _siege_ring(team: int, kind: String, lane: int) -> Array:
 	if kind == "shrine":
-		return [shrine_pos(lane), PI / 2 if team == Battlefield.PLAYER else -PI / 2, SHRINE_ROOM * (1.3 if in_3d else 1.0) + 16.0]
+		# Round its lane side, coming off the road.
+		var at := shrine_pos(lane)
+		var from := _lane_pos_at(lane, Battlefield.SHRINE_Y, 0.0) + Vector2(0, 30 if team == Battlefield.PLAYER else -30)
+		return [at, (from - at).angle(), SHRINE_ROOM * (1.3 if in_3d else 1.0) + 16.0]
 	if kind == "tower":
 		# Player units attack from below (90°), enemy units from above.
 		return [building_pos(1 - team, "tower", lane), PI / 2 if team == Battlefield.PLAYER else -PI / 2, 62.0 if in_3d else 48.0]
@@ -1150,10 +1159,10 @@ func _draw_city(team: int, now: float) -> void:
 		_draw_upgrade_badges(e, now)
 
 
-## The order button for each lane, on the player's half of the lane (the
-## shrine stands in the middle): GO / BACK for the player's troops there.
+## The order button for each lane, in the middle of the lane halfway between
+## the two sides' towers: GO / BACK for the player's troops there.
 func order_button(lane: int) -> Vector2:
-	return _lane_pos_at(lane, 0.3, 0.0)
+	return _lane_pos_at(lane, 0.5, 0.0)
 
 
 ## Fill and rim per order: GO green with an arrow up the lane, BACK blue with
