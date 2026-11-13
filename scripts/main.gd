@@ -82,7 +82,7 @@ func _start_game(civ_id: String, menu: Control, their_civ := "", role := "") -> 
 	if menu.has_meta("starting"):
 		return  # a second tap while it loads
 	menu.set_meta("starting", true)
-	var loading := Loading.new("Starting the battle…")
+	var loading := Loading.new()
 	add_child(loading)
 	for i in 2:
 		await get_tree().process_frame
