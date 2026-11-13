@@ -28,6 +28,8 @@ const FARM_ROWS := 2
 const TREE_COLS := 4
 const TREE_ROWS := 2
 const LANE_W := 0.15
+## The side lanes are this much as wide as the middle one.
+const SIDE_LANE := 0.85
 ## Distance (px) from a fort's center to where a road meets it.
 const FORT_SIDE := 100.0
 const FORT_FRONT := 55.0
@@ -259,7 +261,7 @@ func _village_blockers() -> Array[Rect2]:
 		r.append(box.call(building_pos(t, "tower", lane) + Vector2(0, -20), Vector2(56, 80)))
 		var path := road(t, lane)
 		for k in path.size() - 1:
-			r.append(Rect2(path[k], Vector2.ZERO).expand(path[k + 1]).grow(size.x * LANE_W / 2 + 5))
+			r.append(Rect2(path[k], Vector2.ZERO).expand(path[k + 1]).grow(lane_width(lane) / 2 + 5))
 	return r
 
 
@@ -372,11 +374,16 @@ func _along(points: PackedVector2Array, frac: float) -> Vector2:
 	return points[-1]
 
 
+## A lane's (and its roads') width in pixels.
+func lane_width(lane: int) -> float:
+	return size.x * LANE_W * (1.0 if lane == 1 else SIDE_LANE)
+
+
 ## Screen point for lane coordinate `y` (beyond 1: on the enemy's road, below
 ## 0: on the player's road), `across` (-1..1) of the way from the road's middle
 ## to its edges: the same on the lane and around the roads' bends.
 func _lane_pos_at(lane: int, y: float, across: float) -> Vector2:
-	var half := size.x * LANE_W * 0.4
+	var half := lane_width(lane) * 0.4
 	if y > 1.0 or y < 0.0:
 		var team := Battlefield.ENEMY if y > 1.0 else Battlefield.PLAYER
 		var frac: float = (y - 1.0 if y > 1.0 else -y) / Battlefield.MAIN_DIST[lane]
@@ -738,19 +745,23 @@ func paint_ground(c: CanvasItem) -> void:
 
 ## Dirt lanes and L roads: a darker edge under a lighter fill, then pebbles.
 func _draw_roads(lane_fill: Array[Color]) -> void:
-	var w := size.x * LANE_W
 	var top := tower_line(Battlefield.ENEMY)
 	var lane_rects := []
 	for lane in Battlefield.LANES:
-		lane_rects.append(Rect2(LANE_X[lane] * size.x - w / 2, top, w, tower_line(Battlefield.PLAYER) - top))
+		var lw := lane_width(lane)
+		lane_rects.append(Rect2(LANE_X[lane] * size.x - lw / 2, top, lw, tower_line(Battlefield.PLAYER) - top))
 	var paths := []
+	var widths: Array[float] = []
 	for team in [Battlefield.ENEMY, Battlefield.PLAYER]:
 		for lane in Battlefield.LANES:
 			paths.append(road(team, lane))
+			widths.append(lane_width(lane))
 	for pass_i in 2:
 		var edge := pass_i == 0
 		var grow := 3.0 if edge else 0.0
-		for path in paths:
+		for pi in paths.size():
+			var path: PackedVector2Array = paths[pi]
+			var w: float = widths[pi]
 			draw_polyline(path, ROAD_EDGE if edge else ROAD, w + grow * 2)
 			for corner in path:  # square joints
 				draw_rect(Rect2(corner - Vector2.ONE * (w / 2 + grow), Vector2.ONE * (w + grow * 2)), ROAD_EDGE if edge else ROAD)
@@ -766,6 +777,7 @@ func _draw_roads(lane_fill: Array[Color]) -> void:
 			draw_circle(Vector2(x, y), 1.8, ROAD_EDGE)
 			y += 23.0
 			k += 1
+		var w := r.size.x
 		draw_line(Vector2(r.position.x + w * 0.3, r.position.y), Vector2(r.position.x + w * 0.3, r.end.y), Color(0, 0, 0, 0.06), 2)
 		draw_line(Vector2(r.position.x + w * 0.7, r.position.y), Vector2(r.position.x + w * 0.7, r.end.y), Color(0, 0, 0, 0.06), 2)
 
