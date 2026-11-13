@@ -79,6 +79,8 @@ static func make(id: String, tint: Color, variant := 0) -> Node3D:
 			_campfire(m)
 		"obelisk":
 			_obelisk(m)
+		"forge":
+			_forge(m, tint)
 		_:
 			if id.begins_with("shrine_"):
 				var parts := id.split("_")
@@ -481,6 +483,38 @@ static func _campfire(m: Node3D) -> void:
 	mat.emission = Color("#f5b041")
 	mat.emission_energy_multiplier = 1.5
 	flame.material_override = mat
+
+
+# --- Forge ---------------------------------------------------------------------
+
+## The forge: a stone smithy with a tall chimney, an open front under a lean-to
+## roof, the glowing hearth, an anvil and a rack of finished arrows.
+static func _forge(m: Node3D, tint: Color) -> void:
+	_box(m, Vector3(0.42, 0.03, 0.34), STONE_DARK, Vector3.ZERO)
+	_box(m, Vector3(0.36, 0.2, 0.2), STONE, Vector3(0, 0.03, -0.06))
+	_box(m, Vector3(0.09, 0.42, 0.09), STONE_DARK, Vector3(0.13, 0.03, -0.1))
+	_box(m, Vector3(0.11, 0.03, 0.11), STONE, Vector3(0.13, 0.45, -0.1))
+	_add(m, LowPoly.shed(0.4, 0.16, 0.1, 0.03), ROOF_BROWN, Vector3(0, 0.2, 0.1))
+	for x in [-0.17, 0.17]:
+		_post(m, 0.014, 0.2, WOOD_DARK, Vector3(x, 0.03, 0.16), 5)
+	# The hearth's glow at the back wall.
+	_box(m, Vector3(0.1, 0.07, 0.03), STONE_DARK, Vector3(-0.07, 0.03, 0.05))
+	var fire := _add(m, LowPoly.box(Vector3(0.07, 0.035, 0.02)), Color("#f39c12"), Vector3(-0.07, 0.065, 0.065))
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color("#f5a623")
+	mat.emission_enabled = true
+	mat.emission = Color("#ff7a1a")
+	mat.emission_energy_multiplier = 1.6
+	fire.material_override = mat
+	fire.name = "Flame"
+	# Anvil on a stump.
+	_post(m, 0.03, 0.05, LOG, Vector3(0.06, 0.03, 0.12), 6)
+	_box(m, Vector3(0.07, 0.03, 0.035), IRON, Vector3(0.06, 0.08, 0.12))
+	# Arrow rack in the civ's color.
+	_box(m, Vector3(0.12, 0.08, 0.02), WOOD, Vector3(-0.27, 0.03, 0.04))
+	for i in 5:
+		_box(m, Vector3(0.006, 0.12, 0.006), Color("#d8c9a3"), Vector3(-0.31 + i * 0.02, 0.06, 0.055))
+	_box(m, Vector3(0.12, 0.02, 0.022), tint, Vector3(-0.27, 0.16, 0.05))
 
 
 # --- Shrines --------------------------------------------------------------------

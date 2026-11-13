@@ -453,7 +453,7 @@ func _on_menu_choice(id: String) -> bool:
 			cmd = {"op": "towers", "lane": int(id.trim_prefix("tower:"))}
 		"gold", "stone":
 			cmd = {"op": "mine", "id": id}
-		"farm", "lumberjack":
+		"farm", "lumberjack", "forge":
 			cmd = {"op": "camp", "id": id}
 		"barracks", "archery_range", "stables":
 			cmd = {"op": "military", "id": id}
@@ -479,7 +479,7 @@ func _on_site_tapped(id: String) -> void:
 	if cfg.military.has(id):
 		cost = cfg.military[id].cost
 		name = cfg.military[id].name
-	elif id in Economy.CAMP_FOR.values():
+	elif id in Economy.CAMP_FOR.values() or id == "forge":
 		cost = cfg.buildings[id].cost
 		name = cfg.buildings[id].name
 	elif id == "hut":
@@ -624,10 +624,12 @@ func _menu_options(kind: String) -> Array:
 				var enote := "in progress" if economy.is_pending("era", "next") else _cost_text(ecost)
 				opts.append(_option("era", "era", era_name.call(economy.era_index + 1), enote, economy.can_advance()))
 			# Farm and lumberjack until they are built.
-			for id in ["lumberjack", "farm"]:
+			for id in ["lumberjack", "farm", "forge"]:
 				if not economy.camps.has(id):
 					var c: Dictionary = cfg.buildings[id]
 					var cnote := "in progress" if economy.is_pending("camp", id) else _cost_text(c.cost)
+					if economy.era_index < c.get("min_era", 0):
+						cnote = "needs %s" % cfg.eras[c.min_era].name
 					opts.append(_option(id, "hut", c.name, cnote, economy.can_build_camp(id)))
 			var hut: Dictionary = cfg.buildings.hut
 			var full: bool = economy.max_population() >= cfg.population.max_cap
@@ -661,6 +663,9 @@ func _menu_options(kind: String) -> Array:
 			opts.append(_upgrade_option(kind + "2"))
 		"towers":
 			opts.append(_upgrade_option("stone_towers"))
+		"forge":
+			for up in Economy.FORGE_UPGRADES:
+				opts.append(_upgrade_option(up))
 		"barracks", "archery_range", "stables":
 			opts.append(_military_option(kind, 0))
 			opts.append(_upgrade_option(kind + ("2" if economy.upgrades.has(kind + "1") else "1")))
@@ -696,6 +701,8 @@ func _describe(id: String) -> String:
 			parts.append("+%d%% %s gathering" % [roundi(up.gather_bonus[res] * 100), res])
 		for stat in up.get("unit_bonus", {}):
 			parts.append("+%d%% %s" % [roundi(up.unit_bonus[stat] * 100), {"hp": "HP", "damage": "dmg", "range": "range"}[stat]])
+		if up.has("arrow_bonus"):
+			parts.append("+%d%% arrow damage: towers, fort, shrines, archers" % roundi(up.arrow_bonus * 100))
 		if up.has("tower_hp_bonus"):
 			parts.append("+%d%% tower HP" % roundi(up.tower_hp_bonus * 100))
 		# A level that renames the troop (archers become crossbowmen).
@@ -727,6 +734,8 @@ func _describe(id: String) -> String:
 			return "lets villagers gather food"
 		"lumberjack":
 			return "lets villagers gather wood"
+		"forge":
+			return "upgrades every arrow"
 		"worker_gold", "worker_stone":
 			return "send an idle villager"
 		"unworker_gold", "unworker_stone":

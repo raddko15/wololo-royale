@@ -289,6 +289,12 @@
       },
       "time": 8
     },
+    "forge": {
+      "name": "Forge",
+      "cost": {"wood": 150, "stone": 50},
+      "min_era": 1,
+      "time": 20
+    },
     "mine": {
       "cost": {
         "wood": 150
@@ -377,6 +383,30 @@
     "bonus_resources": 10000
   },
   "upgrades": {
+    "fletching": {
+      "name": "Fletching",
+      "cost": {"food": 100, "wood": 50},
+      "min_era": 1,
+      "requires": {"camp": "forge"},
+      "arrow_bonus": 0.2,
+      "time": 20
+    },
+    "bodkin": {
+      "name": "Bodkin Arrows",
+      "cost": {"food": 200, "gold": 100},
+      "min_era": 1,
+      "requires": {"upgrade": "fletching"},
+      "arrow_bonus": 0.2,
+      "time": 25
+    },
+    "bracer": {
+      "name": "Bracers",
+      "cost": {"food": 300, "gold": 200},
+      "min_era": 2,
+      "requires": {"upgrade": "bodkin"},
+      "arrow_bonus": 0.2,
+      "time": 30
+    },
     "mill": {
       "name": "Windmill",
       "cost": {

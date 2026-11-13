@@ -27,6 +27,10 @@ var camps := {}
 var gather_bonus := 0.0
 ## Which camp each gathered resource needs.
 const CAMP_FOR := {"food": "farm", "wood": "lumberjack"}
+## The forge's upgrades, in order: each makes every arrow hit harder (towers,
+## fort, shrines, archers and chariots).
+const FORGE_UPGRADES := ["fletching", "bodkin", "bracer"]
+const ARCHERS := ["archer", "chariot"]
 ## Military buildings built so far, e.g. {"barracks": true}; each unlocks a unit.
 var military := {}
 ## Building upgrades the player chose, e.g. {"mill": true}. Only the town
@@ -440,7 +444,7 @@ func site_open(kind: String, id: String) -> bool:
 		"mine":
 			return not mines.has(id) and era_index >= mine_era(id)
 		"camp":
-			return not camps.has(id)
+			return not camps.has(id) and era_index >= _cfg.buildings[id].get("min_era", 0)
 	return not towers_up[int(id)] and pending_count("towers") == 0 and era_index >= _cfg.buildings.towers.min_era
 
 
@@ -581,6 +585,8 @@ func upgrade_unlocked(id: String) -> bool:
 		return false
 	if req.has("military") and not military.has(req.military):
 		return false
+	if req.has("camp") and not camps.has(req.camp):
+		return false
 	return true
 
 
@@ -591,6 +597,14 @@ func unit_tier(unit_id: String) -> int:
 
 
 ## Summed stat bonuses from upgrades for a unit type, e.g. {"hp": 0.8, "damage": 0.6}.
+## Extra arrow damage from the forge's upgrades (0.2 = +20%).
+func arrow_bonus() -> float:
+	var total := 0.0
+	for id in upgrades:
+		total += _cfg.upgrades[id].get("arrow_bonus", 0.0)
+	return total
+
+
 func unit_bonus(unit_id: String) -> Dictionary:
 	var total := {}
 	# Unique units share the upgrades of the unit they replace (knight: cavalry).
@@ -600,6 +614,11 @@ func unit_bonus(unit_id: String) -> Dictionary:
 		if up.get("unit", "") == as_unit:
 			for stat in up.unit_bonus:
 				total[stat] = total.get(stat, 0.0) + up.unit_bonus[stat]
+	# The forge's arrows.
+	if unit_id in ARCHERS or as_unit in ARCHERS:
+		var arrows := arrow_bonus()
+		if arrows > 0.0:
+			total["damage"] = total.get("damage", 0.0) + arrows
 	# The civ's own bonus (e.g. Frankish horsemen +20% HP).
 	var civ_bonus: Dictionary = civ().get("unit_bonus", {}).get(unit_id, {})
 	for stat in civ_bonus:
@@ -621,6 +640,8 @@ static func upgrade_site(id: String) -> String:
 		return "lumber_camp"
 	if id == "stone_towers":
 		return "towers"
+	if id in FORGE_UPGRADES:
+		return "forge"
 	for b in ["barracks", "archery_range", "stables"]:
 		if id.begins_with(b):
 			return b

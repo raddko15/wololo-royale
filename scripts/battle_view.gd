@@ -135,6 +135,11 @@ func military_pos(team: int, id: String) -> Vector2:
 	return _cp(team, 0.69, 262) if in_3d else _cp(team, 0.66, 232)
 
 
+## The forge: beside the right tower (the barracks stand by the left one).
+func forge_pos(team: int) -> Vector2:
+	return _cp(team, 0.925, TOWER_DEPTH)
+
+
 ## Gold / stone mine: small, on the grass between the lane towers (in 3D a
 ## little toward the lanes, out of the towers' way).
 func mine_pos(team: int, res: String) -> Vector2:
@@ -255,6 +260,7 @@ func _village_blockers() -> Array[Rect2]:
 		r.append(box.call(unassign_icon(job), Vector2(48, 48)))
 	for id in ["barracks", "archery_range", "stables"]:
 		r.append(box.call(military_pos(t, id) + Vector2(0, -18), Vector2(76, 64)))
+	r.append(box.call(forge_pos(t) + Vector2(0, -14), Vector2(70, 56)))
 	for res in ["gold", "stone"]:
 		r.append(box.call(mine_pos(t, res) + Vector2(2, -12), Vector2(54, 44)))
 	for lane in Battlefield.LANES:
@@ -659,6 +665,9 @@ func _gui_input(event: InputEvent) -> void:
 		if pos.distance_to(hut_pos(Battlefield.PLAYER, i) + Vector2(0, -3)) < 14:
 			hut_tapped.emit()
 			return
+	if economy.camps.has("forge") and pos.distance_to(forge_pos(Battlefield.PLAYER)) < 40:
+		building_tapped.emit("forge", forge_pos(Battlefield.PLAYER))
+		return
 	for res in ["food", "wood"]:
 		if economy.camps.has(Economy.CAMP_FOR[res]) and pos.distance_to(drop_off(Battlefield.PLAYER, res)) < 40:
 			building_tapped.emit("mill" if res == "food" else "lumber_camp", drop_off(Battlefield.PLAYER, res))
@@ -1218,6 +1227,8 @@ func build_sites(e: Economy) -> Array:
 	for res in Economy.CAMP_FOR:
 		if e.site_open("camp", Economy.CAMP_FOR[res]):
 			sites.append([Economy.CAMP_FOR[res], drop_off(p, res), "camp"])
+	if e.site_open("camp", "forge"):
+		sites.append(["forge", forge_pos(p), "camp"])
 	for id in GameConfig.data().military:
 		# Only an empty plot; 2nd and 3rd ones are built from the menus.
 		if e.site_open("military", id) and not e.military.has(id):
@@ -1445,7 +1456,7 @@ func _draw_jobs(team: int, e: Economy, now: float) -> void:
 				var ms := _site("mine", mine_pos(team, job.id))
 				_draw_scaffold(ms[0], ms[1], frac, now, true)
 			"camp":
-				var cs := _site("work", drop_off(team, GameConfig.data().buildings[job.id].resource))
+				var cs := _camp_site(team, job.id)
 				_draw_scaffold(cs[0], cs[1], frac, now, true)
 			"military":
 				var bs := _military_site(team, e, job.id)
@@ -1484,7 +1495,7 @@ func _job_sites(team: int, e: Economy, job: Dictionary) -> Array:
 		"mine":
 			return [_site("mine", mine_pos(team, job.id))]
 		"camp":
-			return [_site("work", drop_off(team, GameConfig.data().buildings[job.id].resource))]
+			return [_camp_site(team, job.id)]
 		"military":
 			return [_military_site(team, e, job.id)]
 		"towers":
@@ -1589,7 +1600,16 @@ func _upgrade_sites(team: int, id: String) -> Array:
 			return t
 		"barracks", "archery_range", "stables":
 			return [_site("military", military_pos(team, site))]
+		"forge":
+			return [_camp_site(team, "forge")]
 	return [_site("mine", mine_pos(team, site))]
+
+
+## Scaffold site of a farm, lumberjack or the forge.
+func _camp_site(team: int, id: String) -> Array:
+	if id == "forge":
+		return _site("work", forge_pos(team))
+	return _site("work", drop_off(team, GameConfig.data().buildings[id].resource))
 
 
 ## "×3" when more of the same are waiting in that queue.

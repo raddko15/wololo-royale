@@ -607,6 +607,7 @@ func _init() -> void:
 	_test_shrines()
 	_test_fort_defense()
 	_test_volleys()
+	_test_forge()
 	print("FAILURES: %d" % _failures)
 	quit(1 if _failures else 0)
 
@@ -715,3 +716,19 @@ func _test_volleys() -> void:
 	foe.y = Battlefield.SHRINE_Y + 0.08
 	ss.tick(0.05)
 	_check(ss.arrows.size() == 1 and ss.arrows[0].from == "shrine" and ss.arrows[0].team == Battlefield.PLAYER, "a held shrine shoots at foes passing it")
+
+
+func _test_forge() -> void:
+	var fe := Economy.new("romans")
+	fe.resources = {"food": 5000.0, "wood": 5000.0, "gold": 5000.0, "stone": 5000.0}
+	_check(not fe.site_open("camp", "forge"), "no forge in Era I")
+	fe.era_index = 1
+	_check(not fe.can_upgrade("fletching") and fe.build_camp("forge"), "Era II: build the forge first, then its upgrades")
+	fe.finish_jobs()
+	_check(fe.buy_upgrade("fletching"), "fletching at the forge")
+	fe.finish_jobs()
+	_check(is_equal_approx(fe.arrow_bonus(), 0.2) and is_equal_approx(fe.unit_bonus("archer").get("damage", 0.0), 0.2), "fletching: +20% for every arrow, archers' too")
+	var fm := Match.new("romans", "franks", "human")
+	fm.economies[0].upgrades["fletching"] = true
+	fm.tick(0.01)
+	_check(is_equal_approx(fm.battle.arrow_bonus(0), 1.2), "the battle's towers, fort and shrines shoot harder")

@@ -60,6 +60,7 @@ func tick(delta: float) -> void:
 		ai.tick(delta)
 	battle.tick(delta)
 	for team in 2:
+		battle.arrow_bonuses[team] = 1.0 + economies[team].arrow_bonus()
 		var r: Dictionary = economies[team].resources
 		r["faith"] = r.get("faith", 0.0) + battle.faith_rate(team) * delta
 

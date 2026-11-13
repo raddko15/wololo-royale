@@ -162,6 +162,8 @@ func _wanted_buildings() -> Dictionary:
 			elif e.upgrades.has("lumber_camp"):
 				wood = "timber_yard" if classical else "lumber_camp"
 			want["wood%d" % team] = [wood, view.drop_off(team, "wood"), color]
+		if e.camps.has("forge"):
+			want["forge%d" % team] = ["forge", view.forge_pos(team), color]
 		for res in e.mines:
 			want["mine%d_%s" % [team, res]] = [res + ("_mine2" if e.upgrades.has(res + "_mine2") else "_mine"), view.mine_pos(team, res), color]
 		for id in e.military:
@@ -236,6 +238,8 @@ func model_for(id: String, e: Economy) -> Array:
 			return ["granary", false]
 		"lumberjack":
 			return ["lean_to", false]
+		"forge", "fletching", "bodkin", "bracer":
+			return ["forge", false]
 		"hut":
 			return ["hut_era0" if e.era_index == 0 else ("hut_classical" if classical else "hut_medieval"), false]
 		"towers":
