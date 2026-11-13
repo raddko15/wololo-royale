@@ -74,6 +74,9 @@ var _supersample := MAP_SUPERSAMPLE
 var _quality := 0
 var _slow_frames := 0.0
 var _timed := 0.0
+## While the loading screen shows: buildings, scenery and figures start
+## hidden and `unveil()` shows them a part every few frames.
+var veiled := false
 
 
 func _init(battle_view: BattleView) -> void:
@@ -182,6 +185,7 @@ func _wanted_buildings() -> Dictionary:
 func _sync_buildings() -> void:
 	if _building_root == null:
 		_building_root = Node3D.new()
+		_building_root.visible = not veiled
 		_root.add_child(_building_root)
 	var want := _wanted_buildings()
 	for slot in _buildings.keys():
@@ -349,6 +353,7 @@ const FIGURE_SCALE := 1.25
 func _sync_figures() -> void:
 	if _figure_root == null:
 		_figure_root = Node3D.new()
+		_figure_root.visible = not veiled
 		_root.add_child(_figure_root)
 	var now := Time.get_ticks_msec() / 1000.0
 	var seen := {}
@@ -648,6 +653,20 @@ func _build_world() -> void:
 	root.add_child(camera)
 
 
+## Show the veiled world a part at a time. A browser compiles each new
+## look's shaders in the frame it first draws, and nothing moves meanwhile;
+## in steps, the loading ring turns between them.
+func unveil() -> void:
+	while _building_root == null or _figure_root == null or _scenery == null:
+		await get_tree().process_frame
+	for part: Node3D in [null, _building_root, _scenery, _figure_root]:
+		if part:
+			part.visible = true
+		for i in 2:
+			await get_tree().process_frame
+	veiled = false
+
+
 ## Lay out the map at this view's size and frame it with the camera.
 func _fit() -> void:
 	_fitted_for = size
@@ -705,6 +724,7 @@ func _build_scenery() -> void:
 	if _scenery:
 		_scenery.queue_free()
 	_scenery = Node3D.new()
+	_scenery.visible = not veiled
 	_root.add_child(_scenery)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 11

@@ -87,8 +87,8 @@ func _start_game(civ_id: String, menu: Control, their_civ := "", role := "") -> 
 	for i in 2:
 		await get_tree().process_frame
 	_build_game(civ_id, menu, their_civ, role)
-	for i in 8:  # the 3D view fits its camera over its first frames
-		await get_tree().process_frame
+	_world.veiled = true
+	await _world.unveil()
 	loading.finish()
 
 
